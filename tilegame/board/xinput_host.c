@@ -5,6 +5,7 @@
  * reports, and an OUT endpoint for rumble and LEDs, which are not used here. A wired pad needs no start-up handshake: it
  * sends reports as soon as the endpoint is polled. The decoding is in xinput.c; this file only moves the bytes.
  */
+#include <stdio.h>
 #include <string.h>
 
 #include "tusb.h"
@@ -20,6 +21,12 @@ typedef struct {
 
 static xdev_t xdev[CFG_TUH_DEVICE_MAX + 1];
 
+/* Counters for the diagnostic screen: where does the traffic stop? */
+static struct {
+    uint32_t opened, configured, queued, claim_failed, xfer_failed, callbacks, callbacks_ok;
+    uint32_t last_result, last_len;
+} dbg;
+
 static bool x_init(void)
 {
     memset(xdev, 0, sizeof xdev);
@@ -30,8 +37,16 @@ static bool x_deinit(void) { return true; }
 
 static void start_receive(uint8_t dev_addr, xdev_t *x)
 {
-    if (usbh_edpt_claim(dev_addr, x->ep_in) && !usbh_edpt_xfer(dev_addr, x->ep_in, x->buf, sizeof x->buf))
+    if (!usbh_edpt_claim(dev_addr, x->ep_in)) {
+        dbg.claim_failed++;
+        return;
+    }
+    if (usbh_edpt_xfer(dev_addr, x->ep_in, x->buf, sizeof x->buf)) {
+        dbg.queued++;
+    } else {
+        dbg.xfer_failed++;
         usbh_edpt_release(dev_addr, x->ep_in);
+    }
 }
 
 static bool x_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_t *itf, uint16_t max_len)
@@ -65,6 +80,7 @@ static bool x_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_t
     if (!x->ep_in)
         return false;
     x->used = true;
+    dbg.opened++;
     usb_hid_xinput_attach(dev_addr);
     return true;
 }
@@ -72,6 +88,7 @@ static bool x_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_t
 static bool x_set_config(uint8_t dev_addr, uint8_t itf_num)
 {
     xdev_t *x = &xdev[dev_addr];
+    dbg.configured++;
     if (x->used)
         start_receive(dev_addr, x);
     usbh_driver_set_config_complete(dev_addr, itf_num);
@@ -83,7 +100,11 @@ static bool x_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, u
     xdev_t *x = &xdev[dev_addr];
     if (!x->used || ep_addr != x->ep_in)
         return true;   /* the OUT endpoint is not used */
+    dbg.callbacks++;
+    dbg.last_result = (uint32_t)result;
+    dbg.last_len = xferred_bytes;
     if (result == XFER_RESULT_SUCCESS) {
+        dbg.callbacks_ok++;
         usb_hid_xinput_report(dev_addr, x->buf, (uint16_t)xferred_bytes);
         start_receive(dev_addr, x);   /* ask for the next report */
     }
@@ -108,4 +129,16 @@ const usbh_class_driver_t *usbh_app_driver_get_cb(uint8_t *driver_count)
 {
     *driver_count = 1;
     return &xinput_driver;
+}
+
+int xinput_debug(char (*lines)[41], int max_lines)
+{
+    int n = 0;
+#define LINE(...) do { if (n < max_lines) snprintf(lines[n++], 41, __VA_ARGS__); } while (0)
+    LINE("XD OPEN %lu CFG %lu QUEUED %lu", (unsigned long)dbg.opened, (unsigned long)dbg.configured, (unsigned long)dbg.queued);
+    LINE("XD CLAIMFAIL %lu XFERFAIL %lu", (unsigned long)dbg.claim_failed, (unsigned long)dbg.xfer_failed);
+    LINE("XD CALLBACKS %lu OK %lu", (unsigned long)dbg.callbacks, (unsigned long)dbg.callbacks_ok);
+    LINE("XD LAST RESULT %lu LENGTH %lu", (unsigned long)dbg.last_result, (unsigned long)dbg.last_len);
+#undef LINE
+    return n;
 }

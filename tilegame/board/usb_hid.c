@@ -319,6 +319,7 @@ int usb_hid_diag(char (*lines)[41], int max)
              diag.xin_last[3], diag.xin_last[4], diag.xin_last[5], diag.xin_last[6], diag.xin_last[7], diag.xin_last[8],
              diag.xin_last[9]);
         LINE("DECODED PLATFORM BUTTONS %04X", diag.xin_buttons);
+        n += xinput_debug(lines + n, max - n);
         return n;
     }
     if (!diag.have_iface) {
