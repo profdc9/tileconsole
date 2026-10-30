@@ -8,3 +8,8 @@ loop, time, buttons and an audio callback. One header, one backend per target:
 
 `demo/game_demo.c` is a portable demo that uses only `platform.h`. `make check` runs the SDL backend's headless tests;
 `make game_demo` builds the desktop demo. MIT licensed.
+
+Board build: `cmake -S board -B build -DCPU_MHZ=504 [-DDEMO_AUTOPLAY=ON]` (needs `PICO_SDK_PATH`; expects `tilegfx` and
+`hstx-free` next to this directory, override with `-DTILEGFX_DIR=` and `-DHSTX_FREE_DIR=`). The gamepad is a NES pad
+on GPIO 20 (clock), 21 (latch), 26 (data), set by `PLAT_NES_*`. `DEMO_AUTOPLAY` lets the demo press its own buttons.
+The board prints fps, render time, underruns and the audio queue level on USB serial once a second.

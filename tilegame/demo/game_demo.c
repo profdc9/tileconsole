@@ -47,7 +47,15 @@ int main(void)
 
     while (!plat_quit_requested()) {
         const uint32_t frame = plat_wait_frame();
-        const plat_buttons_t b = plat_buttons(0), hit = plat_buttons_pressed(0);
+        plat_buttons_t b = plat_buttons(0), hit = plat_buttons_pressed(0);
+#ifdef DEMO_AUTOPLAY   /* press buttons by itself, to try the demo without an input device */
+        static const plat_buttons_t walk[4] = {PLAT_BTN_RIGHT, PLAT_BTN_DOWN, PLAT_BTN_LEFT, PLAT_BTN_UP};
+        b |= walk[(frame / 45) % 4];
+        if (frame % 120 == 0)
+            hit |= PLAT_BTN_A, b |= PLAT_BTN_A;
+        if (frame % 600 == 0)
+            hit |= PLAT_BTN_B;
+#endif
 
         px += ((b & PLAT_BTN_RIGHT) ? 3 : 0) - ((b & PLAT_BTN_LEFT) ? 3 : 0);
         py += ((b & PLAT_BTN_DOWN) ? 3 : 0) - ((b & PLAT_BTN_UP) ? 3 : 0);

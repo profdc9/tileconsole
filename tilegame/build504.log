@@ -1,0 +1,51 @@
+Using PICO_SDK_PATH from environment ('/home/dmarks/claude/FRANK/pico-sdk-2.3.1')
+PICO_SDK_PATH is /home/dmarks/claude/FRANK/pico-sdk-2.3.1
+Target board (PICO_BOARD) is 'pico2'.
+Using board configuration from /home/dmarks/claude/FRANK/pico-sdk-2.3.1/src/boards/include/boards/pico2.h
+Pico Platform (PICO_PLATFORM) is 'rp2350-arm-s'.
+-- Defaulting build type to 'Release' since not specified.
+Defaulting compiler (PICO_COMPILER) to 'pico_arm_cortex_m33_gcc' since not specified or detected.
+Configuring toolchain based on PICO_COMPILER 'pico_arm_cortex_m33_gcc'
+Defaulting PICO_GCC_TRIPLE to 'arm-none-eabi'
+-- The C compiler identification is GNU 13.2.1
+-- The CXX compiler identification is GNU 13.2.1
+-- The ASM compiler identification is GNU
+-- Found assembler: /usr/bin/arm-none-eabi-gcc
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /usr/bin/arm-none-eabi-gcc - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/arm-none-eabi-g++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+Build type is Release
+Forcing fetch of picotool from git
+CMake Warning at /home/dmarks/claude/FRANK/pico-sdk-2.3.1/tools/Findpicotool.cmake:30 (message):
+  No installed picotool with version 2.3.0 found - building from source
+
+  It is recommended to build and install picotool separately, or to set
+  PICOTOOL_FETCH_FROM_GIT_PATH to a common directory for all your SDK
+  projects
+Call Stack (most recent call first):
+  /home/dmarks/claude/FRANK/pico-sdk-2.3.1/tools/CMakeLists.txt:180 (find_package)
+  /home/dmarks/claude/FRANK/pico-sdk-2.3.1/src/cmake/on_device.cmake:54 (pico_init_picotool)
+  /home/dmarks/claude/FRANK/pico-sdk-2.3.1/src/rp2350/boot_stage2/CMakeLists.txt:62 (pico_add_dis_output)
+  /home/dmarks/claude/FRANK/pico-sdk-2.3.1/src/rp2350/boot_stage2/CMakeLists.txt:103 (pico_define_boot_stage2)
+
+
+Downloading Picotool
+Using picotool from /home/dmarks/claude/FRANK/tilegame/build504/_deps/picotool/picotool
+-- Found Python3: /home/dmarks/.local/bin/python3.13 (found version "3.13.17") found components: Interpreter 
+-- Detected native TLS (__aeabi_read_tp)
+TinyUSB available at /home/dmarks/claude/FRANK/pico-sdk-2.3.1/lib/tinyusb/hw/bsp/rp2040; enabling build support for USB.
+BTstack available at /home/dmarks/claude/FRANK/pico-sdk-2.3.1/lib/btstack
+cyw43-driver available at /home/dmarks/claude/FRANK/pico-sdk-2.3.1/lib/cyw43-driver
+mbedtls available at /home/dmarks/claude/FRANK/pico-sdk-2.3.1/lib/mbedtls
+lwIP available at /home/dmarks/claude/FRANK/pico-sdk-2.3.1/lib/lwip
+C library type is newlib
+-- Configuring done (2.1s)
+-- Generating done (0.1s)
+-- Build files have been written to: /home/dmarks/claude/FRANK/tilegame/build504
