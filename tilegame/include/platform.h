@@ -70,6 +70,8 @@ uint32_t plat_frame(void);    /* the number plat_wait_frame last returned */
 #define PLAT_BTN_Y      0x0080
 #define PLAT_BTN_START  0x0100
 #define PLAT_BTN_SELECT 0x0200
+#define PLAT_BTN_L      0x0400   /* shoulder buttons */
+#define PLAT_BTN_R      0x0800
 
 typedef uint16_t plat_buttons_t;
 

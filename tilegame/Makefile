@@ -6,7 +6,7 @@ CFLAGS ?= -std=c11 -Wall -Wextra -O2
 INC = -Iinclude -Isdl -I$(TILEGFX) -I$(TILESND)
 SDL = $(shell pkg-config --cflags --libs sdl2)
 
-all: game_demo platformer test_platform_sdl test_hid_kbd test_game test_view
+all: game_demo platformer test_platform_sdl test_hid_kbd test_hid_pad test_game test_view
 
 test_platform_sdl: tests/test_platform_sdl.c sdl/plat_sdl.c sdl/plat_sdl.h include/platform.h $(TILEGFX)/tilegfx.c
 	$(CC) $(CFLAGS) -g -fsanitize=address,undefined $(INC) tests/test_platform_sdl.c sdl/plat_sdl.c $(TILEGFX)/tilegfx.c -o $@ $(SDL) -lm
@@ -26,11 +26,15 @@ platformer: game/game_main.c $(GAMESRC) sdl/plat_sdl.c include/platform.h $(TILE
 test_view: tests/test_view.c $(GAMESRC) game/game.h game/level.h game/view.h $(TILEGFX)/tilegfx.c $(FONTSRC)
 	$(CC) $(CFLAGS) -g -fsanitize=address,undefined $(INC) -Igame tests/test_view.c $(GAMESRC) $(TILEGFX)/tilegfx.c $(FONTSRC) -o $@ -lm
 
-check: test_platform_sdl test_hid_kbd test_game test_view
+test_hid_pad: tests/test_hid_pad.c src/hid_pad.c src/hid_mouse.c include/hid_pad.h include/hid_mouse.h include/platform.h
+	$(CC) $(CFLAGS) -g -fsanitize=address,undefined $(INC) tests/test_hid_pad.c src/hid_pad.c src/hid_mouse.c -o $@
+
+check: test_platform_sdl test_hid_kbd test_hid_pad test_game test_view
 	./test_platform_sdl
 	./test_hid_kbd
+	./test_hid_pad
 	./test_game
 	./test_view
 
 clean:
-	rm -f game_demo platformer test_platform_sdl test_hid_kbd test_game test_view
+	rm -f game_demo platformer test_platform_sdl test_hid_kbd test_hid_pad test_game test_view
