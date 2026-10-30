@@ -41,7 +41,7 @@ static volatile uint32_t frame_gen;   /* counts vsyncs (written by the vsync int
 static volatile int32_t cons;         /* highest source line the scanout has asked for this frame */
 static volatile int32_t rendered;     /* source lines finished this frame */
 
-static volatile uint32_t underruns, lead_min = 0xFFFF, lines_done;
+static volatile uint32_t underruns, lead_min = 0xFFFF, lead_first_min = 0xFFFF, lines_done;
 static volatile uint32_t render_us_total, render_us_max;
 
 /* Publish the game's state; core 1 uses the newest one at the start of the next frame. */
@@ -70,7 +70,10 @@ static const uint32_t *__scratch_x("") scanline_ptr(uint32_t v_scanline, uint32_
         underruns++;
         if (s)
             s--;
-    } else if ((uint32_t)lead < lead_min) {
+    } else if (s == 0) {
+        if ((uint32_t)lead < lead_first_min)
+            lead_first_min = (uint32_t)lead;
+    } else if (s <= TG_HEIGHT - RING && (uint32_t)lead < lead_min) {   /* near the end of a frame the lead shrinks by design */
         lead_min = (uint32_t)lead;
     }
     return ring[s % RING];
@@ -234,12 +237,12 @@ int main(void)
             const uint32_t lines = lines_done, total = render_us_total, gen = frame_gen;
             const uint32_t dl = lines - last_lines;
             printf("sys %lu kHz  hstx %lu kHz  %lu fps  render %lu.%02lu us/line avg, %lu us max  "
-                   "underruns %lu  lead >= %lu lines this second\n",
+                   "underruns %lu  lead this second: first line >= %lu, others >= %lu\n",
                    (unsigned long)(clock_get_hz(clk_sys) / 1000), (unsigned long)(clock_get_hz(clk_hstx) / 1000),
                    (unsigned long)(gen - last_gen), (unsigned long)(dl ? (total - last_total) / dl : 0),
                    (unsigned long)(dl ? (total - last_total) * 100 / dl % 100 : 0), (unsigned long)render_us_max,
-                   (unsigned long)underruns, (unsigned long)lead_min);
-            lead_min = 0xFFFF;
+                   (unsigned long)underruns, (unsigned long)lead_first_min, (unsigned long)lead_min);
+            lead_min = lead_first_min = 0xFFFF;
 #ifdef BENCH_AT_BOOT
             if ((frame / 60) % 3 == 0)
                 bench_print();
