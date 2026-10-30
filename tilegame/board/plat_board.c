@@ -53,6 +53,7 @@ static volatile int32_t cons;         /* highest source line the scanout has ask
 static volatile int32_t rendered;     /* source lines finished this frame */
 
 static volatile uint32_t underruns, lines_done, render_us_total, render_us_max;
+static volatile uint32_t audio_calls, audio_us_total, audio_us_max;   /* time spent in the game's audio callback */
 
 static uint32_t frame_no, seen_gen;
 static plat_buttons_t held[PLAT_MAX_PLAYERS], pressed[PLAT_MAX_PLAYERS], released[PLAT_MAX_PLAYERS];
@@ -98,7 +99,13 @@ static void __not_in_flash_func(audio_pump)(void)
         audio_sample_t samples[4];
         for (int i = 0; i < 4; i++) {
             if (audio_pos >= AUDIO_CHUNK) {
+                const uint32_t t0 = time_us_32();
                 fn(audio_buf, AUDIO_CHUNK, audio_user);
+                const uint32_t dt = time_us_32() - t0;
+                audio_calls++;
+                audio_us_total += dt;
+                if (dt > audio_us_max)
+                    audio_us_max = dt;
                 audio_pos = 0;
             }
             samples[i].left = audio_buf[2 * audio_pos];
@@ -270,10 +277,12 @@ uint32_t plat_wait_frame(void)
     const uint32_t now_us = time_us_32();
     if (now_us - last_us >= 1000000) {
         const uint32_t lines = lines_done, total = render_us_total, dl = lines - last_lines;
-        printf("%lu fps  render %lu us/line (%lu max)  underruns %lu  audio queue %lu, silence packets %lu\n",
+        printf("%lu fps  render %lu us/line (%lu max)  underruns %lu  audio queue %lu, silence packets %lu  audio %lu us per %d frames (%lu max)\n",
                (unsigned long)(frame_no - last_frame), (unsigned long)(dl ? (total - last_total) / dl : 0),
                (unsigned long)render_us_max, (unsigned long)underruns, (unsigned long)hstx_di_queue_get_level(),
-               (unsigned long)hstx_di_queue_silence_count);
+               (unsigned long)hstx_di_queue_silence_count, (unsigned long)(audio_calls ? audio_us_total / audio_calls : 0), AUDIO_CHUNK,
+               (unsigned long)audio_us_max);
+        audio_calls = audio_us_total = audio_us_max = 0;
         last_us = now_us;
         last_lines = lines;
         last_total = total;
