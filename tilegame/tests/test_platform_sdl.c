@@ -239,6 +239,8 @@ static SDL_Joystick *attach_virtual(const char *name)
     d.naxes = SDL_CONTROLLER_AXIS_MAX;
     d.nbuttons = SDL_CONTROLLER_BUTTON_MAX;
     d.name = name;
+    d.vendor_id = 0x1209;    /* the only ids the test lets SDL use (see main), so a real pad plugged in does not interfere */
+    d.product_id = 0x0001;
     virtual_index = SDL_JoystickAttachVirtualEx(&d);
     if (virtual_index < 0)
         return NULL;
@@ -344,6 +346,7 @@ int main(void)
 {
     setenv("SDL_VIDEODRIVER", "dummy", 1);
     setenv("SDL_AUDIODRIVER", "dummy", 1);
+    setenv("SDL_GAMECONTROLLER_IGNORE_DEVICES_EXCEPT", "0x1209/0x0001", 1);   /* ignore real controllers */
     CHECK(plat_init());
     test_timing();
     test_input();
