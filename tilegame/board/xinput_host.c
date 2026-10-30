@@ -160,7 +160,7 @@ int xinput_debug(char (*lines)[41], int max_lines)
 {
     int n = 0;
 #define LINE(...) do { if (n < max_lines) snprintf(lines[n++], 41, __VA_ARGS__); } while (0)
-    LINE("XD OPEN %lu CFG %lu QUEUED %lu", (unsigned long)dbg.opened, (unsigned long)dbg.configured, (unsigned long)dbg.queued);
+    LINE("XD OPEN %lu CFG %lu TOTAL QUEUED %lu", (unsigned long)dbg.opened, (unsigned long)dbg.configured, (unsigned long)dbg.queued);
     LINE("XD CLAIMFAIL %lu XFERFAIL %lu", (unsigned long)dbg.claim_failed, (unsigned long)dbg.xfer_failed);
     LINE("XD CALLBACKS %lu OK %lu", (unsigned long)dbg.callbacks, (unsigned long)dbg.callbacks_ok);
     LINE("XD LAST RESULT %lu LENGTH %lu", (unsigned long)dbg.last_result, (unsigned long)dbg.last_len);
