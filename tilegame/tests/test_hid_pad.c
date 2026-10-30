@@ -80,9 +80,9 @@ static const uint8_t desc_features[] = {
     0xA4, 0x05, 0x09, 0x15, 0x00, 0x25, 0x01, 0x75, 0x01, 0x09, 0x01, 0x09, 0x02, 0x09, 0x03, 0x09, 0x04, 0x95, 0x04, 0x81, 0x02,   /* push; buttons 1-4 by usage */
     0xB4,                                                                                                                           /* pop: back to usage page 1 */
     0x75, 0x04, 0x95, 0x01, 0x81, 0x03,
-    0xFE, 0x03, 0x10, 0xAA, 0xBB, 0xCC,                                                                                             /* a long item */
+    0xFE, 0x03, 0x10, 0x81, 0x02, 0xC0,                                                                                             /* a long item */
     0x0B, 0x30, 0x00, 0x01, 0x00, 0x15, 0x00, 0x25, 0xFF, 0x75, 0x08, 0x95, 0x01, 0x81, 0x02,                                       /* X as a 4-byte usage, max 0xFF in one byte */
-    0x05, 0x01, 0x09, 0x31, 0x15, 0x00, 0x26, 0xFF, 0x00, 0x75, 0x08, 0x95, 0x01, 0x81, 0x02,                                       /* Y */
+    0x09, 0x31, 0x15, 0x00, 0x26, 0xFF, 0x00, 0x75, 0x08, 0x95, 0x01, 0x81, 0x02,                                                   /* Y: relies on the pop to bring back the Generic Desktop page */
     0x09, 0x39, 0x15, 0x01, 0x25, 0x04, 0x75, 0x04, 0x95, 0x01, 0x81, 0x42,                                                         /* a 4-way hat */
     0x75, 0x04, 0x95, 0x01, 0x81, 0x03,
     0xC0,
@@ -324,19 +324,53 @@ static void test_robustness(void)
     CHECK(!hid_pad_parse_descriptor((const uint8_t[]){0x05}, 1, &p));
     CHECK(!hid_pad_parse_descriptor((const uint8_t[]){0xFE, 0x05, 0x01}, 3, &p));   /* a long item that claims more than there is */
 
-    /* Random descriptors, partly made of plausible items so that the parser gets somewhere, with random reports. */
-    static const uint8_t prefixes[] = {0x05, 0x09, 0x15, 0x25, 0x26, 0x75, 0x95, 0x81, 0xA1, 0xC0, 0x19, 0x29, 0x85, 0xA5, 0xB5, 0x0B, 0xFE, 0x16, 0x35, 0x46};
+    /* Random descriptors: mostly well formed (a gamepad header, then blocks of plausible items with random sizes, counts, ranges and
+     * usages), and then damaged: bytes flipped, or cut short. This reaches the interesting code far more often than noise does. */
     hid_pad_t ok_pad;
     CHECK(hid_pad_parse_descriptor(desc_simple, sizeof desc_simple, &ok_pad));
     int found = 0;
     for (int trial = 0; trial < 300000; trial++) {
-        uint8_t d[96];
-        const size_t n = rnd() % sizeof d;
-        for (size_t i = 0; i < n; i++)
-            d[i] = (rnd() & 3) ? ((rnd() & 1) ? prefixes[rnd() % sizeof prefixes] : (uint8_t)(rnd() % 16)) : (uint8_t)rnd();
-        if (n > 8 && (rnd() & 1)) {                        /* start like a gamepad so that more of them get through */
-            memcpy(d, (const uint8_t[]){0x05, 0x01, 0x09, 0x05, 0xA1, 0x01}, 6);
+        uint8_t d[160];
+        size_t n = 0;
+        static const uint8_t header[] = {0x05, 0x01, 0x09, 0x05, 0xA1, 0x01};
+        memcpy(d, header, sizeof header);
+        n = sizeof header;
+        const int blocks = 1 + (int)(rnd() % 6);
+        for (int b = 0; b < blocks && n + 24 < sizeof d; b++) {
+            switch (rnd() % 6) {
+            case 0:   /* buttons by usage range */
+                d[n++] = 0x05; d[n++] = 0x09; d[n++] = 0x19; d[n++] = 0x01; d[n++] = 0x29; d[n++] = (uint8_t)(1 + rnd() % 20);
+                d[n++] = 0x15; d[n++] = 0x00; d[n++] = 0x25; d[n++] = 0x01; d[n++] = 0x75; d[n++] = 0x01;
+                d[n++] = 0x95; d[n++] = (uint8_t)(1 + rnd() % 20); d[n++] = 0x81; d[n++] = (uint8_t)(rnd() & 7);
+                break;
+            case 1:   /* a hat */
+                d[n++] = 0x05; d[n++] = 0x01; d[n++] = 0x09; d[n++] = 0x39; d[n++] = 0x15; d[n++] = (uint8_t)(rnd() & 1);
+                d[n++] = 0x25; d[n++] = (uint8_t)(3 + rnd() % 6); d[n++] = 0x75; d[n++] = (uint8_t)(1 + rnd() % 8);
+                d[n++] = 0x95; d[n++] = 0x01; d[n++] = 0x81; d[n++] = (uint8_t)(rnd() & 0x47);
+                break;
+            case 2:   /* two axes */
+                d[n++] = 0x05; d[n++] = 0x01; d[n++] = 0x09; d[n++] = 0x30; d[n++] = 0x09; d[n++] = 0x31; d[n++] = 0x15; d[n++] = 0x81;
+                d[n++] = 0x25; d[n++] = 0x7F; d[n++] = 0x75; d[n++] = (uint8_t)(rnd() % 3 ? 8 : 16); d[n++] = 0x95; d[n++] = 0x02;
+                d[n++] = 0x81; d[n++] = (uint8_t)(rnd() & 7);
+                break;
+            case 3:   /* a report ID */
+                d[n++] = 0x85; d[n++] = (uint8_t)(rnd() % 4);
+                break;
+            case 4:   /* padding */
+                d[n++] = 0x75; d[n++] = (uint8_t)(1 + rnd() % 7); d[n++] = 0x95; d[n++] = 0x01; d[n++] = 0x81; d[n++] = 0x03;
+                break;
+            default:  /* push or pop */
+                d[n++] = (rnd() & 1) ? 0xA4 : 0xB4;
+                break;
+            }
         }
+        d[n++] = 0xC0;
+        const unsigned damage = rnd() % 4;
+        if (damage == 1)
+            for (int k = 0; k < 3; k++)
+                d[rnd() % n] = (uint8_t)rnd();
+        else if (damage == 2)
+            n = rnd() % n;
         hid_pad_t q;
         if (hid_pad_parse_descriptor(d, n, &q)) {
             found++;
@@ -354,9 +388,9 @@ static void test_robustness(void)
             rep[i] = (uint8_t)rnd();
         hid_pad_state_t s;
         if (hid_pad_decode(&ok_pad, rep, rnd() % sizeof rep, &s))
-            CHECK((s.dpad & ~0x0F) == 0 && !(s.dpad & HID_DPAD_UP && s.dpad & HID_DPAD_DOWN && 0));
+            CHECK((s.dpad & ~0x0F) == 0);
     }
-    CHECK(found > 100);                                    /* the random descriptors did reach the interesting code */
+    CHECK(found > 50000);                                    /* the random descriptors did reach the interesting code */
     printf("  %d of 300000 random descriptors parsed as pads\n", found);
 
     /* An enormous report count does not hang or overflow. */
