@@ -172,7 +172,7 @@ static void test_sprites_match_source(void)
                 const unsigned flags = rnd() & 3;
                 const uint16_t e = TG_ENTRY(rnd() % NTILES, rnd() & 15, (flags & 1 ? TG_HFLIP : 0) | (flags & 2 ? TG_VFLIP : 0));
                 g.sprites[0] = (tg_sprite_t){.x = (int16_t)x, .y = (int16_t)y, .tile = e & TG_TILE_MASK,
-                                             .flags = (uint8_t)(TG_SPRITE_USED | TG_SPRITE_ON | (flags & 1 ? TG_SPRITE_HFLIP : 0) |
+                                             .flags = (uint8_t)(TG_SPRITE_ON | (flags & 1 ? TG_SPRITE_HFLIP : 0) |
                                                                 (flags & 2 ? TG_SPRITE_VFLIP : 0)),
                                              .pal = (uint8_t)(e >> TG_PAL_SHIFT), .above = 0};
                 const int line = y + (int)(rnd() % size);
@@ -224,7 +224,6 @@ static void test_sprites_and_order(void)
 {
     tg_t g;
     tg_init(&g);
-    g.sprite_count = TG_MAX_SPRITES;   /* filled by hand below */
     g.sprite_tile_log2 = 3;
     g.sprite_depth = 8;
     uint8_t spr[64];
@@ -239,7 +238,8 @@ static void test_sprites_and_order(void)
 
     uint8_t idx[TG_WIDTH];
     /* In front of the layer, partly off the left edge. */
-    g.sprites[0] = (tg_sprite_t){.x = -3, .y = 10, .tile = 0, .flags = TG_SPRITE_ON, .above = 1};
+    const int a = tg_sprite_alloc(&g);
+    g.sprites[a] = (tg_sprite_t){.x = -3, .y = 10, .tile = 0, .flags = TG_SPRITE_ON, .above = 1};
     tg_render_line_indices(&g, 10, idx);
     CHECK(idx[0] == 7 && idx[4] == 7 && idx[5] == 9);     /* sprite covers x -3..4 */
     tg_render_line_indices(&g, 11, idx);
@@ -249,35 +249,80 @@ static void test_sprites_and_order(void)
     tg_render_line_indices(&g, 18, idx);                  /* below the sprite */
     CHECK(idx[0] == 9);
     /* Transparent pixel shows the layer. */
-    g.sprites[0].x = 20;
+    g.sprites[a].x = 20;
     tg_render_line_indices(&g, 10, idx);
     CHECK(idx[20] == 9 && idx[21] == 7);
     /* Behind the layer: the opaque layer hides it completely. */
-    g.sprites[0].above = 0;
+    g.sprites[a].above = 0;
     tg_render_line_indices(&g, 10, idx);
     CHECK(idx[21] == 9);
-    /* Lower sprite number is in front. */
-    g.sprites[0].above = 1;
-    g.sprites[1] = g.sprites[0];
-    g.sprites[1].tile = 1;
+    /* Hidden sprites are not drawn but keep their slot. */
+    g.sprites[a].above = 1;
+    g.sprites[a].flags = 0;
+    tg_render_line_indices(&g, 10, idx);
+    CHECK(idx[21] == 9);
+    g.sprites[a].flags = TG_SPRITE_ON;
+
+    /* Two overlapping sprites: the lower priority number is in front; by default that is the lower slot. */
+    const int b = tg_sprite_alloc(&g);
+    g.sprites[b] = g.sprites[a];
+    g.sprites[b].tile = 1;
     uint8_t spr2[128];
     memcpy(spr2, spr, 64);
     memset(spr2 + 64, 5, 64);
     g.sprite_tiles = spr2;
     tg_render_line_indices(&g, 12, idx);
+    CHECK(a < b && idx[21] == 7);
+    tg_sprite_set_priority(&g, a, 10);                    /* send the first one to the back */
+    tg_render_line_indices(&g, 12, idx);
+    CHECK(idx[21] == 5);
+    tg_sprite_set_priority(&g, b, 10);                    /* equal priorities go by slot again */
+    tg_render_line_indices(&g, 12, idx);
     CHECK(idx[21] == 7);
+
     /* Clipped at the right edge. */
-    g.sprites[1].flags = 0;
-    g.sprites[0].x = TG_WIDTH - 2;
+    tg_sprite_free(&g, b);
+    g.sprites[a].x = TG_WIDTH - 2;
     tg_render_line_indices(&g, 12, idx);
     CHECK(idx[TG_WIDTH - 1] == 7 && idx[TG_WIDTH - 3] == 9);
-    /* The per-line limit. */
-    memset(g.sprites, 0, sizeof g.sprites);
-    for (int i = 0; i < 40; i++)
-        g.sprites[i] = (tg_sprite_t){.x = (int16_t)(i * 8), .y = 100, .tile = 0, .flags = TG_SPRITE_ON, .above = 1};
+    tg_sprite_free(&g, a);
+
+    /* The per-line limit keeps the front-most sprites. */
+    int slot[40];
+    for (int i = 0; i < 40; i++) {
+        slot[i] = tg_sprite_alloc(&g);
+        g.sprites[slot[i]] = (tg_sprite_t){.x = (int16_t)(i * 8), .y = 100, .tile = 0, .flags = TG_SPRITE_ON, .above = 1};
+    }
     tg_render_line_indices(&g, 103, idx);
-    CHECK(idx[(TG_MAX_SPRITES_PER_LINE - 1) * 8 + 4] == 7);
-    CHECK(idx[TG_MAX_SPRITES_PER_LINE * 8 + 4] == 9);
+    CHECK(idx[(TG_MAX_SPRITES_PER_LINE - 1) * 8 + 4] == 7);   /* the first 32 are drawn */
+    CHECK(idx[TG_MAX_SPRITES_PER_LINE * 8 + 4] == 9);         /* the rest are not */
+    CHECK(idx[39 * 8 + 4] == 9);
+    tg_sprite_set_priority(&g, slot[0], 200);                  /* push the first one to the back... */
+    tg_sprite_set_priority(&g, slot[39], 0);                   /* ...and bring the last one to the front */
+    tg_render_line_indices(&g, 103, idx);
+    CHECK(idx[39 * 8 + 4] == 7);                               /* the last is drawn now */
+    CHECK(idx[0 * 8 + 4] == 9);                                /* and the first gave way */
+}
+
+/* The order list must hold exactly the allocated slots, sorted by (priority, slot). */
+static bool order_ok(const tg_t *g, const bool *used, const uint8_t *prio)
+{
+    int n = 0;
+    for (int i = 0; i < TG_MAX_SPRITES; i++)
+        n += used[i];
+    if (g->sprite_count != n)
+        return false;
+    for (int k = 0; k < n; k++) {
+        const int s = g->sprite_order[k];
+        if (!used[s])
+            return false;
+        if (k > 0) {
+            const int p = g->sprite_order[k - 1];
+            if (prio[p] > prio[s] || (prio[p] == prio[s] && p > s))
+                return false;
+        }
+    }
+    return true;
 }
 
 static void test_sprite_alloc(void)
@@ -288,35 +333,37 @@ static void test_sprite_alloc(void)
     for (int i = 0; i < 5; i++)
         CHECK(tg_sprite_alloc(&g) == i);
     CHECK(g.sprite_count == 5);
-    CHECK(g.sprites[3].flags == (TG_SPRITE_USED | TG_SPRITE_ON));
+    CHECK(g.sprites[3].flags == TG_SPRITE_ON);
 
-    /* A hole is reused first, and does not shrink the count while sprites above it are in use. */
+    /* A hole is reused first, and handed out cleared. */
     g.sprites[1].x = 99;
     tg_sprite_free(&g, 1);
-    CHECK(g.sprite_count == 5);
+    CHECK(g.sprite_count == 4);
+    tg_sprite_free(&g, 1);               /* freeing twice does nothing */
+    CHECK(g.sprite_count == 4);
     CHECK(tg_sprite_alloc(&g) == 1);
-    CHECK(g.sprites[1].x == 0);        /* handed out cleared */
+    CHECK(g.sprites[1].x == 0);
     CHECK(g.sprite_count == 5);
 
-    /* Freeing from the top shrinks the count past any holes beneath. */
+    /* Whole-struct assignment does not upset the allocator. */
+    g.sprites[2] = (tg_sprite_t){.x = 5, .y = 6, .flags = 0};
+    CHECK(tg_sprite_alloc(&g) == 5);
     tg_sprite_free(&g, 2);
-    tg_sprite_free(&g, 4);
-    CHECK(g.sprite_count == 4);
-    tg_sprite_free(&g, 3);
-    CHECK(g.sprite_count == 2);
-    tg_sprite_free(&g, 1);
-    tg_sprite_free(&g, 0);
-    CHECK(g.sprite_count == 0);
+    CHECK(tg_sprite_alloc(&g) == 2);
 
     /* Bad slots are ignored, and the table fills up. */
+    tg_init(&g);
     tg_sprite_free(&g, -1);
     tg_sprite_free(&g, TG_MAX_SPRITES);
+    tg_sprite_free(&g, 7);
+    tg_sprite_set_priority(&g, 7, 3);
+    CHECK(g.sprite_count == 0);
     for (int i = 0; i < TG_MAX_SPRITES; i++)
         CHECK(tg_sprite_alloc(&g) == i);
     CHECK(g.sprite_count == TG_MAX_SPRITES);
     CHECK(tg_sprite_alloc(&g) == -1);
 
-    /* The compositor looks only at allocated slots: a visible sprite past sprite_count is not drawn. */
+    /* The compositor looks only at allocated sprites: one that was never allocated is not drawn. */
     tg_init(&g);
     static uint8_t tile[64];
     memset(tile, 7, sizeof tile);
@@ -324,17 +371,47 @@ static void test_sprite_alloc(void)
     g.sprite_depth = 8;
     g.sprite_tiles = tile;
     const int s = tg_sprite_alloc(&g);
-    g.sprites[s].x = 10;
-    g.sprites[s].y = 20;
-    g.sprites[s].above = TG_MAX_LAYERS;
+    g.sprites[s] = (tg_sprite_t){.x = 10, .y = 20, .flags = TG_SPRITE_ON, .above = TG_MAX_LAYERS};
     g.sprites[50] = (tg_sprite_t){.x = 100, .y = 20, .flags = TG_SPRITE_ON, .above = TG_MAX_LAYERS};
     uint8_t idx[TG_WIDTH];
     tg_render_line_indices(&g, 22, idx);
     CHECK(idx[10] == 7 && idx[17] == 7 && idx[18] == 0);
     CHECK(idx[100] == 0);
     tg_sprite_free(&g, s);
-    tg_render_line_indices(&g, 22, idx);   /* freed: gone, and the line is untouched */
+    tg_render_line_indices(&g, 22, idx);   /* freed: gone */
     CHECK(idx[10] == 0);
+
+    /* Random allocate, free and re-prioritise, against a plain model of what the order must be. */
+    tg_init(&g);
+    bool used[TG_MAX_SPRITES] = {0};
+    uint8_t prio[TG_MAX_SPRITES] = {0};
+    for (int step = 0; step < 20000; step++) {
+        const unsigned op = rnd() % 5;
+        if (op <= 1) {
+            const int got = tg_sprite_alloc(&g);
+            int want = -1;
+            for (int i = 0; i < TG_MAX_SPRITES && want < 0; i++)
+                if (!used[i])
+                    want = i;
+            CHECK(got == want);
+            if (got >= 0) {
+                used[got] = true;
+                prio[got] = (uint8_t)got;
+            }
+        } else if (op == 2) {
+            const int slot = (int)(rnd() % (TG_MAX_SPRITES + 4)) - 2;
+            tg_sprite_free(&g, slot);
+            if (slot >= 0 && slot < TG_MAX_SPRITES)
+                used[slot] = false;
+        } else {
+            const int slot = (int)(rnd() % TG_MAX_SPRITES);
+            const uint8_t p = (uint8_t)(rnd() % 6);   /* few distinct values, so ties are common */
+            tg_sprite_set_priority(&g, slot, p);
+            if (used[slot])
+                prio[slot] = p;
+        }
+        CHECK(order_ok(&g, used, prio));
+    }
 }
 
 static void test_bitmap_palette_and_hooks(void)

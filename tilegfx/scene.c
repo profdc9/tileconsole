@@ -87,7 +87,7 @@ void scene_animate(tg_t *g, int frame, int scroll, bool use_wave)
     for (int i = 0; i < NSPRITES; i++) {
         const double t = frame * 0.03 + i * 0.7;
         g->sprites[sprite_slot[i]] = (tg_sprite_t){.x = (int16_t)(150 + 140 * sin(t)), .y = (int16_t)(100 + 60 * sin(t * 1.7 + i)), .tile = (uint16_t)(i & 3),
-                                                   .flags = (uint8_t)(TG_SPRITE_USED | TG_SPRITE_ON | ((i & 4) ? TG_SPRITE_HFLIP : 0)),
+                                                   .flags = (uint8_t)(TG_SPRITE_ON | ((i & 4) ? TG_SPRITE_HFLIP : 0)),
                                                    .above = (uint8_t)(i % 3 ? 2 : 1)};
     }
     for (int l = 0; l < TG_HEIGHT; l++)

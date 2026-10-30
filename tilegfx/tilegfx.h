@@ -57,7 +57,6 @@ typedef struct {
 #define TG_SPRITE_ON 1
 #define TG_SPRITE_HFLIP 2
 #define TG_SPRITE_VFLIP 4
-#define TG_SPRITE_USED 8   /* the slot is allocated (set by tg_sprite_alloc); TG_SPRITE_ON says whether it is drawn */
 
 typedef struct {
     int16_t x, y;   /* top left, in screen pixels; may be partly off screen */
@@ -74,9 +73,11 @@ struct tg {
     uint16_t palette[256];   /* RGB565; entry 0 is the backdrop colour */
     tg_layer_t layers[TG_MAX_LAYERS];   /* drawn in order, 0 at the back */
 
-    tg_sprite_t sprites[TG_MAX_SPRITES]; /* lower numbers are drawn in front of higher ones */
-    uint8_t sprite_count;                /* only sprites[0 .. sprite_count-1] are looked at; tg_sprite_alloc/free keep it right,
-                                            so set it yourself only if you fill sprites[] by hand (tg_init sets 0) */
+    tg_sprite_t sprites[TG_MAX_SPRITES]; /* get a slot from tg_sprite_alloc, then assign to it freely */
+    uint8_t sprite_count;                /* sprites allocated: the length of sprite_order */
+    uint8_t sprite_order[TG_MAX_SPRITES];/* the allocated slots, front-most first; the compositor walks this list */
+    uint8_t sprite_prio[TG_MAX_SPRITES]; /* bookkeeping for the three functions below; do not write these directly */
+    uint32_t sprite_used[TG_MAX_SPRITES / 32];
     uint8_t sprite_tile_log2, sprite_depth;
     const uint8_t *sprite_tiles;
 
@@ -87,13 +88,19 @@ struct tg {
 void tg_init(tg_t *g);
 
 /*
- * Sprite slots. tg_sprite_alloc returns the lowest free slot, cleared and set to TG_SPRITE_USED | TG_SPRITE_ON, or -1
- * if all TG_MAX_SPRITES are taken; fill in x, y, tile and the rest through g->sprites[slot]. tg_sprite_free gives the
- * slot back. Slots stay packed at the bottom, so the per-line sprite search only looks at what is in use.
- * A lower slot is drawn in front of a higher one, so a new sprite can end up in front of older ones.
+ * Sprites. tg_sprite_alloc returns the lowest free slot, cleared and set to TG_SPRITE_ON, with priority equal to the
+ * slot number, or -1 if all TG_MAX_SPRITES are taken; fill in x, y, tile and the rest through g->sprites[slot], which
+ * may be assigned as a whole. tg_sprite_free gives the slot back.
+ *
+ * Sprites are drawn in order of priority: a lower priority number is in front, and equal priorities go by slot. The
+ * compositor looks only at allocated sprites, in that order, so unused slots cost nothing, and when more than
+ * TG_MAX_SPRITES_PER_LINE sprites touch one line it is the front-most ones that are drawn. `above` still decides
+ * which tile layers a sprite is in front of. Allocating, freeing and changing a priority keep the order list sorted;
+ * none of them is meant to be called per line.
  */
 int tg_sprite_alloc(tg_t *g);
 void tg_sprite_free(tg_t *g, int slot);
+void tg_sprite_set_priority(tg_t *g, int slot, uint8_t prio);
 
 /* Compose one line as palette indices. */
 void tg_render_line_indices(tg_t *g, int line, uint8_t idx[TG_WIDTH]);

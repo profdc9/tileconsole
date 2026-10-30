@@ -19,14 +19,45 @@ void tg_init(tg_t *g)
 
 typedef uint32_t __attribute__((may_alias, aligned(1))) tg_u32_unaligned;
 
+static bool sprite_allocated(const tg_t *g, int slot)
+{
+    return slot >= 0 && slot < TG_MAX_SPRITES && (g->sprite_used[slot >> 5] >> (slot & 31) & 1);
+}
+
+/* Put an allocated slot into sprite_order: after every entry that is in front of it (lower priority, or equal and lower slot). */
+static void order_insert(tg_t *g, int slot)
+{
+    int k = g->sprite_count;
+    while (k > 0) {
+        const int o = g->sprite_order[k - 1];
+        if (g->sprite_prio[o] < g->sprite_prio[slot] || (g->sprite_prio[o] == g->sprite_prio[slot] && o < slot))
+            break;
+        g->sprite_order[k] = g->sprite_order[k - 1];
+        k--;
+    }
+    g->sprite_order[k] = (uint8_t)slot;
+    g->sprite_count++;
+}
+
+static void order_remove(tg_t *g, int slot)
+{
+    int k = 0;
+    while (k < g->sprite_count && g->sprite_order[k] != slot)
+        k++;
+    for (; k + 1 < g->sprite_count; k++)
+        g->sprite_order[k] = g->sprite_order[k + 1];
+    g->sprite_count--;
+}
+
 int tg_sprite_alloc(tg_t *g)
 {
     for (int i = 0; i < TG_MAX_SPRITES; i++) {
-        if (g->sprites[i].flags & TG_SPRITE_USED)
+        if (sprite_allocated(g, i))
             continue;
-        g->sprites[i] = (tg_sprite_t){.flags = TG_SPRITE_USED | TG_SPRITE_ON};
-        if (i >= g->sprite_count)
-            g->sprite_count = (uint8_t)(i + 1);
+        g->sprites[i] = (tg_sprite_t){.flags = TG_SPRITE_ON};
+        g->sprite_used[i >> 5] |= 1u << (i & 31);
+        g->sprite_prio[i] = (uint8_t)i;
+        order_insert(g, i);
         return i;
     }
     return -1;
@@ -34,11 +65,20 @@ int tg_sprite_alloc(tg_t *g)
 
 void tg_sprite_free(tg_t *g, int slot)
 {
-    if (slot < 0 || slot >= TG_MAX_SPRITES)
+    if (!sprite_allocated(g, slot))
         return;
+    order_remove(g, slot);
+    g->sprite_used[slot >> 5] &= ~(1u << (slot & 31));
     g->sprites[slot].flags = 0;
-    while (g->sprite_count > 0 && !(g->sprites[g->sprite_count - 1].flags & TG_SPRITE_USED))
-        g->sprite_count--;
+}
+
+void tg_sprite_set_priority(tg_t *g, int slot, uint8_t prio)
+{
+    if (!sprite_allocated(g, slot))
+        return;
+    order_remove(g, slot);
+    g->sprite_prio[slot] = prio;
+    order_insert(g, slot);
 }
 
 /* Write one pixel of a tile or sprite row if it is opaque and on screen. */
@@ -207,12 +247,12 @@ TG_HOT void tg_render_line_indices(tg_t *g, int line, uint8_t idx[TG_WIDTH])
         __asm__ volatile("" ::: "memory");
     }
 
-    /* Sprites that touch this line, lowest number first, up to the per-line limit. */
+    /* Sprites that touch this line, front-most first, up to the per-line limit. */
     const int sprite_size = 1 << g->sprite_tile_log2;
     const tg_sprite_t *on_line[TG_MAX_SPRITES_PER_LINE];
     int n = 0;
     for (int i = 0; i < g->sprite_count && n < TG_MAX_SPRITES_PER_LINE; i++) {
-        const tg_sprite_t *s = &g->sprites[i];
+        const tg_sprite_t *s = &g->sprites[g->sprite_order[i]];
         if ((s->flags & TG_SPRITE_ON) && line >= s->y && line < s->y + sprite_size)
             on_line[n++] = s;
     }
