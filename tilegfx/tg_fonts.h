@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: MIT */
-/* The fonts. Each is in its own source file in fonts/, so a program links only the ones it names. */
+/* The font objects. Each is in its own source file in fonts/, so a program that names only some links only those
+ * (font numbers, in tg_font.h, go through tg_fontlist.c, which refers to all of them unless TG_FONTS_ENABLED says otherwise). */
 #ifndef TG_FONTS_H
 #define TG_FONTS_H
 

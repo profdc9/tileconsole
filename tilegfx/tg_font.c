@@ -1,6 +1,8 @@
 /* SPDX-License-Identifier: MIT */
 #include "tg_font.h"
 
+/* ---- fonts and glyphs ---- */
+
 const uint8_t *tg_font_glyph(const tg_font_t *font, uint32_t codepoint)
 {
     unsigned lo = 0, hi = font->nruns;   /* the last run that starts at or before the codepoint */
@@ -60,6 +62,8 @@ void tg_font_load_range(const tg_font_t *font, uint8_t *tiles, unsigned tile_log
     }
 }
 
+/* ---- putting glyph numbers on a map ---- */
+
 static void put_tile(uint16_t *map, unsigned map_w_log2, unsigned map_h_log2, int x, int y, int tile, unsigned pal)
 {
     if (tile < 0 || tile > TG_TILE_MASK)
@@ -82,23 +86,101 @@ void tg_map_put_string(uint16_t *map, unsigned map_w_log2, unsigned map_h_log2, 
         put_tile(map, map_w_log2, map_h_log2, x, y, (int)(uint8_t)*text + glyph_offset, pal);
 }
 
-tg_charset_t tg_font_load(const tg_font_t *font, uint8_t *tiles, unsigned tile_log2, unsigned depth, uint16_t first_tile,
-                          uint32_t first_cp, uint16_t count, uint8_t fg, uint8_t bg)
+/* ---- text on a layer ---- */
+
+/* A tile layer that text can be loaded into and put on. */
+static bool is_text_layer(const tg_layer_t *l)
 {
-    static const uint8_t blank[8];
-    const unsigned per = font->height / 8;
-    const size_t bytes = tg_tile_bytes(tile_log2, depth);
-    for (unsigned c = 0; c < count; c++) {
-        const uint8_t *g = tg_font_glyph(font, first_cp + c);
-        for (unsigned half = 0; half < per; half++)
-            tg_tile_from_glyph(tiles + ((size_t)first_tile + c * per + half) * bytes, tile_log2, depth,
-                               g ? g + 8 * half : blank, fg, bg);
-    }
-    return (tg_charset_t){.font = font, .first_cp = first_cp, .count = count, .first_tile = first_tile,
-                          .tiles_per_char = (uint8_t)per};
+    return l && l->kind == TG_LAYER_TILES && l->tiles && (l->tile_log2 == 3 || l->tile_log2 == 4) &&
+           (l->depth == 4 || l->depth == 8);
 }
 
-/* The next codepoint of a UTF-8 string, advancing past it. Anything that is not well formed is one byte of 0xFFFD. */
+/* The tile numbers first_tile .. first_tile + n - 1 must all be nameable by a map entry. */
+static bool tiles_fit(unsigned first_tile, uint64_t n)
+{
+    return first_tile + n <= (uint64_t)TG_TILE_MASK + 1;
+}
+
+bool tg_layer_load_font_ptr(tg_layer_t *layer, const tg_font_t *font, uint32_t first_glyph, unsigned count,
+                            unsigned first_tile, uint8_t fg, uint8_t bg)
+{
+    if (!font || !is_text_layer(layer) || count == 0)
+        return false;
+    const unsigned rows = font->height / 8;   /* tiles tall: 1 or 2 */
+    if (!tiles_fit(first_tile, (uint64_t)count * rows))
+        return false;
+    /* The tile array is written to: for a layer used for text it is RAM, whatever its declared type. */
+    uint8_t *tiles = (uint8_t *)layer->tiles;
+    tg_font_load_range(font, tiles, layer->tile_log2, layer->depth, first_tile, first_glyph, count, 0, fg, bg);
+    if (rows == 2)
+        tg_font_load_range(font, tiles, layer->tile_log2, layer->depth, first_tile + count, first_glyph, count, 1, fg, bg);
+    layer->glyphs = (tg_glyphmap_t){.offset = (int32_t)first_tile - (int32_t)first_glyph,
+                                    .first = first_glyph,
+                                    .count = count,
+                                    .row_delta = rows == 2 ? (uint16_t)count : 0};
+    return true;
+}
+
+bool tg_layer_load_glyphs(tg_layer_t *layer, const uint8_t *glyphs, unsigned rows_per_glyph, unsigned half, unsigned count,
+                          unsigned first_tile, uint8_t fg, uint8_t bg)
+{
+    static const uint8_t blank[8];
+    if (!glyphs || !is_text_layer(layer) || count == 0 || (rows_per_glyph != 8 && rows_per_glyph != 16) ||
+        !tiles_fit(first_tile, count))
+        return false;
+    uint8_t *tiles = (uint8_t *)layer->tiles;
+    const size_t bytes = tg_tile_bytes(layer->tile_log2, layer->depth);
+    for (unsigned i = 0; i < count; i++)
+        tg_tile_from_glyph(tiles + (size_t)(first_tile + i) * bytes, layer->tile_log2, layer->depth,
+                           8 * (half + 1) <= rows_per_glyph ? glyphs + (size_t)i * rows_per_glyph + 8 * half : blank, fg, bg);
+    return true;
+}
+
+void tg_layer_set_glyph_offset(tg_layer_t *layer, int offset)
+{
+    layer->glyphs = (tg_glyphmap_t){.offset = offset};
+}
+
+void tg_layer_set_glyph_range(tg_layer_t *layer, uint32_t first, uint32_t count)
+{
+    layer->glyphs.first = first;
+    layer->glyphs.count = count;
+}
+
+/* One glyph at one map position (and the lower half of it, one row down, for a font two tiles tall). */
+static void put_glyph(const tg_layer_t *l, int x, int y, uint32_t glyph, unsigned pal)
+{
+    const tg_glyphmap_t *m = &l->glyphs;
+    if (m->count && (glyph < m->first || glyph - m->first >= m->count))
+        return;
+    const int64_t tile = (int64_t)glyph + m->offset;
+    if (tile < 0 || tile > TG_TILE_MASK)
+        return;
+    uint16_t *map = (uint16_t *)l->map;
+    put_tile(map, l->map_w_log2, l->map_h_log2, x, y, (int)tile, pal);
+    if (m->row_delta)
+        put_tile(map, l->map_w_log2, l->map_h_log2, x, y + 1, (int)(tile + m->row_delta), pal);
+}
+
+void tg_layer_put_glyphs(const tg_layer_t *layer, int x, int y, const uint16_t *glyphs, size_t count, unsigned pal)
+{
+    if (!is_text_layer(layer) || !layer->map)
+        return;
+    for (size_t i = 0; i < count; i++)
+        put_glyph(layer, x + (int)i, y, glyphs[i], pal);
+}
+
+void tg_layer_put_string(const tg_layer_t *layer, int x, int y, const char *text, unsigned pal)
+{
+    if (!is_text_layer(layer) || !layer->map)
+        return;
+    for (; *text; text++, x++)
+        put_glyph(layer, x, y, (uint8_t)*text, pal);
+}
+
+#define BAD_UTF8 0xFFFFFFFFu   /* not a codepoint */
+
+/* The next codepoint of a UTF-8 string, advancing past it. Anything that is not well formed is one byte of BAD_UTF8. */
 static uint32_t next_codepoint(const char **p)
 {
     const uint8_t *s = (const uint8_t *)*p;
@@ -116,35 +198,31 @@ static uint32_t next_codepoint(const char **p)
         extra = 3, cp = b & 0x07, min = 0x10000;
     } else {
         *p += 1;
-        return 0xFFFD;
+        return BAD_UTF8;
     }
     for (unsigned i = 1; i <= extra; i++) {
         if ((s[i] & 0xC0) != 0x80) {   /* truncated (this also stops at the end of the string) */
             *p += 1;
-            return 0xFFFD;
+            return BAD_UTF8;
         }
         cp = cp << 6 | (s[i] & 0x3F);
     }
     if (cp < min || cp > 0x10FFFF || (cp >= 0xD800 && cp <= 0xDFFF)) {   /* overlong, too big, or a surrogate */
         *p += 1;
-        return 0xFFFD;
+        return BAD_UTF8;
     }
     *p += extra + 1;
     return cp;
 }
 
-void tg_text_put(uint16_t *map, unsigned map_w_log2, unsigned map_h_log2, int x, int y, const char *text,
-                 const tg_charset_t *cs, unsigned pal)
+void tg_layer_put_utf8(const tg_layer_t *layer, int x, int y, const char *text, unsigned pal)
 {
-    const unsigned wmask = (1u << map_w_log2) - 1, hmask = (1u << map_h_log2) - 1, per = cs->tiles_per_char;
+    if (!is_text_layer(layer) || !layer->map)
+        return;
     while (*text) {
         const uint32_t cp = next_codepoint(&text);
-        if (cp >= cs->first_cp && cp - cs->first_cp < cs->count) {
-            const unsigned c = cp - cs->first_cp;
-            for (unsigned half = 0; half < per; half++)
-                map[(((unsigned)y + half) & hmask) << map_w_log2 | ((unsigned)x & wmask)] =
-                    TG_ENTRY(cs->first_tile + c * per + half, pal, 0);
-        }
+        if (cp != BAD_UTF8)   /* a bad byte has no glyph: skipped like any glyph without a tile */
+            put_glyph(layer, x, y, cp, pal);
         x++;
     }
 }

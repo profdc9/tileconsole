@@ -18,30 +18,31 @@ times the compositor (desktop numbers only). MIT licensed (see `LICENSE`).
 
 ## Text
 
-`tg_font.h` and `tg_fonts.h` add bitmap fonts and the helpers that put them on a tile layer. The fonts are the public-domain
-[Unscii](https://viznut.fi/unscii/) variants (not the GPL `unscii-16-full`; see `fonts/FONTS.md`), one source file each so
-that only the fonts you name are linked:
+`tg_font.h` adds bitmap fonts and the functions that put text on a tile layer. The fonts are the public-domain
+[Unscii](https://viznut.fi/unscii/) variants (not the GPL `unscii-16-full`; see `fonts/FONTS.md`).
 
-- `tg_tile_from_glyph(tile, tile_log2, depth, glyph, fg, bg)` programs a tile from an 8-byte glyph (one byte a row, MSB
-  leftmost): set pixels get colour index `fg`, the others `bg` (0 is transparent). Works for 8x8 and 16x16 tiles (a
-  16x16 tile doubles every pixel), at 4 or 8 bpp. Any array in that format works, not only these fonts.
-- `tg_font_glyph(font, codepoint)` finds a glyph by Unicode codepoint.
+A layer remembers how glyph numbers map to tiles (`tg_layer_t.glyphs`: the offset, the range of glyphs that were loaded,
+and for tall fonts the distance to the lower half), so printing needs only the string.
 
-Two ways to get from a string to tiles on the map:
+**Built-in fonts, by number** (the offset is worked out and stored for you):
 
-1. **Explicit, with a glyph offset** (the low-level pair):
+    tg_layer_load_font(&layer, TG_FONT_UNSCII8, 32, 95, 100, fg, bg);   /* glyphs 32..126 -> tiles 100..194; offset 68 */
+    tg_layer_put_string(&layer, 2, 3, "Hello", 0);                      /* 'H' is 72, so tile 72 + 68 = 140 */
 
-       tg_font_load_range(font, tiles, 3, 4, 0, 32, 95, 0, fg, bg);   /* ASCII 32..126 become tiles 0..94 */
-       tg_map_put_string(map, 5, 5, x, y, "Hello", -32, pal);         /* tile = glyph number + offset */
+**Your own glyph array** (load by pointer, then set the offset with its own call):
 
-   `tg_font_load_range` moves consecutive glyphs into consecutive tiles (`half` picks the top or bottom 8 rows of a
-   16-row glyph, so a tall font is two ranges printed on two map rows). `tg_map_put_string` writes the glyph numbers
-   of a string's bytes as tile numbers plus the offset; `tg_map_put_glyphs` does the same for a list of 16-bit numbers
-   (above 255, or including 0). The offset is tile number minus glyph number, so a set that starts at space just uses
-   -32: the codes 0..31 come out below tile 0 and are skipped (the cell is left alone and the position moves on).
-2. **Charset-based**: `tg_font_load` returns a `tg_charset_t` and `tg_text_put` takes UTF-8 text, looks each character
-   up in that charset and skips the ones it does not have. Use it when you want accented letters or box drawing from a
-   string without working out numbers.
+    tg_layer_load_glyphs(&layer, my_glyphs, 8, 0, 64, 200, fg, bg);     /* 64 glyphs of 8 rows -> tiles 200..263 */
+    tg_layer_set_glyph_offset(&layer, 200 - 32);                        /* glyph number 32 is the first of them */
+    tg_layer_put_string(&layer, 2, 3, "Hello", 0);
+
+Glyph numbers without a tile (outside the loaded range, or a tile number below 0 or above 1023) are skipped: the cell is left
+as it was and the position still moves on, so a string that mixes scripts takes one load and one put per script.
+`tg_layer_put_utf8` decodes UTF-8 first (so `"é"` or `"─"` can be written as they are), `tg_layer_put_glyphs` takes 16-bit
+glyph numbers. An 8x16 font takes two tiles a glyph and fills two map rows. Colour index 0 is transparent (give
+`bg` as 0 for text with a see-through background). The layer's `map` and `tiles` are written to, so they must be RAM.
+
+`tg_tile_from_glyph` programs a single tile from an 8-byte glyph; `tg_font_load_range` and `tg_map_put_string` are the same
+steps without a layer. Font numbers go through `tg_fontlist.c`, which refers to every font: define `TG_FONTS_ENABLED` (a
+mask, bit n for font n) to keep unwanted ones out of a program, or use `tg_layer_load_font_ptr` with the one font object.
 
 `make demo_text` renders a sample of every font to `fonts.ppm`.
-

@@ -38,6 +38,18 @@
 
 typedef enum { TG_LAYER_OFF = 0, TG_LAYER_TILES, TG_LAYER_BITMAP } tg_layer_kind_t;
 
+/*
+ * How glyph numbers (character codes) map to tiles, for putting text on a layer (see tg_font.h). The compositor does not
+ * use it. All zero means: tile number = glyph number, any glyph, one tile tall. It is filled in by the layer's glyph
+ * loading functions and read by the ones that put text on the map.
+ */
+typedef struct {
+    int32_t offset;       /* tile number = glyph number + offset */
+    uint32_t first;       /* the glyph numbers that have tiles are first .. first + count - 1 ... */
+    uint32_t count;       /* ... and 0 means that every glyph number is taken to have one */
+    uint16_t row_delta;   /* for glyphs two tiles tall: the lower tile is the upper one + row_delta; 0 for one tile tall */
+} tg_glyphmap_t;
+
 typedef struct {
     tg_layer_kind_t kind;
 
@@ -49,6 +61,10 @@ typedef struct {
     const uint8_t *tiles;
     uint32_t scroll_x, scroll_y;     /* pixel position of the top left of the screen; wraps */
     const int16_t *line_scroll_x;    /* optional, TG_HEIGHT entries added to scroll_x per line */
+
+    /* Text on a tile layer: written by tg_layer_load_* / tg_layer_set_glyph_*, used by tg_layer_put_*. The text functions
+     * write to `map` and `tiles`, so for a layer used for text both must be in RAM, not const data. */
+    tg_glyphmap_t glyphs;
 
     /* TG_LAYER_BITMAP: TG_WIDTH x TG_HEIGHT bytes, index 0 transparent */
     const uint8_t *bitmap;
