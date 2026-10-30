@@ -2,6 +2,7 @@
 #include "plat_sdl.h"
 
 #include <SDL2/SDL.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "mouse_acc.h"
@@ -240,6 +241,16 @@ uint32_t plat_millis(void)
 }
 
 uint32_t plat_frame(void) { return frame_no; }
+
+int plat_input_diag(char (*lines)[41], int max_lines)
+{
+    int n = 0, pads = 0;
+    for (int p = 0; p < PLAT_MAX_PLAYERS; p++)
+        pads += pad[p] != NULL;
+    if (n < max_lines)
+        snprintf(lines[n++], 41, "SDL: %d CONTROLLER(S), MOUSE %s", pads, mouse.present ? "YES" : "NO");
+    return n;
+}
 
 plat_mouse_t plat_mouse(void) { return mouse.frame; }
 void plat_mouse_set_position(int x, int y) { mouse_acc_set_position(&mouse, x, y); }

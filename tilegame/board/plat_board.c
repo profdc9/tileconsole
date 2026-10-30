@@ -323,6 +323,17 @@ uint32_t plat_frame(void) { return frame_no; }
 
 plat_mouse_t plat_mouse(void) { return mouse_frame; }
 
+int plat_input_diag(char (*lines)[41], int max_lines)
+{
+#if PLAT_USB_HID
+    return usb_hid_diag(lines, max_lines);
+#else
+    if (max_lines > 0)
+        snprintf(lines[0], 41, "NO USB INPUT IN THIS BUILD");
+    return max_lines > 0 ? 1 : 0;
+#endif
+}
+
 void plat_mouse_set_position(int x, int y)
 {
 #if PLAT_USB_HID

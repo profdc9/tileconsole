@@ -102,6 +102,15 @@ plat_mouse_t plat_mouse(void);
 /* Put the pointer somewhere (clamped to the screen), for instance in the middle when a game starts. */
 void plat_mouse_set_position(int x, int y);
 
+/* ---- diagnostics ---- */
+
+/*
+ * Lines of text about the connected input devices, for a diagnostic screen (each at most 40 characters plus the end). Returns
+ * how many were written, at most max_lines. On the board with USB input this shows what the pad sent and how it was read;
+ * elsewhere it says little.
+ */
+int plat_input_diag(char (*lines)[41], int max_lines);
+
 /* ---- audio ---- */
 
 #define PLAT_AUDIO_RATE 48000

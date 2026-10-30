@@ -9,5 +9,6 @@ void usb_hid_task(void);                          /* call often (at least every 
 plat_buttons_t usb_hid_buttons(int player);       /* what the keyboards and gamepads for this player hold down */
 plat_mouse_t usb_hid_mouse_frame(void);           /* the mouse snapshot for this frame (call once a frame) */
 void usb_hid_mouse_set_position(int x, int y);
+int usb_hid_diag(char (*lines)[41], int max_lines);   /* text about what is connected and what it sent */
 
 #endif

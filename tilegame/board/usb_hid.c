@@ -7,6 +7,7 @@
  */
 #include "usb_hid.h"
 
+#include <stdio.h>
 #include <string.h>
 
 #include "hardware/gpio.h"
@@ -38,6 +39,21 @@ static iface_t ifc[CFG_TUH_DEVICE_MAX + 1][CFG_TUH_HID];
 static hid_pad_t pad_pool[PAD_POOL];
 static bool pad_used[PAD_POOL];
 static mouse_acc_t mouse;
+
+/* What the last interface that appeared said about itself, and what the last pad report was: shown by usb_hid_diag. */
+static struct {
+    bool have_iface;
+    uint8_t proto, nother;
+    uint16_t desc_len, vid, pid;
+    uint8_t desc[10];
+    bool tried_pad, pad_ok;
+    uint8_t pad_fields, pad_id;
+    bool pad_has_id;
+    uint32_t reports;
+    uint8_t last_len, last[10];
+    bool decoded;
+    hid_pad_state_t state;
+} diag;
 
 static bool valid(uint8_t dev_addr, uint8_t idx) { return dev_addr <= CFG_TUH_DEVICE_MAX && idx < CFG_TUH_HID; }
 
@@ -103,6 +119,13 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t idx, const uint8_t *report_desc,
     memset(f, 0, sizeof *f);
     f->pad = NO_PAD;
     const uint8_t proto = tuh_hid_interface_protocol(dev_addr, idx);
+    diag.have_iface = true;
+    diag.proto = proto;
+    diag.desc_len = desc_len;
+    diag.tried_pad = diag.pad_ok = false;
+    memset(diag.desc, 0, sizeof diag.desc);
+    memcpy(diag.desc, report_desc, desc_len < sizeof diag.desc ? desc_len : sizeof diag.desc);
+    tuh_vid_pid_get(dev_addr, &diag.vid, &diag.pid);
 
     if (proto == HID_ITF_PROTOCOL_KEYBOARD || proto == HID_ITF_PROTOCOL_MOUSE) {
         f->kind = proto == HID_ITF_PROTOCOL_KEYBOARD ? K_KEYBOARD : K_MOUSE;
@@ -114,7 +137,15 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t idx, const uint8_t *report_desc,
         while (slot < PAD_POOL && pad_used[slot])
             slot++;
         const uint8_t player = free_player();
-        if (slot < PAD_POOL && player != 0xFF && hid_pad_parse_descriptor(report_desc, desc_len, &pad_pool[slot])) {
+        diag.tried_pad = true;
+        const bool parsed = slot < PAD_POOL && player != 0xFF && hid_pad_parse_descriptor(report_desc, desc_len, &pad_pool[slot]);
+        diag.pad_ok = parsed;
+        if (parsed) {
+            diag.pad_fields = pad_pool[slot].nfields;
+            diag.pad_has_id = pad_pool[slot].has_id;
+            diag.pad_id = pad_pool[slot].report_id;
+        }
+        if (parsed) {
             uint16_t vid = 0, pid = 0;
             tuh_vid_pid_get(dev_addr, &vid, &pid);
             pad_used[slot] = true;
@@ -123,6 +154,7 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t idx, const uint8_t *report_desc,
             f->player = player;
             f->map = hid_pad_map_for(vid, pid);
         } else {
+            diag.nother++;
             return;   /* something we do not use: leave it alone */
         }
     }
@@ -146,6 +178,11 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t idx, const uint8_t *re
     if (!valid(dev_addr, idx))
         return;
     iface_t *f = &ifc[dev_addr][idx];
+    if (f->kind == K_PAD) {   /* for the diagnostic screen */
+        diag.reports++;
+        diag.last_len = len > 255 ? 255 : (uint8_t)len;
+        memcpy(diag.last, report, len < sizeof diag.last ? len : sizeof diag.last);
+    }
     switch (f->kind) {
     case K_KEYBOARD: {
         plat_buttons_t b;
@@ -163,12 +200,54 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t idx, const uint8_t *re
     }
     case K_PAD: {
         hid_pad_state_t st;
-        if (f->pad < PAD_POOL && hid_pad_decode(&pad_pool[f->pad], report, len, &st))
+        diag.decoded = f->pad < PAD_POOL && hid_pad_decode(&pad_pool[f->pad], report, len, &st);
+        if (diag.decoded) {
+            diag.state = st;
             f->held = hid_pad_to_buttons(&st, f->map);
+        }
         break;
     }
     default:
         return;
     }
     tuh_hid_receive_report(dev_addr, idx);   /* ask for the next report */
+}
+
+int usb_hid_diag(char (*lines)[41], int max)
+{
+    int n = 0, kbd = 0, mice = 0, pads = 0;
+    for (int d = 0; d <= CFG_TUH_DEVICE_MAX; d++)
+        for (int i = 0; i < CFG_TUH_HID; i++) {
+            kbd += ifc[d][i].kind == K_KEYBOARD;
+            mice += ifc[d][i].kind == K_MOUSE;
+            pads += ifc[d][i].kind == K_PAD;
+        }
+#define LINE(...) do { if (n < max) snprintf(lines[n++], 41, __VA_ARGS__); } while (0)
+    LINE("KBD %d MOUSE %d PAD %d NOT USED %d", kbd, mice, pads, diag.nother);
+    if (!diag.have_iface) {
+        LINE("NO HID INTERFACE SEEN YET");
+        return n;
+    }
+    LINE("LAST: PROTO %d, DESC LEN %d", diag.proto, diag.desc_len);
+    LINE("VID %04X PID %04X", diag.vid, diag.pid);
+    LINE("DESC %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X", diag.desc[0], diag.desc[1], diag.desc[2], diag.desc[3],
+         diag.desc[4], diag.desc[5], diag.desc[6], diag.desc[7], diag.desc[8], diag.desc[9]);
+    if (diag.tried_pad)
+        LINE("PAD PARSE %s FIELDS %d ID %s", diag.pad_ok ? "OK" : "FAILED", diag.pad_fields,
+             diag.pad_has_id ? "YES" : "NO");
+    else
+        LINE("(BOOT PROTOCOL DEVICE, NOT A PAD)");
+    LINE("PAD REPORTS %lu, LAST LENGTH %d", (unsigned long)diag.reports, diag.last_len);
+    LINE("RPT %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X", diag.last[0], diag.last[1], diag.last[2], diag.last[3],
+         diag.last[4], diag.last[5], diag.last[6], diag.last[7], diag.last[8], diag.last[9]);
+    char bits[17];
+    for (int b = 0; b < 16; b++)
+        bits[b] = (diag.state.buttons >> b & 1) ? '1' : '0';
+    bits[16] = 0;
+    LINE("DECODE %s BUTTONS 1-16", diag.decoded ? "OK" : "NO ");
+    LINE("%s", bits);
+    LINE("DPAD U%d D%d L%d R%d", !!(diag.state.dpad & HID_DPAD_UP), !!(diag.state.dpad & HID_DPAD_DOWN),
+         !!(diag.state.dpad & HID_DPAD_LEFT), !!(diag.state.dpad & HID_DPAD_RIGHT));
+#undef LINE
+    return n;
 }

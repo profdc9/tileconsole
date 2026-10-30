@@ -55,3 +55,5 @@ tilegame_board_app(game_demo ${CMAKE_CURRENT_LIST_DIR}/../demo/game_demo.c)
 set(GAME_DIR ${CMAKE_CURRENT_LIST_DIR}/../game)
 tilegame_board_app(platformer ${GAME_DIR}/game_main.c ${GAME_DIR}/game.c ${GAME_DIR}/level.c ${GAME_DIR}/view.c
                    ${TILEGFX_DIR}/tg_font.c ${TILEGFX_DIR}/fonts/unscii8.c)
+
+tilegame_board_app(padtest ${CMAKE_CURRENT_LIST_DIR}/../demo/padtest.c ${TILEGFX_DIR}/tg_font.c ${TILEGFX_DIR}/fonts/unscii8.c)
