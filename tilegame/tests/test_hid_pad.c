@@ -6,6 +6,7 @@
 
 #include "hid_mouse.h"
 #include "hid_pad.h"
+#include "mouse_acc.h"
 
 static int checks;
 #define CHECK(cond)                                                          \
@@ -412,6 +413,65 @@ static void test_mouse(void)
     CHECK(!hid_mouse_parse(NULL, 4, &keep) && !hid_mouse_parse((const uint8_t[]){1, 2, 3}, 3, NULL) && !hid_mouse_parse((const uint8_t[]){1, 2, 3}, 0, &keep));
 }
 
+
+static void test_mouse_accumulator(void)
+{
+    mouse_acc_t m;
+    mouse_acc_init(&m);
+    mouse_acc_frame(&m);
+    CHECK(!m.frame.present && m.frame.dx == 0 && m.frame.buttons == 0);
+    CHECK(m.frame.x == TG_WIDTH / 2 && m.frame.y == TG_HEIGHT / 2);              /* starts in the middle */
+
+    /* Movement adds up between frames and then starts again. */
+    mouse_acc_move(&m, 5, -3, 1);
+    mouse_acc_move(&m, 10, -4, 0);
+    mouse_acc_move(&m, -2, 0, 2);
+    mouse_acc_frame(&m);
+    CHECK(m.frame.present && m.frame.dx == 13 && m.frame.dy == -7 && m.frame.wheel == 3);
+    CHECK(m.frame.x == TG_WIDTH / 2 + 13 && m.frame.y == TG_HEIGHT / 2 - 7);
+    mouse_acc_frame(&m);
+    CHECK(m.frame.dx == 0 && m.frame.dy == 0 && m.frame.wheel == 0);
+    CHECK(m.frame.x == TG_WIDTH / 2 + 13);                                          /* the pointer stays where it was */
+
+    /* The pointer stops at the edges, while the movement is still reported. */
+    mouse_acc_move(&m, 5000, 5000, 0);
+    mouse_acc_frame(&m);
+    CHECK(m.frame.x == TG_WIDTH - 1 && m.frame.y == TG_HEIGHT - 1 && m.frame.dx == 5000);
+    mouse_acc_move(&m, -9000, -9000, 0);
+    mouse_acc_frame(&m);
+    CHECK(m.frame.x == 0 && m.frame.y == 0);
+    mouse_acc_move(&m, 100000, 0, 500);                                             /* huge values are limited, not wrapped */
+    mouse_acc_frame(&m);
+    CHECK(m.frame.dx == 32767 && m.frame.wheel == 127 && m.frame.x == TG_WIDTH - 1);
+
+    /* Buttons: held, and the edges once each. */
+    mouse_acc_buttons(&m, PLAT_MOUSE_LEFT | PLAT_MOUSE_MIDDLE);
+    mouse_acc_frame(&m);
+    CHECK(m.frame.buttons == 5 && m.frame.pressed == 5 && m.frame.released == 0);
+    mouse_acc_frame(&m);
+    CHECK(m.frame.buttons == 5 && m.frame.pressed == 0 && m.frame.released == 0);
+    mouse_acc_buttons(&m, PLAT_MOUSE_RIGHT);
+    mouse_acc_frame(&m);
+    CHECK(m.frame.buttons == 2 && m.frame.pressed == 2 && m.frame.released == 5);
+    mouse_acc_buttons(&m, 0xFF);                                                     /* only three buttons exist */
+    mouse_acc_frame(&m);
+    CHECK(m.frame.buttons == 7);
+    /* A press and release between two frames is not seen at all: the buttons are sampled per frame, like everything else. */
+    mouse_acc_buttons(&m, 0);
+    mouse_acc_frame(&m);
+    mouse_acc_buttons(&m, PLAT_MOUSE_LEFT);
+    mouse_acc_buttons(&m, 0);
+    mouse_acc_frame(&m);
+    CHECK(m.frame.pressed == 0 && m.frame.buttons == 0);
+
+    mouse_acc_set_position(&m, -50, 9999);
+    mouse_acc_frame(&m);
+    CHECK(m.frame.x == 0 && m.frame.y == TG_HEIGHT - 1);
+    mouse_acc_set_position(&m, 100, 80);
+    mouse_acc_frame(&m);
+    CHECK(m.frame.x == 100 && m.frame.y == 80);
+}
+
 int main(void)
 {
     test_simple_pad();
@@ -421,6 +481,7 @@ int main(void)
     test_mapping();
     test_robustness();
     test_mouse();
+    test_mouse_accumulator();
     printf("all %d checks passed\n", checks);
     return 0;
 }

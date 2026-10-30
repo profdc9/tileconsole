@@ -164,6 +164,171 @@ static void test_audio(void)
     CHECK(audio_frames == stopped);
 }
 
+
+static void push_mouse_motion(int dx, int dy)
+{
+    SDL_Event e;
+    memset(&e, 0, sizeof e);
+    e.type = SDL_MOUSEMOTION;
+    e.motion.xrel = dx;
+    e.motion.yrel = dy;
+    SDL_PushEvent(&e);
+}
+
+static void push_mouse_button(int button, bool down)
+{
+    SDL_Event e;
+    memset(&e, 0, sizeof e);
+    e.type = down ? SDL_MOUSEBUTTONDOWN : SDL_MOUSEBUTTONUP;
+    e.button.button = (Uint8)button;
+    e.button.state = down ? SDL_PRESSED : SDL_RELEASED;
+    SDL_PushEvent(&e);
+}
+
+static void test_mouse(void)
+{
+    plat_wait_frame();
+    CHECK(!plat_mouse().present && plat_mouse().buttons == 0);     /* until it is seen */
+
+    push_mouse_motion(10, -4);
+    push_mouse_motion(3, 1);
+    push_mouse_button(SDL_BUTTON_LEFT, true);
+    SDL_Event w;
+    memset(&w, 0, sizeof w);
+    w.type = SDL_MOUSEWHEEL;
+    w.wheel.y = 2;
+    SDL_PushEvent(&w);
+    plat_wait_frame();
+    plat_mouse_t m = plat_mouse();
+    CHECK(m.present && m.dx == 13 && m.dy == -3 && m.wheel == 2);
+    CHECK(m.buttons == PLAT_MOUSE_LEFT && m.pressed == PLAT_MOUSE_LEFT && m.released == 0);
+    CHECK(m.x == TG_WIDTH / 2 + 13 && m.y == TG_HEIGHT / 2 - 3);
+
+    push_mouse_button(SDL_BUTTON_RIGHT, true);
+    push_mouse_button(SDL_BUTTON_LEFT, false);
+    plat_wait_frame();
+    m = plat_mouse();
+    CHECK(m.dx == 0 && m.dy == 0 && m.wheel == 0);                   /* movement is per frame */
+    CHECK(m.buttons == PLAT_MOUSE_RIGHT && m.pressed == PLAT_MOUSE_RIGHT && m.released == PLAT_MOUSE_LEFT);
+    CHECK(m.x == TG_WIDTH / 2 + 13);                                  /* the pointer stays put */
+    push_mouse_button(SDL_BUTTON_MIDDLE, true);
+    push_mouse_button(SDL_BUTTON_X1, true);                           /* a button that is not one of the three: ignored */
+    plat_wait_frame();
+    CHECK(plat_mouse().buttons == (PLAT_MOUSE_RIGHT | PLAT_MOUSE_MIDDLE));
+    push_mouse_button(SDL_BUTTON_RIGHT, false);
+    push_mouse_button(SDL_BUTTON_MIDDLE, false);
+    plat_wait_frame();
+
+    push_mouse_motion(5000, 5000);
+    plat_wait_frame();
+    CHECK(plat_mouse().x == TG_WIDTH - 1 && plat_mouse().y == TG_HEIGHT - 1);
+    plat_mouse_set_position(20, 30);
+    plat_wait_frame();
+    CHECK(plat_mouse().x == 20 && plat_mouse().y == 30);
+}
+
+/* Controllers, made with SDL's virtual joysticks. */
+static int virtual_index = -1;
+
+static SDL_Joystick *attach_virtual(const char *name)
+{
+    SDL_VirtualJoystickDesc d;
+    SDL_zero(d);
+    d.version = SDL_VIRTUAL_JOYSTICK_DESC_VERSION;
+    d.type = SDL_JOYSTICK_TYPE_GAMECONTROLLER;
+    d.naxes = SDL_CONTROLLER_AXIS_MAX;
+    d.nbuttons = SDL_CONTROLLER_BUTTON_MAX;
+    d.name = name;
+    virtual_index = SDL_JoystickAttachVirtualEx(&d);
+    if (virtual_index < 0)
+        return NULL;
+    return SDL_JoystickOpen(virtual_index);
+}
+
+static void test_controllers(void)
+{
+    SDL_Joystick *one = attach_virtual("test pad one");
+    if (!one || !SDL_IsGameController(virtual_index)) {
+        printf("(no virtual game controllers here: controller test skipped)\n");
+        return;
+    }
+    plat_wait_frame();                                                /* the device-added event */
+    plat_wait_frame();
+    CHECK(plat_buttons(0) == 0);
+    printf("  virtual game controller attached (device %d)\n", virtual_index);
+
+    SDL_JoystickSetVirtualButton(one, SDL_CONTROLLER_BUTTON_A, 1);
+    SDL_JoystickSetVirtualButton(one, SDL_CONTROLLER_BUTTON_DPAD_LEFT, 1);
+    SDL_JoystickSetVirtualButton(one, SDL_CONTROLLER_BUTTON_RIGHTSHOULDER, 1);
+    plat_wait_frame();
+    CHECK(plat_buttons(0) == (PLAT_BTN_A | PLAT_BTN_LEFT | PLAT_BTN_R));
+    CHECK(plat_buttons_pressed(0) == (PLAT_BTN_A | PLAT_BTN_LEFT | PLAT_BTN_R));
+    plat_wait_frame();
+    CHECK(plat_buttons_pressed(0) == 0);
+
+    SDL_JoystickSetVirtualButton(one, SDL_CONTROLLER_BUTTON_A, 0);
+    SDL_JoystickSetVirtualButton(one, SDL_CONTROLLER_BUTTON_DPAD_LEFT, 0);
+    SDL_JoystickSetVirtualButton(one, SDL_CONTROLLER_BUTTON_RIGHTSHOULDER, 0);
+    SDL_JoystickSetVirtualButton(one, SDL_CONTROLLER_BUTTON_B, 1);
+    SDL_JoystickSetVirtualButton(one, SDL_CONTROLLER_BUTTON_X, 1);
+    SDL_JoystickSetVirtualButton(one, SDL_CONTROLLER_BUTTON_Y, 1);
+    SDL_JoystickSetVirtualButton(one, SDL_CONTROLLER_BUTTON_START, 1);
+    SDL_JoystickSetVirtualButton(one, SDL_CONTROLLER_BUTTON_BACK, 1);
+    SDL_JoystickSetVirtualButton(one, SDL_CONTROLLER_BUTTON_LEFTSHOULDER, 1);
+    plat_wait_frame();
+    CHECK(plat_buttons(0) == (PLAT_BTN_B | PLAT_BTN_X | PLAT_BTN_Y | PLAT_BTN_START | PLAT_BTN_SELECT | PLAT_BTN_L));
+    SDL_JoystickSetVirtualButton(one, SDL_CONTROLLER_BUTTON_B, 0);
+    SDL_JoystickSetVirtualButton(one, SDL_CONTROLLER_BUTTON_X, 0);
+    SDL_JoystickSetVirtualButton(one, SDL_CONTROLLER_BUTTON_Y, 0);
+    SDL_JoystickSetVirtualButton(one, SDL_CONTROLLER_BUTTON_START, 0);
+    SDL_JoystickSetVirtualButton(one, SDL_CONTROLLER_BUTTON_BACK, 0);
+    SDL_JoystickSetVirtualButton(one, SDL_CONTROLLER_BUTTON_LEFTSHOULDER, 0);
+
+    /* The left stick: well over counts, a little does not. */
+    SDL_JoystickSetVirtualAxis(one, SDL_CONTROLLER_AXIS_LEFTX, 32000);
+    SDL_JoystickSetVirtualAxis(one, SDL_CONTROLLER_AXIS_LEFTY, -32000);
+    plat_wait_frame();
+    CHECK(plat_buttons(0) == (PLAT_BTN_RIGHT | PLAT_BTN_UP));
+    SDL_JoystickSetVirtualAxis(one, SDL_CONTROLLER_AXIS_LEFTX, 5000);
+    SDL_JoystickSetVirtualAxis(one, SDL_CONTROLLER_AXIS_LEFTY, 32000);
+    plat_wait_frame();
+    CHECK(plat_buttons(0) == PLAT_BTN_DOWN);
+    SDL_JoystickSetVirtualAxis(one, SDL_CONTROLLER_AXIS_LEFTY, 0);
+    plat_wait_frame();
+    CHECK(plat_buttons(0) == 0);
+
+    /* The keyboard and the controller are both player 0, and add up. */
+    SDL_JoystickSetVirtualButton(one, SDL_CONTROLLER_BUTTON_A, 1);
+    push_key(SDLK_RIGHT, true, 0);
+    plat_wait_frame();
+    CHECK(plat_buttons(0) == (PLAT_BTN_A | PLAT_BTN_RIGHT));
+    push_key(SDLK_RIGHT, false, 0);
+    SDL_JoystickSetVirtualButton(one, SDL_CONTROLLER_BUTTON_A, 0);
+    plat_wait_frame();
+    CHECK(plat_buttons(0) == 0 && plat_buttons(1) == 0);
+
+    /* A second controller is player 1, with its own buttons. */
+    SDL_Joystick *two = attach_virtual("test pad two");
+    CHECK(two != NULL);
+    plat_wait_frame();
+    plat_wait_frame();
+    SDL_JoystickSetVirtualButton(two, SDL_CONTROLLER_BUTTON_B, 1);
+    plat_wait_frame();
+    CHECK(plat_buttons(1) == PLAT_BTN_B && plat_buttons(0) == 0);
+    SDL_JoystickSetVirtualButton(two, SDL_CONTROLLER_BUTTON_B, 0);
+
+    /* Unplugging the first: its buttons go away. */
+    SDL_JoystickSetVirtualButton(one, SDL_CONTROLLER_BUTTON_A, 1);
+    plat_wait_frame();
+    CHECK(plat_buttons(0) == PLAT_BTN_A);
+    SDL_JoystickClose(one);
+    SDL_JoystickDetachVirtual(0);   /* the first virtual joystick made */
+    plat_wait_frame();
+    plat_wait_frame();
+    CHECK(plat_buttons(0) == 0);
+    SDL_JoystickClose(two);
+}
+
 static void test_quit(void)
 {
     CHECK(!plat_quit_requested());
@@ -184,6 +349,8 @@ int main(void)
     test_input();
     test_present();
     test_audio();
+    test_mouse();
+    test_controllers();
     test_quit();
     plat_shutdown();
     printf("all %d checks passed\n", checks);

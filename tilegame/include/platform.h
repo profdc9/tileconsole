@@ -80,6 +80,28 @@ plat_buttons_t plat_buttons(int player);            /* held now */
 plat_buttons_t plat_buttons_pressed(int player);    /* went down since the previous frame */
 plat_buttons_t plat_buttons_released(int player);   /* went up since the previous frame */
 
+/* ---- mouse ---- */
+
+#define PLAT_MOUSE_LEFT   1
+#define PLAT_MOUSE_RIGHT  2
+#define PLAT_MOUSE_MIDDLE 4
+
+typedef struct {
+    bool present;            /* a mouse has been seen */
+    int16_t x, y;            /* a pointer position, kept inside the screen: 0..TG_WIDTH-1 and 0..TG_HEIGHT-1 */
+    int16_t dx, dy;          /* movement since the previous frame, in screen pixels (x to the right, y downwards) */
+    int8_t wheel;            /* wheel movement since the previous frame; positive is away from the user */
+    uint8_t buttons;         /* PLAT_MOUSE_* held now */
+    uint8_t pressed;         /* went down since the previous frame */
+    uint8_t released;        /* went up since the previous frame */
+} plat_mouse_t;
+
+/* As sampled by the last plat_wait_frame, like the buttons. Without a mouse everything is 0 and present is false. */
+plat_mouse_t plat_mouse(void);
+
+/* Put the pointer somewhere (clamped to the screen), for instance in the middle when a game starts. */
+void plat_mouse_set_position(int x, int y);
+
 /* ---- audio ---- */
 
 #define PLAT_AUDIO_RATE 48000

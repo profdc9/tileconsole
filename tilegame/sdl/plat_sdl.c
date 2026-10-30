@@ -4,6 +4,7 @@
 #include <SDL2/SDL.h>
 #include <string.h>
 
+#include "mouse_acc.h"
 #include "platform.h"
 #include "tilegfx.h"
 
@@ -19,6 +20,8 @@ static bool quit;
 
 static plat_buttons_t held[PLAT_MAX_PLAYERS], pressed[PLAT_MAX_PLAYERS], released[PLAT_MAX_PLAYERS];
 static plat_buttons_t key_state[PLAT_MAX_PLAYERS];   /* kept up to date by the key events */
+static SDL_GameController *pad[PLAT_MAX_PLAYERS];     /* the first two controllers are players 0 and 1 */
+static mouse_acc_t mouse;
 
 static uint16_t framebuffer[TG_WIDTH * TG_HEIGHT];
 
@@ -43,11 +46,74 @@ plat_buttons_t plat_sdl_button_for_key(SDL_Keycode key)
     }
 }
 
+static void open_controller(int device_index)
+{
+    if (!SDL_IsGameController(device_index))
+        return;
+    SDL_GameController *c = SDL_GameControllerOpen(device_index);
+    if (!c)
+        return;
+    for (int p = 0; p < PLAT_MAX_PLAYERS; p++) {
+        if (pad[p] == c)
+            return;   /* already have it */
+    }
+    for (int p = 0; p < PLAT_MAX_PLAYERS; p++)
+        if (!pad[p]) {
+            pad[p] = c;
+            return;
+        }
+    SDL_GameControllerClose(c);   /* more than two: not used */
+}
+
+static void close_controller(SDL_JoystickID instance)
+{
+    for (int p = 0; p < PLAT_MAX_PLAYERS; p++)
+        if (pad[p] && SDL_JoystickInstanceID(SDL_GameControllerGetJoystick(pad[p])) == instance) {
+            SDL_GameControllerClose(pad[p]);
+            pad[p] = NULL;
+        }
+}
+
+/* A controller's state as platform buttons: the D-pad and the left stick (well off centre) are the directions. */
+static plat_buttons_t read_controller(SDL_GameController *c)
+{
+    plat_buttons_t b = 0;
+    const int stick = 10000;   /* about 30% of the way over */
+    const int ax = SDL_GameControllerGetAxis(c, SDL_CONTROLLER_AXIS_LEFTX), ay = SDL_GameControllerGetAxis(c, SDL_CONTROLLER_AXIS_LEFTY);
+    if (SDL_GameControllerGetButton(c, SDL_CONTROLLER_BUTTON_DPAD_UP) || ay < -stick) b |= PLAT_BTN_UP;
+    if (SDL_GameControllerGetButton(c, SDL_CONTROLLER_BUTTON_DPAD_DOWN) || ay > stick) b |= PLAT_BTN_DOWN;
+    if (SDL_GameControllerGetButton(c, SDL_CONTROLLER_BUTTON_DPAD_LEFT) || ax < -stick) b |= PLAT_BTN_LEFT;
+    if (SDL_GameControllerGetButton(c, SDL_CONTROLLER_BUTTON_DPAD_RIGHT) || ax > stick) b |= PLAT_BTN_RIGHT;
+    if (SDL_GameControllerGetButton(c, SDL_CONTROLLER_BUTTON_A)) b |= PLAT_BTN_A;
+    if (SDL_GameControllerGetButton(c, SDL_CONTROLLER_BUTTON_B)) b |= PLAT_BTN_B;
+    if (SDL_GameControllerGetButton(c, SDL_CONTROLLER_BUTTON_X)) b |= PLAT_BTN_X;
+    if (SDL_GameControllerGetButton(c, SDL_CONTROLLER_BUTTON_Y)) b |= PLAT_BTN_Y;
+    if (SDL_GameControllerGetButton(c, SDL_CONTROLLER_BUTTON_START)) b |= PLAT_BTN_START;
+    if (SDL_GameControllerGetButton(c, SDL_CONTROLLER_BUTTON_BACK)) b |= PLAT_BTN_SELECT;
+    if (SDL_GameControllerGetButton(c, SDL_CONTROLLER_BUTTON_LEFTSHOULDER)) b |= PLAT_BTN_L;
+    if (SDL_GameControllerGetButton(c, SDL_CONTROLLER_BUTTON_RIGHTSHOULDER)) b |= PLAT_BTN_R;
+    return b;
+}
+
+static uint8_t sdl_button_bit(Uint8 button)
+{
+    switch (button) {
+    case SDL_BUTTON_LEFT: return PLAT_MOUSE_LEFT;
+    case SDL_BUTTON_RIGHT: return PLAT_MOUSE_RIGHT;
+    case SDL_BUTTON_MIDDLE: return PLAT_MOUSE_MIDDLE;
+    default: return 0;
+    }
+}
+
 bool plat_init(void)
 {
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS) != 0)
         return false;
     SDL_InitSubSystem(SDL_INIT_AUDIO);   /* a machine without audio can still run the game */
+    SDL_InitSubSystem(SDL_INIT_GAMECONTROLLER);   /* and one without controllers */
+    mouse_acc_init(&mouse);
+    for (int i = 0; i < SDL_NumJoysticks(); i++)
+        open_controller(i);
 
     window = SDL_CreateWindow("tilegame", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 2 * TG_WIDTH, 2 * TG_HEIGHT, 0);
     if (!window)
@@ -72,6 +138,10 @@ bool plat_init(void)
 
 void plat_shutdown(void)
 {
+    for (int p = 0; p < PLAT_MAX_PLAYERS; p++)
+        if (pad[p])
+            SDL_GameControllerClose(pad[p]);
+    memset(pad, 0, sizeof pad);
     if (audio_dev)
         SDL_CloseAudioDevice(audio_dev);
     audio_dev = 0;
@@ -119,6 +189,17 @@ static void handle_events(void)
     while (SDL_PollEvent(&e)) {
         if (e.type == SDL_QUIT)
             quit = true;
+        else if (e.type == SDL_MOUSEMOTION)
+            mouse_acc_move(&mouse, e.motion.xrel, e.motion.yrel, 0);
+        else if (e.type == SDL_MOUSEWHEEL)
+            mouse_acc_move(&mouse, 0, 0, e.wheel.direction == SDL_MOUSEWHEEL_FLIPPED ? -e.wheel.y : e.wheel.y);
+        else if (e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP) {
+            const uint8_t bit = sdl_button_bit(e.button.button);
+            mouse_acc_buttons(&mouse, e.type == SDL_MOUSEBUTTONDOWN ? (uint8_t)(mouse.buttons | bit) : (uint8_t)(mouse.buttons & ~bit));
+        } else if (e.type == SDL_CONTROLLERDEVICEADDED)
+            open_controller(e.cdevice.which);
+        else if (e.type == SDL_CONTROLLERDEVICEREMOVED)
+            close_controller(e.cdevice.which);
         else if ((e.type == SDL_KEYDOWN || e.type == SDL_KEYUP) && !e.key.repeat) {
             const plat_buttons_t b = plat_sdl_button_for_key(e.key.keysym.sym);
             if (e.type == SDL_KEYDOWN)
@@ -142,11 +223,12 @@ uint32_t plat_wait_frame(void)
 
     handle_events();
     for (int p = 0; p < PLAT_MAX_PLAYERS; p++) {
-        const plat_buttons_t was = held[p], is = key_state[p];
+        const plat_buttons_t was = held[p], is = key_state[p] | (pad[p] ? read_controller(pad[p]) : 0);
         pressed[p] = is & (plat_buttons_t)~was;
         released[p] = was & (plat_buttons_t)~is;
         held[p] = is;
     }
+    mouse_acc_frame(&mouse);
     return ++frame_no;
 }
 
@@ -158,6 +240,9 @@ uint32_t plat_millis(void)
 }
 
 uint32_t plat_frame(void) { return frame_no; }
+
+plat_mouse_t plat_mouse(void) { return mouse.frame; }
+void plat_mouse_set_position(int x, int y) { mouse_acc_set_position(&mouse, x, y); }
 
 plat_buttons_t plat_buttons(int p) { return p >= 0 && p < PLAT_MAX_PLAYERS ? held[p] : 0; }
 plat_buttons_t plat_buttons_pressed(int p) { return p >= 0 && p < PLAT_MAX_PLAYERS ? pressed[p] : 0; }
