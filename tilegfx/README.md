@@ -14,4 +14,4 @@ Any tile size and depth combination is supported; 16x16 at 8 bpp is 256 bytes a 
 
 `make check` runs the headless tests (scrolling and wrap-around in all four tile modes, flips, sub-palettes, sprite
 clipping and order, layer order, per-line scroll). `make demo_sdl` builds the SDL2 demo; `./demo_sdl --bench`
-times the compositor (desktop numbers only). `LICENSE` is not chosen yet.
+times the compositor (desktop numbers only). MIT licensed (see `LICENSE`).

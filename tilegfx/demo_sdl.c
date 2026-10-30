@@ -1,4 +1,5 @@
-/*
+/* SPDX-License-Identifier: MIT
+ *
  * Desktop demo: a 16x16 8 bpp parallax background, an 8x8 4 bpp foreground, bouncing sprites and an optional
  * per-line wave. Arrow keys scroll, W toggles the wave, Esc quits.
  *

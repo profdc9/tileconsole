@@ -1,4 +1,5 @@
 /*
+ * SPDX-License-Identifier: MIT
  * tilegfx: a scanline compositor for tile layers, sprites and a bitmap layer.
  *
  * Every line is composed into 320 8-bit palette indices (index 0 is transparent),

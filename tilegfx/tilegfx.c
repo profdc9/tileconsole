@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 #include "tilegfx.h"
 
 #include <string.h>

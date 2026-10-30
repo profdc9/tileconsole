@@ -1,4 +1,5 @@
-/* Headless checks for the compositor. Exits non-zero on the first failure. */
+/* SPDX-License-Identifier: MIT
+ * Headless checks for the compositor. Exits non-zero on the first failure. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
