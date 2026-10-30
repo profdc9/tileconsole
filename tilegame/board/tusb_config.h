@@ -18,8 +18,8 @@ extern "C" {
 
 #define CFG_TUH_ENUMERATION_BUFSIZE 256
 #define CFG_TUH_HUB 1                 /* many keyboards are a hub with a keyboard behind it */
-#define CFG_TUH_DEVICE_MAX 4
-#define CFG_TUH_HID 4
+#define CFG_TUH_DEVICE_MAX 5          /* a hub and four things behind it */
+#define CFG_TUH_HID 8                 /* keyboards, mice and pads often have several interfaces each */
 #define CFG_TUH_CDC 0
 #define CFG_TUH_MSC 0
 #define CFG_TUH_VENDOR 0

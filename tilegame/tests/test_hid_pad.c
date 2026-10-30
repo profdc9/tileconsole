@@ -401,14 +401,14 @@ static void test_robustness(void)
 
 static void test_mouse(void)
 {
-    hid_mouse_report_t m = {9, 9, 9, 9};
+    usb_mouse_report_t m = {9, 9, 9, 9};
     CHECK(hid_mouse_parse((const uint8_t[]){0x01, 5, 0xFB}, 3, &m));
     CHECK(m.buttons == 1 && m.dx == 5 && m.dy == -5 && m.wheel == 0);
     CHECK(hid_mouse_parse((const uint8_t[]){0x07, 0x80, 0x7F, 0xFF}, 4, &m));
     CHECK(m.buttons == 7 && m.dx == -128 && m.dy == 127 && m.wheel == -1);
     CHECK(hid_mouse_parse((const uint8_t[]){0xFF, 0, 0, 1}, 4, &m) && m.buttons == 7);   /* only three buttons are kept */
     CHECK(hid_mouse_parse((const uint8_t[]){0x02, 1, 2, 3, 4, 5, 6}, 7, &m) && m.buttons == 2 && m.wheel == 3);   /* longer reports are fine */
-    hid_mouse_report_t keep = {1, 2, 3, 4};
+    usb_mouse_report_t keep = {1, 2, 3, 4};
     CHECK(!hid_mouse_parse((const uint8_t[]){1, 2}, 2, &keep) && keep.dx == 2);
     CHECK(!hid_mouse_parse(NULL, 4, &keep) && !hid_mouse_parse((const uint8_t[]){1, 2, 3}, 3, NULL) && !hid_mouse_parse((const uint8_t[]){1, 2, 3}, 0, &keep));
 }

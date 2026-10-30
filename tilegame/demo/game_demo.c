@@ -2,7 +2,8 @@
 /*
  * A small portable "game": it uses only platform.h and tilegfx, so the same file runs on the desktop and on the board.
  * D-pad moves the player sprite, A plays a blip, B a drum (and turns the wave effect on and off), Start a chime and puts
- * the player back.
+ * the player back. A mouse draws a pointer: its buttons play the blip (left), drum (right) and chime (middle), and the wheel
+ * changes the scrolling speed.
  */
 #include "platform.h"
 #include "scene.h"
@@ -86,7 +87,9 @@ int main(void)
     scene_setup(&g);
     const int player = tg_sprite_alloc(&g);
     tg_sprite_set_priority(&g, player, 0);   /* in front of the scene's own sprites */
-    int px = 150, py = 110, scroll = 0;
+    const int pointer = tg_sprite_alloc(&g);
+    g.sprites[pointer].flags = 0;                  /* hidden until a mouse shows up */
+    int px = 150, py = 110, scroll = 0, scroll_speed = 1;
     bool wave = false;
 
     while (!plat_quit_requested()) {
@@ -114,11 +117,22 @@ int main(void)
 #if defined(DEMO_AUTOPLAY) && !defined(DEMO_NO_MUSIC)
         music_step(frame);
 #endif
-        scroll++;
+        const plat_mouse_t mouse = plat_mouse();
+        if (mouse.pressed & PLAT_MOUSE_LEFT)
+            play_blip();
+        if (mouse.pressed & PLAT_MOUSE_RIGHT)
+            play_drum();
+        if (mouse.pressed & PLAT_MOUSE_MIDDLE)
+            play_chime();
+        scroll_speed += mouse.wheel;
+        scroll_speed = scroll_speed < -8 ? -8 : (scroll_speed > 8 ? 8 : scroll_speed);
+        scroll += scroll_speed;
 
         scene_animate(&g, (int)frame, scroll, wave);
         g.sprites[player] = (tg_sprite_t){.x = (int16_t)px, .y = (int16_t)py, .tile = (b & PLAT_BTN_A) ? 0 : 3,
                                           .flags = TG_SPRITE_ON, .above = 2};
+        g.sprites[pointer] = (tg_sprite_t){.x = (int16_t)mouse.x, .y = (int16_t)mouse.y, .tile = 4,
+                                           .flags = (uint8_t)(mouse.present ? TG_SPRITE_ON : 0), .above = 3};   /* in front of everything */
         plat_present(&g);
     }
     plat_shutdown();

@@ -25,8 +25,8 @@
 
 #include "platform.h"
 #include "tilegfx.h"
-#if PLAT_USB_KEYBOARD
-#include "usb_kbd.h"
+#if PLAT_USB_HID
+#include "usb_hid.h"
 #endif
 
 #ifndef PLAT_CPU_MHZ
@@ -40,8 +40,8 @@
 #ifndef PLAT_STATS
 #define PLAT_STATS 1
 #endif
-#ifndef PLAT_USB_KEYBOARD
-#define PLAT_USB_KEYBOARD 0
+#ifndef PLAT_USB_HID
+#define PLAT_USB_HID 0
 #endif
 
 #define RING 8
@@ -63,6 +63,7 @@ static volatile uint32_t audio_calls, audio_us_total, audio_us_max;   /* time sp
 
 static uint32_t frame_no, seen_gen;
 static plat_buttons_t held[PLAT_MAX_PLAYERS], pressed[PLAT_MAX_PLAYERS], released[PLAT_MAX_PLAYERS];
+static plat_mouse_t mouse_frame;
 
 static void __scratch_x("") vsync(void)
 {
@@ -238,8 +239,8 @@ bool plat_init(void)
     set_flash_timing(PLAT_CPU_MHZ);
     set_sys_clock_khz(PLAT_CPU_MHZ * 1000, true);
     stdio_init_all();
-#if PLAT_USB_KEYBOARD
-    usb_kbd_init();
+#if PLAT_USB_HID
+    usb_hid_init();
 #endif
 
     lock = spin_lock_init(spin_lock_claim_unused(true));
@@ -269,27 +270,30 @@ void plat_present(const tg_t *g)
 
 uint32_t plat_wait_frame(void)
 {
-#if PLAT_USB_KEYBOARD
-    usb_kbd_task();   /* the USB host stack needs to run often; a late frame must not starve it */
+#if PLAT_USB_HID
+    usb_hid_task();   /* the USB host stack needs to run often; a late frame must not starve it */
 #endif
     while (frame_gen == seen_gen) {
-#if PLAT_USB_KEYBOARD
-        usb_kbd_task();
+#if PLAT_USB_HID
+        usb_hid_task();
 #endif
         tight_loop_contents();
     }
     seen_gen = frame_gen;
 
-    plat_buttons_t is = nes_read();
-#if PLAT_USB_KEYBOARD
-    is |= usb_kbd_buttons();
-#endif
+    const plat_buttons_t nes = nes_read();
     for (int p = 0; p < PLAT_MAX_PLAYERS; p++) {
-        const plat_buttons_t now = p == 0 ? is : 0;
+        plat_buttons_t now = p == 0 ? nes : 0;
+#if PLAT_USB_HID
+        now |= usb_hid_buttons(p);   /* keyboards and the first gamepad are player 0, the second gamepad player 1 */
+#endif
         pressed[p] = now & (plat_buttons_t)~held[p];
         released[p] = held[p] & (plat_buttons_t)~now;
         held[p] = now;
     }
+#if PLAT_USB_HID
+    mouse_frame = usb_hid_mouse_frame();
+#endif
 
 #if PLAT_STATS
     static uint32_t last_us, last_lines, last_total, last_frame;
@@ -316,6 +320,18 @@ bool plat_quit_requested(void) { return false; }
 
 uint32_t plat_millis(void) { return (uint32_t)(time_us_64() / 1000); }
 uint32_t plat_frame(void) { return frame_no; }
+
+plat_mouse_t plat_mouse(void) { return mouse_frame; }
+
+void plat_mouse_set_position(int x, int y)
+{
+#if PLAT_USB_HID
+    usb_hid_mouse_set_position(x, y);
+#else
+    (void)x;
+    (void)y;
+#endif
+}
 
 plat_buttons_t plat_buttons(int p) { return p >= 0 && p < PLAT_MAX_PLAYERS ? held[p] : 0; }
 plat_buttons_t plat_buttons_pressed(int p) { return p >= 0 && p < PLAT_MAX_PLAYERS ? pressed[p] : 0; }

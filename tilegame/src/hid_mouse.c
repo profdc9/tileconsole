@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: MIT */
 #include "hid_mouse.h"
 
-bool hid_mouse_parse(const uint8_t *report, size_t length, hid_mouse_report_t *out)
+bool hid_mouse_parse(const uint8_t *report, size_t length, usb_mouse_report_t *out)
 {
     if (!report || !out || length < 3)
         return false;

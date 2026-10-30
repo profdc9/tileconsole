@@ -16,7 +16,11 @@ set(PICO_HDMI_HSTX_CLK_DIV ${HSTX_DIV} CACHE STRING "" FORCE)
 add_subdirectory(${HSTX_FREE_DIR}/pico_hdmi pico_hdmi)
 
 option(DEMO_AUTOPLAY "The demo presses buttons by itself" OFF)
-option(PLAT_USB_KEYBOARD "USB keyboard input: the USB port becomes a host, so there is no USB serial console" OFF)
+option(PLAT_USB_HID "USB keyboards, mice and gamepads: the USB port becomes a host, so there is no USB serial console" OFF)
+option(PLAT_USB_KEYBOARD "Old name for PLAT_USB_HID" OFF)
+if(PLAT_USB_KEYBOARD)
+    set(PLAT_USB_HID ON)
+endif()
 option(DEMO_NO_MUSIC "With DEMO_AUTOPLAY: no jingle, so the effects can be heard alone" OFF)
 
 function(tilegame_board_app name source)
@@ -32,10 +36,11 @@ function(tilegame_board_app name source)
     endif()
     target_link_libraries(${name} pico_stdlib pico_multicore hardware_vreg hardware_clocks hardware_dma
                           hardware_irq hardware_gpio hardware_sync pico_hdmi)
-    if(PLAT_USB_KEYBOARD)
-        target_sources(${name} PRIVATE usb_kbd.c ${CMAKE_CURRENT_LIST_DIR}/../src/hid_kbd.c)
-        target_include_directories(${name} PRIVATE ${CMAKE_CURRENT_LIST_DIR})   # tusb_config.h and usb_kbd.h
-        target_compile_definitions(${name} PRIVATE PLAT_USB_KEYBOARD=1 PLAT_STATS=0)
+    if(PLAT_USB_HID)
+        target_sources(${name} PRIVATE usb_hid.c ${CMAKE_CURRENT_LIST_DIR}/../src/hid_kbd.c ${CMAKE_CURRENT_LIST_DIR}/../src/hid_pad.c
+                       ${CMAKE_CURRENT_LIST_DIR}/../src/hid_mouse.c ${CMAKE_CURRENT_LIST_DIR}/../src/mouse_acc.c)
+        target_include_directories(${name} PRIVATE ${CMAKE_CURRENT_LIST_DIR})   # tusb_config.h and usb_hid.h
+        target_compile_definitions(${name} PRIVATE PLAT_USB_HID=1 PLAT_STATS=0)
         target_link_libraries(${name} tinyusb_host tinyusb_board)
         pico_enable_stdio_usb(${name} 0)
     else()

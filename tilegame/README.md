@@ -28,3 +28,14 @@ coins, stomp the walking enemies and avoid the pits; three lives.
 - `make platformer` builds the desktop version; `make check` also runs the game tests, which include a bot that has to be able
   to finish the level. For the board: `cmake -S board ...` builds the `platformer` target (add `-DPLAT_USB_KEYBOARD=ON` for the
   keyboard, which takes the USB port and so the serial console).
+
+## Gamepads and mice
+
+- `include/hid_pad.h`, `src/hid_pad.c`: a USB HID report descriptor parser and report decoder for gamepads (buttons, an 8- or
+  4-way hat, the left stick, D-pad usages, report IDs, composite devices) with a default button layout and a Sony table;
+  `src/hid_mouse.c`: boot-protocol mouse reports; `src/mouse_acc.c`: movement, wheel, button edges and a clamped pointer.
+- `plat_mouse()` (platform.h) gives movement since the last frame, the buttons held, pressed and released, a wheel and a pointer
+  position kept on the screen. Keyboards, the NES pad and the first gamepad are player 0; the second gamepad is player 1.
+- SDL: controllers through SDL's game controller API. Board: `-DPLAT_USB_HID=ON` (the old name `PLAT_USB_KEYBOARD` still works)
+  puts the USB port in host mode for keyboards, mice and gamepads, which takes the serial console. Xbox controllers are not HID
+  and are not supported.
