@@ -17,6 +17,8 @@ void tg_init(tg_t *g)
     g->sprite_depth = 8;
 }
 
+typedef uint32_t __attribute__((may_alias, aligned(1))) tg_u32_unaligned;
+
 /* Write one pixel of a tile or sprite row if it is opaque and on screen. */
 TG_HOT static inline void put(uint8_t *dst, int x, uint8_t index)
 {
@@ -84,7 +86,11 @@ TG_HOT void tg_render_line_indices(tg_t *g, int line, uint8_t idx[TG_WIDTH])
     if (g->line_cb)
         g->line_cb(g, line, g->line_cb_user);
 
-    memset(idx, 0, TG_WIDTH);
+    /* Not memset: on a microcontroller that is a call into flash. The barrier stops GCC turning the loop back into one. */
+    for (int i = 0; i < TG_WIDTH; i += 4) {
+        *(tg_u32_unaligned *)(idx + i) = 0;
+        __asm__ volatile("" ::: "memory");
+    }
 
     /* Sprites that touch this line, lowest number first, up to the per-line limit. */
     const int sprite_size = 1 << g->sprite_tile_log2;
