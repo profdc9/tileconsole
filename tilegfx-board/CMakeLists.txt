@@ -20,6 +20,10 @@ add_executable(tilegfx_board
     ${TILEGFX_DIR}/scene.c)
 target_include_directories(tilegfx_board PRIVATE ${TILEGFX_DIR})
 target_compile_definitions(tilegfx_board PRIVATE CPU_MHZ=${CPU_MHZ} "TG_HOT_SECTION=\".time_critical.tilegfx\"")
+option(BENCH_AT_BOOT "Time the compositor before the video starts and print the results" OFF)
+if(BENCH_AT_BOOT)
+    target_compile_definitions(tilegfx_board PRIVATE BENCH_AT_BOOT)
+endif()
 target_compile_options(tilegfx_board PRIVATE -O2 -Wall -Wextra)
 target_link_libraries(tilegfx_board pico_stdlib pico_multicore hardware_vreg hardware_clocks
                       hardware_dma hardware_irq hardware_gpio hardware_sync pico_hdmi)

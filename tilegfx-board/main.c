@@ -12,6 +12,7 @@
 
 #include "hardware/clocks.h"
 #include "hardware/structs/qmi.h"
+#include "hardware/structs/systick.h"
 #include "hardware/sync.h"
 #include "hardware/vreg.h"
 #include "pico/multicore.h"
@@ -111,6 +112,69 @@ static void __not_in_flash_func(render_task)(void)
     }
 }
 
+
+#ifdef BENCH_AT_BOOT
+/*
+ * Compositor cost in CPU cycles per line, measured before the video starts so the scanout interrupt cannot
+ * disturb it. Results are printed every few seconds once a terminal is attached.
+ */
+#define BENCH_N 7
+static const char *const bench_names[BENCH_N] = {"empty", "L0 16px 8bpp", "L1 8px 4bpp", "24 sprites", "all", "bitmap", "scan 128"};
+static uint32_t bench_avg[BENCH_N], bench_max[BENCH_N];
+static uint8_t bench_bitmap[TG_WIDTH * TG_HEIGHT];
+
+static void bench_run(tg_t *g, uint32_t *avg, uint32_t *worst_out)
+{
+    static uint32_t out[LINE_WORDS];
+    uint32_t total = 0, worst = 0;
+    for (int pass = 0; pass < 2; pass++) {   /* the second pass is the one that counts */
+        total = worst = 0;
+        for (int line = 0; line < TG_HEIGHT; line++) {
+            systick_hw->cvr = 0;
+            tg_render_line(g, line, out);
+            const uint32_t c = (0x00FFFFFFu - systick_hw->cvr) & 0x00FFFFFFu;
+            total += c;
+            if (c > worst)
+                worst = c;
+        }
+    }
+    *avg = total / TG_HEIGHT;
+    *worst_out = worst;
+}
+
+static void bench_all(const tg_t *game)
+{
+    static tg_t v;
+    systick_hw->rvr = 0x00FFFFFF;
+    systick_hw->csr = 5;   /* enable, count processor cycles */
+    for (int i = 0; i < TG_WIDTH * TG_HEIGHT; i++)
+        bench_bitmap[i] = (uint8_t)((i * 7 + (i >> 8)) & 255);
+    for (int n = 0; n < BENCH_N; n++) {
+            v = *game;
+            if (n == 0 || n == 3 || n == 5 || n == 6)
+                memset(v.layers, 0, sizeof v.layers);
+            if (n == 1)
+                v.layers[1].kind = TG_LAYER_OFF;
+            if (n == 2)
+                v.layers[0].kind = TG_LAYER_OFF;
+            if (n == 5)
+                v.layers[0] = (tg_layer_t){.kind = TG_LAYER_BITMAP, .bitmap = bench_bitmap};
+            if (n != 3 && n != 4)
+                memset(v.sprites, 0, sizeof v.sprites);
+            v.sprite_count = (n == 3 || n == 4) ? game->sprite_count : (n == 6 ? TG_MAX_SPRITES : 0);
+        bench_run(&v, &bench_avg[n], &bench_max[n]);
+    }
+}
+
+static void bench_print(void)
+{
+    printf("bench, cycles per line (avg/max), %d MHz:", CPU_MHZ);
+    for (int n = 0; n < BENCH_N; n++)
+        printf("  %s %lu/%lu", bench_names[n], (unsigned long)bench_avg[n], (unsigned long)bench_max[n]);
+    printf("  -> all = %lu us/line\n", (unsigned long)(bench_avg[4] / CPU_MHZ));
+}
+#endif
+
 /* Flash must keep working once the system clock goes up: slow its clock to stay at or under about 66 MHz. */
 static void __no_inline_not_in_flash_func(set_flash_timing)(uint32_t cpu_mhz)
 {
@@ -142,6 +206,9 @@ int main(void)
     scene_setup(&game);
     scene_animate(&game, 0, 0, false);
     live = game;
+#ifdef BENCH_AT_BOOT
+    bench_all(&game);
+#endif
 
     hstx_di_queue_init();
     video_output_set_vsync_callback(vsync);
@@ -173,6 +240,10 @@ int main(void)
                    (unsigned long)(dl ? (total - last_total) * 100 / dl % 100 : 0), (unsigned long)render_us_max,
                    (unsigned long)underruns, (unsigned long)lead_min);
             lead_min = 0xFFFF;
+#ifdef BENCH_AT_BOOT
+            if ((frame / 60) % 3 == 0)
+                bench_print();
+#endif
             last_lines = lines; last_total = total; last_gen = gen; last_us = now;
             render_us_max = 0;
         }
