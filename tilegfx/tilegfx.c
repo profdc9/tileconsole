@@ -15,10 +15,31 @@ void tg_init(tg_t *g)
     memset(g, 0, sizeof *g);
     g->sprite_tile_log2 = 4;
     g->sprite_depth = 8;
-    g->sprite_count = TG_MAX_SPRITES;
 }
 
 typedef uint32_t __attribute__((may_alias, aligned(1))) tg_u32_unaligned;
+
+int tg_sprite_alloc(tg_t *g)
+{
+    for (int i = 0; i < TG_MAX_SPRITES; i++) {
+        if (g->sprites[i].flags & TG_SPRITE_USED)
+            continue;
+        g->sprites[i] = (tg_sprite_t){.flags = TG_SPRITE_USED | TG_SPRITE_ON};
+        if (i >= g->sprite_count)
+            g->sprite_count = (uint8_t)(i + 1);
+        return i;
+    }
+    return -1;
+}
+
+void tg_sprite_free(tg_t *g, int slot)
+{
+    if (slot < 0 || slot >= TG_MAX_SPRITES)
+        return;
+    g->sprites[slot].flags = 0;
+    while (g->sprite_count > 0 && !(g->sprites[g->sprite_count - 1].flags & TG_SPRITE_USED))
+        g->sprite_count--;
+}
 
 /* Write one pixel of a tile or sprite row if it is opaque and on screen. */
 TG_HOT static inline void put(uint8_t *dst, int x, uint8_t index)

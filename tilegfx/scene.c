@@ -16,6 +16,8 @@ static uint8_t bg_tiles[16 * 256];       /* 16 tiles, 16x16, 8 bpp */
 static uint8_t fg_tiles[8 * 32];         /* 8 tiles, 8x8, 4 bpp */
 static uint8_t spr_tiles[4 * 256];       /* 4 sprite tiles, 16x16, 8 bpp */
 static int16_t wave[TG_HEIGHT];
+#define NSPRITES 24
+static int sprite_slot[NSPRITES];
 
 static uint16_t rgb565(int r, int g, int b) { return (uint16_t)(((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3)); }
 
@@ -72,7 +74,8 @@ void scene_setup(tg_t *g)
     g->sprite_tile_log2 = 4;
     g->sprite_depth = 8;
     g->sprite_tiles = spr_tiles;
-    g->sprite_count = 24;
+    for (int i = 0; i < NSPRITES; i++)
+        sprite_slot[i] = tg_sprite_alloc(g);
 }
 
 void scene_animate(tg_t *g, int frame, int scroll, bool use_wave)
@@ -81,10 +84,11 @@ void scene_animate(tg_t *g, int frame, int scroll, bool use_wave)
     g->layers[0].scroll_y = 8;
     g->layers[1].scroll_x = (uint32_t)scroll;
     g->layers[1].scroll_y = 0;
-    for (int i = 0; i < 24; i++) {
+    for (int i = 0; i < NSPRITES; i++) {
         const double t = frame * 0.03 + i * 0.7;
-        g->sprites[i] = (tg_sprite_t){.x = (int16_t)(150 + 140 * sin(t)), .y = (int16_t)(100 + 60 * sin(t * 1.7 + i)), .tile = (uint16_t)(i & 3),
-                                      .flags = (uint8_t)(TG_SPRITE_ON | ((i & 4) ? TG_SPRITE_HFLIP : 0)), .above = (uint8_t)(i % 3 ? 2 : 1)};
+        g->sprites[sprite_slot[i]] = (tg_sprite_t){.x = (int16_t)(150 + 140 * sin(t)), .y = (int16_t)(100 + 60 * sin(t * 1.7 + i)), .tile = (uint16_t)(i & 3),
+                                                   .flags = (uint8_t)(TG_SPRITE_USED | TG_SPRITE_ON | ((i & 4) ? TG_SPRITE_HFLIP : 0)),
+                                                   .above = (uint8_t)(i % 3 ? 2 : 1)};
     }
     for (int l = 0; l < TG_HEIGHT; l++)
         wave[l] = use_wave ? (int16_t)(6 * sin(l * 0.15 + frame * 0.1)) : 0;

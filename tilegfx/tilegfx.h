@@ -57,6 +57,7 @@ typedef struct {
 #define TG_SPRITE_ON 1
 #define TG_SPRITE_HFLIP 2
 #define TG_SPRITE_VFLIP 4
+#define TG_SPRITE_USED 8   /* the slot is allocated (set by tg_sprite_alloc); TG_SPRITE_ON says whether it is drawn */
 
 typedef struct {
     int16_t x, y;   /* top left, in screen pixels; may be partly off screen */
@@ -74,7 +75,8 @@ struct tg {
     tg_layer_t layers[TG_MAX_LAYERS];   /* drawn in order, 0 at the back */
 
     tg_sprite_t sprites[TG_MAX_SPRITES]; /* lower numbers are drawn in front of higher ones */
-    uint8_t sprite_count;                /* only sprites[0 .. sprite_count-1] are looked at; tg_init sets TG_MAX_SPRITES */
+    uint8_t sprite_count;                /* only sprites[0 .. sprite_count-1] are looked at; tg_sprite_alloc/free keep it right,
+                                            so set it yourself only if you fill sprites[] by hand (tg_init sets 0) */
     uint8_t sprite_tile_log2, sprite_depth;
     const uint8_t *sprite_tiles;
 
@@ -83,6 +85,15 @@ struct tg {
 };
 
 void tg_init(tg_t *g);
+
+/*
+ * Sprite slots. tg_sprite_alloc returns the lowest free slot, cleared and set to TG_SPRITE_USED | TG_SPRITE_ON, or -1
+ * if all TG_MAX_SPRITES are taken; fill in x, y, tile and the rest through g->sprites[slot]. tg_sprite_free gives the
+ * slot back. Slots stay packed at the bottom, so the per-line sprite search only looks at what is in use.
+ * A lower slot is drawn in front of a higher one, so a new sprite can end up in front of older ones.
+ */
+int tg_sprite_alloc(tg_t *g);
+void tg_sprite_free(tg_t *g, int slot);
 
 /* Compose one line as palette indices. */
 void tg_render_line_indices(tg_t *g, int line, uint8_t idx[TG_WIDTH]);

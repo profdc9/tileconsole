@@ -4,7 +4,7 @@ A scanline compositor for a retro-console style game system: scrolling tile laye
 320x240 bitmap layer. Plain C, no dependencies, so the same code runs in a desktop program and on a microcontroller.
 
 - 320x240, 8-bit palette indices (index 0 transparent), 256-entry RGB565 palette.
-- Up to 4 layers drawn back to front; each is a tile layer or a bitmap. Sprites sit between layers (`above`).
+- Up to 4 layers drawn back to front; each is a tile layer or a bitmap. Sprites sit between layers (`above`); `tg_sprite_alloc` hands out the lowest free slot so the per-line sprite search only covers what is in use.
 - Tile layers: 8x8 or 16x16 tiles, 4 or 8 bits per pixel, a power-of-two tile array that wraps, pixel scroll
   position (the fine offset is derived from it), optional per-line x offset, h/v flip per tile.
 - `tg_render_line()` outputs one HDMI line: 320 words, two identical RGB565 pixels each.
