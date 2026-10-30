@@ -25,15 +25,23 @@ static volatile uint32_t frames;
 
 static const uint16_t bars[8] = {0xFFFF, 0xFFE0, 0x07FF, 0x07E0, 0xF81F, 0xF800, 0x001F, 0x0000};
 
-/* Runs on core 1 in the DMA interrupt: keep it, and everything it reads, in RAM. */
+/* Runs on core 1 in the DMA interrupt: keep it, and everything it reads, in RAM.
+ * Two RGB565 pixels per 32-bit word, written a word at a time. */
 static void __scratch_x("") scanline(uint32_t v_scanline, uint32_t active_line, uint32_t *dst)
 {
     (void)v_scanline;
     const int by = box_y, bx = box_x;
-    const bool in_box = (int)active_line >= by && (int)active_line < by + BOX;
-    uint16_t *px = (uint16_t *)dst;
-    for (int x = 0; x < MODE_H_ACTIVE_PIXELS; x++) {
-        px[x] = (in_box && x >= bx && x < bx + BOX) ? BOX_COLOR : bars[x / (MODE_H_ACTIVE_PIXELS / 8)];
+    const int words_per_bar = MODE_H_ACTIVE_PIXELS / 2 / 8;
+    for (int b = 0; b < 8; b++) {
+        const uint32_t w = bars[b] | ((uint32_t)bars[b] << 16);
+        uint32_t *d = dst + b * words_per_bar;
+        for (int i = 0; i < words_per_bar; i++)
+            d[i] = w;
+    }
+    if ((int)active_line >= by && (int)active_line < by + BOX) {
+        const uint32_t w = BOX_COLOR | ((uint32_t)BOX_COLOR << 16);
+        for (int i = bx / 2; i < (bx + BOX) / 2; i++)   /* bx is kept even */
+            dst[i] = w;
     }
 }
 
@@ -65,7 +73,7 @@ int main(void)
     set_sys_clock_khz(CPU_MHZ * 1000, true);
     stdio_init_all();
 
-#ifdef EMUBOARD2350
+#ifdef SWAPPED_PAIRS
     static const pico_hdmi_hstx_pinout_t pinout = {
         .clock = {.positive_gpio = 12, .negative_gpio = 13},
         .data = {{.positive_gpio = 14, .negative_gpio = 15},
@@ -82,7 +90,7 @@ int main(void)
     video_output_set_scanline_callback(scanline);
     multicore_launch_core1(video_output_core1_run);
 
-    int dx = 2, dy = 1;
+    int dx = 2, dy = 1;   /* dx stays even so the box lands on a word boundary */
     uint32_t last_f = 0, last_us = time_us_32();
     for (;;) {
         sleep_ms(16);

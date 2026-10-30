@@ -6,7 +6,7 @@ frank-nes, frank-msx or frank-386, so the whole tree is free of GPL code. It is 
 
 - `pico_hdmi/` is an unmodified copy of upstream (commit in `pico_hdmi/UPSTREAM_COMMIT`).
 - `main.c` is original to this project: colour bars, a bouncing box, a status line on USB serial. It never waits for a terminal.
-- EmuBoard2350 wiring (P on the even GPIO of each pair) uses upstream's `video_output_set_hstx_pinout()`; `-DEMUBOARD2350=OFF` for the library default.
+- The EmuBoard2350 works with the library's default pinout. `-DSWAPPED_PAIRS=ON` selects the opposite polarity through upstream's `video_output_set_hstx_pinout()`, for boards wired that way.
 
 Build: `export PICO_SDK_PATH=...; cmake -S . -B build -DCPU_MHZ=126 -DPICOTOOL_FORCE_FETCH_FROM_GIT=1; cmake --build build`.
 `CPU_MHZ` may be 126, 252, 378 or 504.
