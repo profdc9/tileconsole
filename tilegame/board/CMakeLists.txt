@@ -20,8 +20,8 @@ option(PLAT_USB_KEYBOARD "USB keyboard input: the USB port becomes a host, so th
 option(DEMO_NO_MUSIC "With DEMO_AUTOPLAY: no jingle, so the effects can be heard alone" OFF)
 
 function(tilegame_board_app name source)
-    add_executable(${name} ${source} plat_board.c ${TILEGFX_DIR}/tilegfx.c ${TILEGFX_DIR}/scene.c ${TILESND_DIR}/snd.c)
-    target_include_directories(${name} PRIVATE ${CMAKE_CURRENT_LIST_DIR}/../include ${TILEGFX_DIR} ${TILESND_DIR})
+    add_executable(${name} ${source} ${ARGN} plat_board.c ${TILEGFX_DIR}/tilegfx.c ${TILEGFX_DIR}/scene.c ${TILESND_DIR}/snd.c)
+    target_include_directories(${name} PRIVATE ${CMAKE_CURRENT_LIST_DIR}/../include ${CMAKE_CURRENT_LIST_DIR}/../game ${TILEGFX_DIR} ${TILESND_DIR})
     target_compile_definitions(${name} PRIVATE PLAT_CPU_MHZ=${CPU_MHZ} "TG_HOT_SECTION=\".time_critical.tilegfx\"" "SND_HOT_SECTION=\".time_critical.tilesnd\"")
     target_compile_options(${name} PRIVATE -O2 -Wall -Wextra)
     if(DEMO_AUTOPLAY)
@@ -46,3 +46,7 @@ function(tilegame_board_app name source)
 endfunction()
 
 tilegame_board_app(game_demo ${CMAKE_CURRENT_LIST_DIR}/../demo/game_demo.c)
+
+set(GAME_DIR ${CMAKE_CURRENT_LIST_DIR}/../game)
+tilegame_board_app(platformer ${GAME_DIR}/game_main.c ${GAME_DIR}/game.c ${GAME_DIR}/level.c ${GAME_DIR}/view.c
+                   ${TILEGFX_DIR}/tg_font.c ${TILEGFX_DIR}/fonts/unscii8.c)

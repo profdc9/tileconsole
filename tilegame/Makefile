@@ -20,6 +20,9 @@ test_hid_kbd: tests/test_hid_kbd.c src/hid_kbd.c include/hid_kbd.h include/platf
 test_game: tests/test_game.c game/game.c game/level.c game/game.h game/level.h include/platform.h
 	$(CC) $(CFLAGS) -g -fsanitize=address,undefined $(INC) -Igame tests/test_game.c game/game.c game/level.c -o $@
 
+platformer: game/game_main.c $(GAMESRC) sdl/plat_sdl.c include/platform.h $(TILEGFX)/tilegfx.c $(FONTSRC) $(TILESND)/snd.c
+	$(CC) $(CFLAGS) $(INC) -Igame game/game_main.c $(GAMESRC) sdl/plat_sdl.c $(TILEGFX)/tilegfx.c $(FONTSRC) $(TILESND)/snd.c -o $@ $(SDL) -lm
+
 test_view: tests/test_view.c $(GAMESRC) game/game.h game/level.h game/view.h $(TILEGFX)/tilegfx.c $(FONTSRC)
 	$(CC) $(CFLAGS) -g -fsanitize=address,undefined $(INC) -Igame tests/test_view.c $(GAMESRC) $(TILEGFX)/tilegfx.c $(FONTSRC) -o $@ -lm
 
