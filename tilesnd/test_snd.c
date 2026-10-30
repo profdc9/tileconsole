@@ -394,6 +394,28 @@ static void test_block_independence(void)
     }
 }
 
+/* With nothing sounding the output is silence, whatever the buffer held before. */
+static void test_silence(void)
+{
+    snd_t s;
+    fresh(&s);
+    memset(out, 0x55, sizeof out);
+    render(&s, 1000);
+    for (int i = 0; i < 2000; i++)
+        CHECK(out[i] == 0);
+    CHECK(out[2000] == 0x5555);                           /* and nothing past the end was touched */
+
+    /* A voice that ends part way through a block: sound, then silence, in the same call. */
+    snd_play_tone(&s, 0, SND_PULSE, SND_HZ(1), 255, 0, 255, NULL);
+    render(&s, 100);
+    snd_key_off(&s, 0);
+    memset(out, 0x55, sizeof out);
+    render(&s, 1000);
+    CHECK(!snd_voice_active(&s, 0));
+    for (int i = 500; i < 2000; i++)
+        CHECK(out[i] == 0);
+}
+
 static void test_queue_and_misc(void)
 {
     snd_t s;
@@ -494,6 +516,7 @@ int main(void)
     test_pan_volume_master();
     test_mixing();
     test_block_independence();
+    test_silence();
     test_queue_and_misc();
     test_threads();
     printf("all %d checks passed\n", checks);

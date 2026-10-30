@@ -368,6 +368,20 @@ SND_HOT void snd_render(snd_t *s, int16_t *lr, int frames)
 
     while (frames > 0) {
         const int n = frames < SND_BLOCK ? frames : SND_BLOCK;
+
+        bool any = false;
+        for (int i = 0; i < SND_MAX_VOICES; i++)
+            any |= s->voices[i].kind != SND_OFF;
+        if (!any) {   /* nothing sounding: silence, without mixing or clipping anything */
+            for (int i = 0; i < 2 * n; i++) {
+                lr[i] = 0;
+                __asm__ volatile("" ::: "memory");
+            }
+            lr += 2 * n;
+            frames -= n;
+            continue;
+        }
+
         /* Not memset: on a microcontroller that is a call into flash. The barrier stops the compiler turning this into one. */
         for (int i = 0; i < SND_BLOCK; i++) {
             s->acc[0][i] = 0;
@@ -377,9 +391,11 @@ SND_HOT void snd_render(snd_t *s, int16_t *lr, int frames)
         for (int i = 0; i < SND_MAX_VOICES; i++)
             if (s->voices[i].kind != SND_OFF)
                 render_voice(s, &s->voices[i], n);
+        /* The sum of 16 voices is at most 16 * 32768 (20 bits) and the master is at most 256 (9 bits): 32 bits is enough. */
+        const int32_t master = (int32_t)s->master;
         for (int i = 0; i < n; i++)
             for (int ch = 0; ch < 2; ch++) {
-                int32_t v = (int32_t)(((int64_t)s->acc[ch][i] * s->master) >> 8);
+                int32_t v = (s->acc[ch][i] * master) >> 8;
                 v = v > 32767 ? 32767 : (v < -32768 ? -32768 : v);
                 lr[2 * i + ch] = (int16_t)v;
             }
