@@ -14,7 +14,7 @@ static uint16_t bg_map[1 << (BG_W_LOG2 + BG_H_LOG2)];
 static uint16_t fg_map[1 << (FG_W_LOG2 + FG_H_LOG2)];
 static uint8_t bg_tiles[16 * 256];       /* 16 tiles, 16x16, 8 bpp */
 static uint8_t fg_tiles[8 * 32];         /* 8 tiles, 8x8, 4 bpp */
-static uint8_t spr_tiles[4 * 256];       /* 4 sprite tiles, 16x16, 8 bpp */
+static uint8_t spr_tiles[5 * 256];       /* 4 sprite tiles, 16x16, 8 bpp, then the pointer */
 static int16_t wave[TG_HEIGHT];
 #define NSPRITES 24
 static int sprite_slot[NSPRITES];
@@ -50,6 +50,15 @@ static void make_graphics(void)
                 const int dx = x * 2 - 15, dy = y * 2 - 15;
                 spr_tiles[t * 256 + y * 16 + x] = (dx * dx + dy * dy < 225) ? (uint8_t)(200 + t * 12 + (dx * dx + dy * dy) / 40) : 0;
             }
+    for (int y = 0; y < 14; y++)             /* a pointer: a white arrow with a dark edge, tile 4 */
+        for (int x = 0; x < 14; x++) {
+            const int in = x <= (y * 2) / 3 + 1 && x <= 9 && y >= 0;
+            const int inner = x <= (y * 2) / 3 && x <= 8 && y >= 1 && x >= 1;
+            if (in)
+                spr_tiles[4 * 256 + y * 16 + x] = 3;
+            if (inner)
+                spr_tiles[4 * 256 + y * 16 + x] = 255;
+        }
     for (int y = 0; y < 1 << BG_H_LOG2; y++)
         for (int x = 0; x < 1 << BG_W_LOG2; x++)
             bg_map[y << BG_W_LOG2 | x] = TG_ENTRY((x / 4 + y) % 16, 0, ((x ^ y) & 8) ? TG_HFLIP : 0);
