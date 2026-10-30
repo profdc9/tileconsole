@@ -17,6 +17,7 @@
 #include "hid_mouse.h"
 #include "hid_pad.h"
 #include "mouse_acc.h"
+#include "xinput.h"
 
 #ifndef PLAT_LED_PIN
 #define PLAT_LED_PIN 25
@@ -36,6 +37,12 @@ typedef struct {
 } iface_t;
 
 static iface_t ifc[CFG_TUH_DEVICE_MAX + 1][CFG_TUH_HID];
+static struct {
+    bool present;
+    uint8_t player;
+    plat_buttons_t held;
+} xin[CFG_TUH_DEVICE_MAX + 1];             /* XInput pads, one a device */
+static bool dev_has_pad[CFG_TUH_DEVICE_MAX + 1];   /* the device has a gamepad interface: ignore its keyboard and mouse ones */
 static hid_pad_t pad_pool[PAD_POOL];
 static bool pad_used[PAD_POOL];
 static mouse_acc_t mouse;
@@ -53,6 +60,13 @@ static struct {
     uint8_t last_len, last[10];
     bool decoded;
     hid_pad_state_t state;
+    uint32_t xin_reports, ignored;
+    uint8_t xin_last[10];
+    plat_buttons_t xin_buttons;
+    uint32_t kbd_reports;          /* keyboard-protocol interfaces: the last report and every key code seen so far */
+    uint8_t kbd_last[8];
+    uint8_t seen[12];
+    uint8_t nseen;
 } diag;
 
 static bool valid(uint8_t dev_addr, uint8_t idx) { return dev_addr <= CFG_TUH_DEVICE_MAX && idx < CFG_TUH_HID; }
@@ -60,9 +74,11 @@ static bool valid(uint8_t dev_addr, uint8_t idx) { return dev_addr <= CFG_TUH_DE
 static void update_led(void)
 {
     bool any = false;
-    for (int d = 0; d <= CFG_TUH_DEVICE_MAX; d++)
+    for (int d = 0; d <= CFG_TUH_DEVICE_MAX; d++) {
+        any |= xin[d].present;
         for (int i = 0; i < CFG_TUH_HID; i++)
             any |= ifc[d][i].kind != K_NONE;
+    }
     gpio_put(PLAT_LED_PIN, any);
 }
 
@@ -80,12 +96,15 @@ void usb_hid_task(void) { tuh_task(); }
 plat_buttons_t usb_hid_buttons(int player)
 {
     plat_buttons_t b = 0;
-    for (int d = 0; d <= CFG_TUH_DEVICE_MAX; d++)
+    for (int d = 0; d <= CFG_TUH_DEVICE_MAX; d++) {
+        if (xin[d].present && xin[d].player == player)
+            b |= xin[d].held;
         for (int i = 0; i < CFG_TUH_HID; i++) {
             const iface_t *f = &ifc[d][i];
             if ((f->kind == K_KEYBOARD && player == 0) || (f->kind == K_PAD && f->player == player))
                 b |= f->held;
         }
+    }
     return b;
 }
 
@@ -102,13 +121,59 @@ static uint8_t free_player(void)
 {
     for (uint8_t p = 0; p < PLAT_MAX_PLAYERS; p++) {
         bool taken = false;
-        for (int d = 0; d <= CFG_TUH_DEVICE_MAX; d++)
+        for (int d = 0; d <= CFG_TUH_DEVICE_MAX; d++) {
+            taken |= xin[d].present && xin[d].player == p;
             for (int i = 0; i < CFG_TUH_HID; i++)
                 taken |= ifc[d][i].kind == K_PAD && ifc[d][i].player == p;
+        }
         if (!taken)
             return p;
     }
     return 0xFF;   /* a third pad is not used */
+}
+
+/* A device has a gamepad: whatever keyboard or mouse interfaces it already had are dropped, and later ones are ignored. */
+static void device_is_a_pad(uint8_t dev_addr)
+{
+    dev_has_pad[dev_addr] = true;
+    for (int i = 0; i < CFG_TUH_HID; i++)
+        if (ifc[dev_addr][i].kind == K_KEYBOARD || ifc[dev_addr][i].kind == K_MOUSE)
+            memset(&ifc[dev_addr][i], 0, sizeof ifc[dev_addr][i]);
+    update_led();
+}
+
+void usb_hid_xinput_attach(uint8_t dev_addr)
+{
+    if (dev_addr > CFG_TUH_DEVICE_MAX)
+        return;
+    const uint8_t player = free_player();
+    xin[dev_addr].present = player != 0xFF;
+    xin[dev_addr].player = player;
+    xin[dev_addr].held = 0;
+    device_is_a_pad(dev_addr);
+}
+
+void usb_hid_xinput_detach(uint8_t dev_addr)
+{
+    if (dev_addr > CFG_TUH_DEVICE_MAX)
+        return;
+    memset(&xin[dev_addr], 0, sizeof xin[dev_addr]);
+    dev_has_pad[dev_addr] = false;
+    update_led();
+}
+
+void usb_hid_xinput_report(uint8_t dev_addr, const uint8_t *report, uint16_t length)
+{
+    if (dev_addr > CFG_TUH_DEVICE_MAX)
+        return;
+    diag.xin_reports++;
+    memset(diag.xin_last, 0, sizeof diag.xin_last);
+    memcpy(diag.xin_last, report, length < sizeof diag.xin_last ? length : sizeof diag.xin_last);
+    plat_buttons_t b;
+    if (xinput_decode(report, length, &b)) {
+        xin[dev_addr].held = b;
+        diag.xin_buttons = b;
+    }
 }
 
 void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t idx, const uint8_t *report_desc, uint16_t desc_len)
@@ -127,6 +192,10 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t idx, const uint8_t *report_desc,
     memcpy(diag.desc, report_desc, desc_len < sizeof diag.desc ? desc_len : sizeof diag.desc);
     tuh_vid_pid_get(dev_addr, &diag.vid, &diag.pid);
 
+    if ((proto == HID_ITF_PROTOCOL_KEYBOARD || proto == HID_ITF_PROTOCOL_MOUSE) && dev_has_pad[dev_addr]) {
+        diag.ignored++;
+        return;   /* this device is a gamepad: its keyboard and mouse interfaces are not wanted */
+    }
     if (proto == HID_ITF_PROTOCOL_KEYBOARD || proto == HID_ITF_PROTOCOL_MOUSE) {
         f->kind = proto == HID_ITF_PROTOCOL_KEYBOARD ? K_KEYBOARD : K_MOUSE;
         if (f->kind == K_MOUSE)
@@ -153,6 +222,7 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t idx, const uint8_t *report_desc,
             f->pad = (uint8_t)slot;
             f->player = player;
             f->map = hid_pad_map_for(vid, pid);
+            device_is_a_pad(dev_addr);
         } else {
             diag.nother++;
             return;   /* something we do not use: leave it alone */
@@ -170,6 +240,10 @@ void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t idx)
     if (f->kind == K_PAD && f->pad < PAD_POOL)
         pad_used[f->pad] = false;
     memset(f, 0, sizeof *f);
+    bool still = xin[dev_addr].present;
+    for (int k = 0; k < CFG_TUH_HID; k++)
+        still |= ifc[dev_addr][k].kind == K_PAD;
+    dev_has_pad[dev_addr] = still;
     update_led();
 }
 
@@ -185,6 +259,17 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t idx, const uint8_t *re
     }
     switch (f->kind) {
     case K_KEYBOARD: {
+        diag.kbd_reports++;
+        memset(diag.kbd_last, 0, sizeof diag.kbd_last);
+        memcpy(diag.kbd_last, report, len < sizeof diag.kbd_last ? len : sizeof diag.kbd_last);
+        for (int k = 2; k < 8 && k < len; k++) {   /* remember each distinct key code, in the order first seen */
+            const uint8_t code = report[k];
+            bool known = code <= 1;
+            for (unsigned s = 0; s < diag.nseen; s++)
+                known |= diag.seen[s] == code;
+            if (!known && diag.nseen < sizeof diag.seen)
+                diag.seen[diag.nseen++] = code;
+        }
         plat_buttons_t b;
         if (hid_kbd_parse(report, len, &b))
             f->held = b;
@@ -223,10 +308,31 @@ int usb_hid_diag(char (*lines)[41], int max)
             pads += ifc[d][i].kind == K_PAD;
         }
 #define LINE(...) do { if (n < max) snprintf(lines[n++], 41, __VA_ARGS__); } while (0)
-    LINE("KBD %d MOUSE %d PAD %d NOT USED %d", kbd, mice, pads, diag.nother);
+    int xpads = 0;
+    for (int d = 0; d <= CFG_TUH_DEVICE_MAX; d++)
+        xpads += xin[d].present;
+    LINE("KBD %d MOUSE %d PAD %d XINPUT %d", kbd, mice, pads, xpads);
+    LINE("OTHER %d, KEYBOARD/MOUSE IGNORED %lu", diag.nother, (unsigned long)diag.ignored);
+    if (xpads) {
+        LINE("XINPUT REPORTS %lu", (unsigned long)diag.xin_reports);
+        LINE("X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X", diag.xin_last[0], diag.xin_last[1], diag.xin_last[2],
+             diag.xin_last[3], diag.xin_last[4], diag.xin_last[5], diag.xin_last[6], diag.xin_last[7], diag.xin_last[8],
+             diag.xin_last[9]);
+        LINE("DECODED PLATFORM BUTTONS %04X", diag.xin_buttons);
+        return n;
+    }
     if (!diag.have_iface) {
         LINE("NO HID INTERFACE SEEN YET");
         return n;
+    }
+    if (kbd) {
+        LINE("KEYBOARD REPORTS %lu (MODIFIER, KEYS)", (unsigned long)diag.kbd_reports);
+        LINE("NOW %02X: %02X %02X %02X %02X %02X %02X", diag.kbd_last[0], diag.kbd_last[2], diag.kbd_last[3], diag.kbd_last[4],
+             diag.kbd_last[5], diag.kbd_last[6], diag.kbd_last[7]);
+        char seen[41] = "SEEN:";
+        for (unsigned s = 0; s < diag.nseen; s++)
+            snprintf(seen + strlen(seen), sizeof seen - strlen(seen), " %02X", diag.seen[s]);
+        LINE("%s", seen);
     }
     LINE("LAST: PROTO %d, DESC LEN %d", diag.proto, diag.desc_len);
     LINE("VID %04X PID %04X", diag.vid, diag.pid);

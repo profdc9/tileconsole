@@ -37,7 +37,7 @@ function(tilegame_board_app name source)
     target_link_libraries(${name} pico_stdlib pico_multicore hardware_vreg hardware_clocks hardware_dma
                           hardware_irq hardware_gpio hardware_sync pico_hdmi)
     if(PLAT_USB_HID)
-        target_sources(${name} PRIVATE usb_hid.c ${CMAKE_CURRENT_LIST_DIR}/../src/hid_kbd.c ${CMAKE_CURRENT_LIST_DIR}/../src/hid_pad.c
+        target_sources(${name} PRIVATE usb_hid.c xinput_host.c ${CMAKE_CURRENT_LIST_DIR}/../src/xinput.c ${CMAKE_CURRENT_LIST_DIR}/../src/hid_kbd.c ${CMAKE_CURRENT_LIST_DIR}/../src/hid_pad.c
                        ${CMAKE_CURRENT_LIST_DIR}/../src/hid_mouse.c ${CMAKE_CURRENT_LIST_DIR}/../src/mouse_acc.c)
         target_include_directories(${name} PRIVATE ${CMAKE_CURRENT_LIST_DIR})   # tusb_config.h and usb_hid.h
         target_compile_definitions(${name} PRIVATE PLAT_USB_HID=1 PLAT_STATS=0)

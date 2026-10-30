@@ -9,6 +9,12 @@ void usb_hid_task(void);                          /* call often (at least every 
 plat_buttons_t usb_hid_buttons(int player);       /* what the keyboards and gamepads for this player hold down */
 plat_mouse_t usb_hid_mouse_frame(void);           /* the mouse snapshot for this frame (call once a frame) */
 void usb_hid_mouse_set_position(int x, int y);
-int usb_hid_diag(char (*lines)[41], int max_lines);   /* text about what is connected and what it sent */
+int usb_hid_diag(char (*lines)[41], int max_lines);
+
+/* The XInput class driver (xinput_host.c) reports its pads here. A device that has a gamepad interface, XInput or HID, has its
+ * keyboard and mouse interfaces ignored: they are emulations or configuration channels, not what is wanted. */
+void usb_hid_xinput_attach(uint8_t dev_addr);
+void usb_hid_xinput_detach(uint8_t dev_addr);
+void usb_hid_xinput_report(uint8_t dev_addr, const uint8_t *report, uint16_t length);   /* text about what is connected and what it sent */
 
 #endif

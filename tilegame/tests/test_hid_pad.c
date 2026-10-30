@@ -7,6 +7,7 @@
 #include "hid_mouse.h"
 #include "hid_pad.h"
 #include "mouse_acc.h"
+#include "xinput.h"
 
 static int checks;
 #define CHECK(cond)                                                          \
@@ -414,6 +415,91 @@ static void test_mouse(void)
 }
 
 
+
+static void test_xinput(void)
+{
+    uint8_t r[20];
+    plat_buttons_t b = 0xFFFF;
+    memset(r, 0, sizeof r);
+    r[1] = 0x14;
+    CHECK(xinput_decode(r, 20, &b) && b == 0);                      /* nothing pressed */
+
+    /* Every bit of the two button bytes, on its own. */
+    static const struct { int byte; uint8_t bit; plat_buttons_t want; } map[] = {
+        {2, 0x01, PLAT_BTN_UP},  {2, 0x02, PLAT_BTN_DOWN}, {2, 0x04, PLAT_BTN_LEFT},   {2, 0x08, PLAT_BTN_RIGHT},
+        {2, 0x10, PLAT_BTN_START}, {2, 0x20, PLAT_BTN_SELECT}, {2, 0x40, 0},           {2, 0x80, 0},   /* stick clicks: unused */
+        {3, 0x01, PLAT_BTN_L},   {3, 0x02, PLAT_BTN_R},   {3, 0x04, 0},                {3, 0x08, 0},   /* guide and the unused bit */
+        {3, 0x10, PLAT_BTN_A},   {3, 0x20, PLAT_BTN_B},   {3, 0x40, PLAT_BTN_X},       {3, 0x80, PLAT_BTN_Y},
+    };
+    for (size_t i = 0; i < sizeof map / sizeof *map; i++) {
+        memset(r, 0, sizeof r);
+        r[1] = 0x14;
+        r[map[i].byte] = map[i].bit;
+        CHECK(xinput_decode(r, 20, &b) && b == map[i].want);
+    }
+    memset(r, 0, sizeof r);
+    r[1] = 0x14; r[2] = 0xFF; r[3] = 0xFF;                          /* all of them at once */
+    CHECK(xinput_decode(r, 20, &b));
+    CHECK(b == (PLAT_BTN_UP | PLAT_BTN_DOWN | PLAT_BTN_LEFT | PLAT_BTN_RIGHT | PLAT_BTN_START | PLAT_BTN_SELECT | PLAT_BTN_L |
+                PLAT_BTN_R | PLAT_BTN_A | PLAT_BTN_B | PLAT_BTN_X | PLAT_BTN_Y));
+
+    /* The triggers and the right stick do nothing. */
+    memset(r, 0, sizeof r);
+    r[1] = 0x14; r[4] = 255; r[5] = 255; r[10] = 0xFF; r[11] = 0x7F; r[12] = 0x00; r[13] = 0x80;
+    CHECK(xinput_decode(r, 20, &b) && b == 0);
+
+    /* The left stick: signed 16 bit, little endian, Y positive up; well over counts, a little does not. */
+    memset(r, 0, sizeof r);
+    r[1] = 0x14;
+    r[6] = 0xFF; r[7] = 0x7F;                                       /* X = +32767 */
+    CHECK(xinput_decode(r, 20, &b) && b == PLAT_BTN_RIGHT);
+    r[6] = 0x00; r[7] = 0x80;                                       /* X = -32768 */
+    CHECK(xinput_decode(r, 20, &b) && b == PLAT_BTN_LEFT);
+    r[6] = r[7] = 0;
+    r[8] = 0xFF; r[9] = 0x7F;                                       /* Y = +32767: up */
+    CHECK(xinput_decode(r, 20, &b) && b == PLAT_BTN_UP);
+    r[8] = 0x00; r[9] = 0x80;                                       /* Y = -32768: down */
+    CHECK(xinput_decode(r, 20, &b) && b == PLAT_BTN_DOWN);
+    r[8] = r[9] = 0;
+    r[6] = 0x10; r[7] = 0x27;                                       /* +10000: exactly the threshold, not over it */
+    CHECK(xinput_decode(r, 20, &b) && b == 0);
+    r[6] = 0x11; r[7] = 0x27;                                       /* +10001 */
+    CHECK(xinput_decode(r, 20, &b) && b == PLAT_BTN_RIGHT);
+    r[6] = 0xF0; r[7] = 0xD8;                                       /* -10000 */
+    CHECK(xinput_decode(r, 20, &b) && b == 0);
+    r[6] = 0xEF; r[7] = 0xD8;                                       /* -10001 */
+    CHECK(xinput_decode(r, 20, &b) && b == PLAT_BTN_LEFT);
+    r[6] = 0x00; r[7] = 0x40; r[8] = 0x00; r[9] = 0xC0;             /* diagonal: right and down */
+    CHECK(xinput_decode(r, 20, &b) && b == (PLAT_BTN_RIGHT | PLAT_BTN_DOWN));
+    r[2] = 0x04;                                                    /* the D-pad and the stick add up */
+    CHECK(xinput_decode(r, 20, &b) && b == (PLAT_BTN_LEFT | PLAT_BTN_RIGHT | PLAT_BTN_DOWN));
+
+    /* Not an input message, or too short: refused, and *out is left alone. */
+    plat_buttons_t keep = 0x1234;
+    memset(r, 0, sizeof r);
+    r[0] = 0x08; r[1] = 0x14; r[3] = 0xFF;
+    CHECK(!xinput_decode(r, 20, &keep) && keep == 0x1234);
+    r[0] = 0x01;
+    CHECK(!xinput_decode(r, 20, &keep));
+    r[0] = 0x00;
+    CHECK(!xinput_decode(r, 13, &keep) && !xinput_decode(r, 0, &keep) && keep == 0x1234);
+    CHECK(xinput_decode(r, 14, &keep) && keep != 0x1234);            /* 14 bytes is the least that holds the sticks */
+    CHECK(!xinput_decode(NULL, 20, &keep) && !xinput_decode(r, 20, NULL));
+    CHECK(xinput_decode(r, 32, &b));                                 /* a longer buffer is fine */
+
+    /* Anything at all, as a report: never a problem, and only ever the buttons that exist. */
+    const plat_buttons_t all = PLAT_BTN_UP | PLAT_BTN_DOWN | PLAT_BTN_LEFT | PLAT_BTN_RIGHT | PLAT_BTN_START | PLAT_BTN_SELECT |
+                               PLAT_BTN_L | PLAT_BTN_R | PLAT_BTN_A | PLAT_BTN_B | PLAT_BTN_X | PLAT_BTN_Y;
+    for (int trial = 0; trial < 200000; trial++) {
+        uint8_t rep[32];
+        for (size_t i = 0; i < sizeof rep; i++)
+            rep[i] = (uint8_t)rnd();
+        rep[0] = (rnd() & 3) ? 0 : (uint8_t)rnd();
+        if (xinput_decode(rep, rnd() % sizeof rep, &b))
+            CHECK((b & ~all) == 0);
+    }
+}
+
 static void test_mouse_accumulator(void)
 {
     mouse_acc_t m;
@@ -482,6 +568,7 @@ int main(void)
     test_robustness();
     test_mouse();
     test_mouse_accumulator();
+    test_xinput();
     printf("all %d checks passed\n", checks);
     return 0;
 }
