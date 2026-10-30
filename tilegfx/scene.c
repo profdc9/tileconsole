@@ -72,6 +72,7 @@ void scene_setup(tg_t *g)
     g->sprite_tile_log2 = 4;
     g->sprite_depth = 8;
     g->sprite_tiles = spr_tiles;
+    g->sprite_count = 24;
 }
 
 void scene_animate(tg_t *g, int frame, int scroll, bool use_wave)

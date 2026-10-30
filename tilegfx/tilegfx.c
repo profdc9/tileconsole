@@ -15,6 +15,7 @@ void tg_init(tg_t *g)
     memset(g, 0, sizeof *g);
     g->sprite_tile_log2 = 4;
     g->sprite_depth = 8;
+    g->sprite_count = TG_MAX_SPRITES;
 }
 
 typedef uint32_t __attribute__((may_alias, aligned(1))) tg_u32_unaligned;
@@ -27,13 +28,88 @@ TG_HOT static inline void put(uint8_t *dst, int x, uint8_t index)
 }
 
 /*
- * Draw one row of one tile at screen x. `row` is the row of the tile already chosen with any
- * v-flip applied; `pal` only matters for 4 bpp.
+ * Merge four pixels (a little-endian word of palette indices) into dst; index 0 is transparent. dst and the source
+ * may be unaligned. A word with no opaque pixel costs a compare and a branch.
  */
-TG_HOT static inline void draw_tile_row(uint8_t *dst, int sx, const uint8_t *tiles, unsigned tile, unsigned row,
-                                 unsigned tile_log2, unsigned depth, bool hflip, unsigned pal)
+TG_HOT static inline uint32_t opaque_mask(uint32_t v)
+{
+    /* 0xFF in every byte of v that is not zero (no carries cross a byte, so this is exact for any v). */
+    return (((v & 0x7F7F7F7Fu) + 0x7F7F7F7Fu) | v) >> 7 & 0x01010101u;
+}
+
+TG_HOT static inline void merge4(uint8_t *dst, uint32_t v)
+{
+    if (v == 0)
+        return;
+    const uint32_t m = opaque_mask(v) * 0xFFu;
+    tg_u32_unaligned *d = (tg_u32_unaligned *)dst;
+    *d = (*d & ~m) | (v & m);
+}
+
+/* The same, for 4 bpp pixels already spread one per byte: the sub-palette `base` (pal * 16 in every byte) is added
+ * to the opaque ones. */
+TG_HOT static inline void merge4_pal(uint8_t *dst, uint32_t v, uint32_t base)
+{
+    if (v == 0)
+        return;
+    const uint32_t m = opaque_mask(v) * 0xFFu;
+    tg_u32_unaligned *d = (tg_u32_unaligned *)dst;
+    *d = (*d & ~m) | ((v | base) & m);
+}
+
+/* Spread two bytes of 4 bpp pixels (x = b0 | b1 << 8) into four bytes, one pixel each, left pixel in the low byte. */
+TG_HOT static inline uint32_t spread4(uint32_t x)
+{
+    return ((x >> 4) & 0x0000000Fu) | ((x & 0x0000000Fu) << 8) | ((x << 4) & 0x000F0000u) | ((x << 16) & 0x0F000000u);
+}
+
+/* Draw one tile row that lies entirely on screen. */
+TG_HOT static inline __attribute__((always_inline)) void draw_tile_row_fast(uint8_t *dst, const uint8_t *tiles, unsigned tile, unsigned row,
+                                             unsigned tile_log2, unsigned depth, bool hflip, unsigned pal)
 {
     const unsigned size = 1u << tile_log2;
+    if (depth == 8) {
+        const tg_u32_unaligned *src = (const tg_u32_unaligned *)(tiles + (((size_t)tile << (2 * tile_log2)) | (row << tile_log2)));
+        const unsigned words = size >> 2;
+        if (hflip) {
+            for (unsigned i = 0; i < words; i++)
+                merge4(dst + 4 * i, __builtin_bswap32(src[words - 1 - i]));
+        } else {
+            for (unsigned i = 0; i < words; i++)
+                merge4(dst + 4 * i, src[i]);
+        }
+    } else {
+        const tg_u32_unaligned *src = (const tg_u32_unaligned *)(tiles + (((size_t)tile << (2 * tile_log2 - 1)) | (row << (tile_log2 - 1))));
+        const unsigned words = size >> 3;   /* each word holds 8 pixels */
+        const uint32_t base = (pal << 4) * 0x01010101u;
+        for (unsigned i = 0; i < words; i++) {
+            uint32_t w;
+            if (hflip) {
+                w = __builtin_bswap32(src[words - 1 - i]);
+                w = ((w & 0x0F0F0F0Fu) << 4) | ((w >> 4) & 0x0F0F0F0Fu);   /* swap the nibbles of each byte */
+            } else {
+                w = src[i];
+            }
+            if (w == 0)
+                continue;
+            merge4_pal(dst + 8 * i, spread4(w & 0xFFFFu), base);
+            merge4_pal(dst + 8 * i + 4, spread4(w >> 16), base);
+        }
+    }
+}
+
+/*
+ * Draw one row of one tile at screen x. `row` is the row of the tile already chosen with any v-flip applied; `pal`
+ * only matters for 4 bpp. Tiles that are partly off screen take the slow, clipped path.
+ */
+TG_HOT static inline __attribute__((always_inline)) void draw_tile_row(uint8_t *dst, int sx, const uint8_t *tiles, unsigned tile, unsigned row,
+                                        unsigned tile_log2, unsigned depth, bool hflip, unsigned pal)
+{
+    const unsigned size = 1u << tile_log2;
+    if (sx >= 0 && sx + (int)size <= TG_WIDTH) {
+        draw_tile_row_fast(dst + sx, tiles, tile, row, tile_log2, depth, hflip, pal);
+        return;
+    }
     if (depth == 8) {
         const uint8_t *src = tiles + (((size_t)tile << (2 * tile_log2)) | (row << tile_log2));
         for (unsigned i = 0; i < size; i++)
@@ -50,9 +126,10 @@ TG_HOT static inline void draw_tile_row(uint8_t *dst, int sx, const uint8_t *til
     }
 }
 
-TG_HOT static void draw_tile_layer(const tg_layer_t *L, int line, uint8_t *dst)
+TG_HOT /* One copy of the tile loop per tile size and depth, so that sizes and depths are constants and everything unrolls. */
+TG_HOT static inline __attribute__((always_inline)) void draw_tile_layer_impl(const tg_layer_t *L, int line, uint8_t *dst,
+                                                                              const unsigned tl, const unsigned depth)
 {
-    const unsigned tl = L->tile_log2;
     const unsigned size = 1u << tl;
     const uint32_t map_w_mask = (1u << L->map_w_log2) - 1;
     const uint32_t y = ((uint32_t)line + L->scroll_y) & (((uint32_t)1 << (L->map_h_log2 + tl)) - 1);
@@ -68,17 +145,34 @@ TG_HOT static void draw_tile_layer(const tg_layer_t *L, int line, uint8_t *dst)
     for (int sx = -(int)fine_x; sx < TG_WIDTH; sx += (int)size, col = (col + 1) & map_w_mask) {
         const uint16_t e = map_row[col];
         const unsigned r = (e & TG_VFLIP) ? size - 1 - fine_y : fine_y;
-        draw_tile_row(dst, sx, L->tiles, e & TG_TILE_MASK, r, tl, L->depth, (e & TG_HFLIP) != 0,
-                      e >> TG_PAL_SHIFT);
+        draw_tile_row(dst, sx, L->tiles, e & TG_TILE_MASK, r, tl, depth, (e & TG_HFLIP) != 0, e >> TG_PAL_SHIFT);
     }
+}
+
+TG_HOT static void draw_layer_8px_4bpp(const tg_layer_t *L, int line, uint8_t *dst) { draw_tile_layer_impl(L, line, dst, 3, 4); }
+TG_HOT static void draw_layer_8px_8bpp(const tg_layer_t *L, int line, uint8_t *dst) { draw_tile_layer_impl(L, line, dst, 3, 8); }
+TG_HOT static void draw_layer_16px_4bpp(const tg_layer_t *L, int line, uint8_t *dst) { draw_tile_layer_impl(L, line, dst, 4, 4); }
+TG_HOT static void draw_layer_16px_8bpp(const tg_layer_t *L, int line, uint8_t *dst) { draw_tile_layer_impl(L, line, dst, 4, 8); }
+
+TG_HOT static void draw_tile_layer(const tg_layer_t *L, int line, uint8_t *dst)
+{
+    if (L->tile_log2 == 3)
+        (L->depth == 8 ? draw_layer_8px_8bpp : draw_layer_8px_4bpp)(L, line, dst);
+    else
+        (L->depth == 8 ? draw_layer_16px_8bpp : draw_layer_16px_4bpp)(L, line, dst);
 }
 
 TG_HOT static void draw_bitmap_layer(const tg_layer_t *L, int line, uint8_t *dst)
 {
     const uint8_t *src = L->bitmap + (size_t)line * TG_WIDTH;
-    for (int x = 0; x < TG_WIDTH; x++)
-        if (src[x])
-            dst[x] = src[x];
+    for (int x = 0; x < TG_WIDTH; x += 4)
+        merge4(dst + x, *(const tg_u32_unaligned *)(src + x));
+}
+
+TG_HOT static void draw_sprite_row(uint8_t *dst, int sx, const uint8_t *tiles, unsigned tile, unsigned row,
+                                   unsigned tile_log2, unsigned depth, bool hflip, unsigned pal)
+{
+    draw_tile_row(dst, sx, tiles, tile, row, tile_log2, depth, hflip, pal);
 }
 
 TG_HOT void tg_render_line_indices(tg_t *g, int line, uint8_t idx[TG_WIDTH])
@@ -96,7 +190,7 @@ TG_HOT void tg_render_line_indices(tg_t *g, int line, uint8_t idx[TG_WIDTH])
     const int sprite_size = 1 << g->sprite_tile_log2;
     const tg_sprite_t *on_line[TG_MAX_SPRITES_PER_LINE];
     int n = 0;
-    for (int i = 0; i < TG_MAX_SPRITES && n < TG_MAX_SPRITES_PER_LINE; i++) {
+    for (int i = 0; i < g->sprite_count && n < TG_MAX_SPRITES_PER_LINE; i++) {
         const tg_sprite_t *s = &g->sprites[i];
         if ((s->flags & TG_SPRITE_ON) && line >= s->y && line < s->y + sprite_size)
             on_line[n++] = s;
@@ -111,7 +205,7 @@ TG_HOT void tg_render_line_indices(tg_t *g, int line, uint8_t idx[TG_WIDTH])
                 continue;
             const unsigned fine_y = (unsigned)(line - s->y);
             const unsigned row = (s->flags & TG_SPRITE_VFLIP) ? (unsigned)sprite_size - 1 - fine_y : fine_y;
-            draw_tile_row(idx, s->x, g->sprite_tiles, s->tile, row, g->sprite_tile_log2, g->sprite_depth,
+            draw_sprite_row(idx, s->x, g->sprite_tiles, s->tile, row, g->sprite_tile_log2, g->sprite_depth,
                           (s->flags & TG_SPRITE_HFLIP) != 0, s->pal);
         }
         if (slot == TG_MAX_LAYERS)
@@ -126,10 +220,15 @@ TG_HOT void tg_render_line_indices(tg_t *g, int line, uint8_t idx[TG_WIDTH])
 
 TG_HOT void tg_render_line(tg_t *g, int line, uint32_t out[TG_WIDTH])
 {
-    uint8_t idx[TG_WIDTH];
+    uint8_t idx[TG_WIDTH] __attribute__((aligned(4)));
     tg_render_line_indices(g, line, idx);
-    for (int x = 0; x < TG_WIDTH; x++) {
-        const uint32_t c = g->palette[idx[x]];
-        out[x] = c | (c << 16);
+    const uint16_t *pal = g->palette;
+    for (int x = 0; x < TG_WIDTH; x += 4) {
+        const uint32_t v = *(const tg_u32_unaligned *)(idx + x);
+        const uint32_t c0 = pal[v & 255], c1 = pal[(v >> 8) & 255], c2 = pal[(v >> 16) & 255], c3 = pal[v >> 24];
+        out[x] = c0 * 0x10001u;
+        out[x + 1] = c1 * 0x10001u;
+        out[x + 2] = c2 * 0x10001u;
+        out[x + 3] = c3 * 0x10001u;
     }
 }

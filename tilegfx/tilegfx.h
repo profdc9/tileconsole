@@ -74,6 +74,7 @@ struct tg {
     tg_layer_t layers[TG_MAX_LAYERS];   /* drawn in order, 0 at the back */
 
     tg_sprite_t sprites[TG_MAX_SPRITES]; /* lower numbers are drawn in front of higher ones */
+    uint8_t sprite_count;                /* only sprites[0 .. sprite_count-1] are looked at; tg_init sets TG_MAX_SPRITES */
     uint8_t sprite_tile_log2, sprite_depth;
     const uint8_t *sprite_tiles;
 

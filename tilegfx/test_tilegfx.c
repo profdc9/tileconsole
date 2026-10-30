@@ -40,14 +40,17 @@ static uint8_t *make_tiles(unsigned tile_log2, unsigned depth, uint8_t *plain /*
     return packed;
 }
 
-static uint16_t *make_map(unsigned w_log2, unsigned h_log2)
+static uint16_t *make_map_rich(unsigned w_log2, unsigned h_log2, bool rich)
 {
     const size_t n = (size_t)1 << (w_log2 + h_log2);
     uint16_t *m = malloc(n * sizeof *m);
     for (size_t i = 0; i < n; i++)
-        m[i] = TG_ENTRY(rnd() % NTILES, 0, 0);
+        m[i] = rich ? TG_ENTRY(rnd() % NTILES, rnd() & 15, (rnd() & 1 ? TG_HFLIP : 0) | (rnd() & 1 ? TG_VFLIP : 0))
+                    : TG_ENTRY(rnd() % NTILES, 0, 0);
     return m;
 }
+
+static uint16_t *make_map(unsigned w_log2, unsigned h_log2) { return make_map_rich(w_log2, h_log2, false); }
 
 static void setup_layer(tg_t *g, unsigned tile_log2, unsigned depth, unsigned w_log2, unsigned h_log2)
 {
@@ -105,7 +108,19 @@ static void test_scroll_all_modes(void)
         }
 }
 
-/* Every pixel on screen must come from the tile the map says is there. */
+/* Every pixel on screen must come from the tile the map says is there, with flips and sub-palette applied. */
+static uint8_t ref_pixel(const uint8_t *plain, unsigned depth, unsigned size, uint16_t e, unsigned tx, unsigned ty)
+{
+    if (e & TG_HFLIP)
+        tx = size - 1 - tx;
+    if (e & TG_VFLIP)
+        ty = size - 1 - ty;
+    uint8_t v = plain[(size_t)(e & TG_TILE_MASK) * size * size + ty * size + tx];
+    if (depth == 4 && v)
+        v |= (uint8_t)((e >> TG_PAL_SHIFT) << 4);
+    return v;
+}
+
 static void test_pixels_match_source(void)
 {
     for (unsigned tl = 3; tl <= 4; tl++)
@@ -115,21 +130,60 @@ static void test_pixels_match_source(void)
             tg_init(&g);
             const unsigned size = 1u << tl;
             uint8_t *packed = make_tiles(tl, depth, plain);
-            uint16_t *map = make_map(4, 4);
+            uint16_t *map = make_map_rich(4, 4, true);
             g.layers[0] = (tg_layer_t){.kind = TG_LAYER_TILES, .tile_log2 = (uint8_t)tl, .depth = (uint8_t)depth,
-                                       .map_w_log2 = 4, .map_h_log2 = 4, .map = map, .tiles = packed,
-                                       .scroll_x = 13, .scroll_y = 29};
-            for (int line = 0; line < TG_HEIGHT; line++) {
+                                       .map_w_log2 = 4, .map_h_log2 = 4, .map = map, .tiles = packed};
+            for (uint32_t sx = 0; sx <= 2 * size + 1; sx++)
+                for (uint32_t sy = 0; sy < 3; sy++) {
+                    const uint32_t scroll_y = sy == 0 ? 0 : (sy == 1 ? 29 : 1000);
+                    g.layers[0].scroll_x = sx + (sx & 1 ? 0xFFFFFF00u : 0);   /* also large and wrapped values */
+                    g.layers[0].scroll_y = scroll_y;
+                    for (int line = 0; line < TG_HEIGHT; line++) {
+                        uint8_t idx[TG_WIDTH];
+                        tg_render_line_indices(&g, line, idx);
+                        for (int x = 0; x < TG_WIDTH; x++) {
+                            const uint32_t wx = (uint32_t)x + g.layers[0].scroll_x, wy = (uint32_t)line + scroll_y;
+                            const uint16_t e = map[((wy >> tl) & 15) * 16 + ((wx >> tl) & 15)];
+                            CHECK(idx[x] == ref_pixel(plain, depth, size, e, wx & (size - 1), wy & (size - 1)));
+                        }
+                    }
+                }
+            free(map);
+            free(packed);
+        }
+}
+
+/* One sprite at random positions (including partly off either edge), with flips and sub-palettes, on a clear backdrop. */
+static void test_sprites_match_source(void)
+{
+    for (unsigned tl = 3; tl <= 4; tl++)
+        for (unsigned depth = 4; depth <= 8; depth += 4) {
+            static uint8_t plain[NTILES * 256];
+            tg_t g;
+            tg_init(&g);
+            const int size = 1 << tl;
+            uint8_t *packed = make_tiles(tl, depth, plain);
+            g.sprite_tile_log2 = (uint8_t)tl;
+            g.sprite_depth = (uint8_t)depth;
+            g.sprite_tiles = packed;
+            for (int trial = 0; trial < 3000; trial++) {
+                const int x = (int)(rnd() % (TG_WIDTH + 40)) - 20, y = (int)(rnd() % (TG_HEIGHT - size));
+                const unsigned flags = rnd() & 3;
+                const uint16_t e = TG_ENTRY(rnd() % NTILES, rnd() & 15, (flags & 1 ? TG_HFLIP : 0) | (flags & 2 ? TG_VFLIP : 0));
+                g.sprites[0] = (tg_sprite_t){.x = (int16_t)x, .y = (int16_t)y, .tile = e & TG_TILE_MASK,
+                                             .flags = (uint8_t)(TG_SPRITE_ON | (flags & 1 ? TG_SPRITE_HFLIP : 0) |
+                                                                (flags & 2 ? TG_SPRITE_VFLIP : 0)),
+                                             .pal = (uint8_t)(e >> TG_PAL_SHIFT), .above = 0};
+                const int line = y + (int)(rnd() % size);
                 uint8_t idx[TG_WIDTH];
                 tg_render_line_indices(&g, line, idx);
-                for (int x = 0; x < TG_WIDTH; x++) {
-                    const uint32_t wx = (uint32_t)x + 13, wy = (uint32_t)line + 29;
-                    const uint16_t e = map[((wy >> tl) & 15) * 16 + ((wx >> tl) & 15)];
-                    const uint8_t want = plain[(size_t)(e & TG_TILE_MASK) * size * size + (wy & (size - 1)) * size + (wx & (size - 1))];
-                    CHECK(idx[x] == want);
+                for (int px = 0; px < TG_WIDTH; px++) {
+                    uint8_t want = 0;
+                    if (px >= x && px < x + size)
+                        want = ref_pixel(plain, depth, (unsigned)size, e, (unsigned)(px - x), (unsigned)(line - y));
+                    CHECK(idx[px] == want);
                 }
             }
-            free(map);
             free(packed);
         }
 }
@@ -279,6 +333,7 @@ int main(void)
     test_scroll_all_modes();
     test_pixels_match_source();
     test_flips_and_subpalette();
+    test_sprites_match_source();
     test_sprites_and_order();
     test_bitmap_palette_and_hooks();
     test_line_hook_and_line_scroll();
