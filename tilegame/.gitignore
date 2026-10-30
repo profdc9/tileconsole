@@ -2,3 +2,4 @@ game_demo
 test_platform_sdl
 *.uf2
 build*/
+test_hid_kbd

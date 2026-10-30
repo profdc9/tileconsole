@@ -25,6 +25,9 @@
 
 #include "platform.h"
 #include "tilegfx.h"
+#if PLAT_USB_KEYBOARD
+#include "usb_kbd.h"
+#endif
 
 #ifndef PLAT_CPU_MHZ
 #define PLAT_CPU_MHZ 504
@@ -36,6 +39,9 @@
 #endif
 #ifndef PLAT_STATS
 #define PLAT_STATS 1
+#endif
+#ifndef PLAT_USB_KEYBOARD
+#define PLAT_USB_KEYBOARD 0
 #endif
 
 #define RING 8
@@ -232,6 +238,9 @@ bool plat_init(void)
     set_flash_timing(PLAT_CPU_MHZ);
     set_sys_clock_khz(PLAT_CPU_MHZ * 1000, true);
     stdio_init_all();
+#if PLAT_USB_KEYBOARD
+    usb_kbd_init();
+#endif
 
     lock = spin_lock_init(spin_lock_claim_unused(true));
     tg_init(&live);
@@ -260,11 +269,21 @@ void plat_present(const tg_t *g)
 
 uint32_t plat_wait_frame(void)
 {
-    while (frame_gen == seen_gen)
+#if PLAT_USB_KEYBOARD
+    usb_kbd_task();   /* the USB host stack needs to run often; a late frame must not starve it */
+#endif
+    while (frame_gen == seen_gen) {
+#if PLAT_USB_KEYBOARD
+        usb_kbd_task();
+#endif
         tight_loop_contents();
+    }
     seen_gen = frame_gen;
 
-    const plat_buttons_t is = nes_read();
+    plat_buttons_t is = nes_read();
+#if PLAT_USB_KEYBOARD
+    is |= usb_kbd_buttons();
+#endif
     for (int p = 0; p < PLAT_MAX_PLAYERS; p++) {
         const plat_buttons_t now = p == 0 ? is : 0;
         pressed[p] = now & (plat_buttons_t)~held[p];
