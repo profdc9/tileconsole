@@ -25,8 +25,23 @@ that only the fonts you name are linked:
 - `tg_tile_from_glyph(tile, tile_log2, depth, glyph, fg, bg)` programs a tile from an 8-byte glyph (one byte a row, MSB
   leftmost): set pixels get colour index `fg`, the others `bg` (0 is transparent). Works for 8x8 and 16x16 tiles (a
   16x16 tile doubles every pixel), at 4 or 8 bpp. Any array in that format works, not only these fonts.
-- `tg_font_glyph(font, codepoint)` finds a glyph by Unicode codepoint; `tg_font_load` programs a run of characters into
-  consecutive tiles; `tg_text_put` writes a UTF-8 string into a layer's map.
+- `tg_font_glyph(font, codepoint)` finds a glyph by Unicode codepoint.
+
+Two ways to get from a string to tiles on the map:
+
+1. **Explicit, with a glyph offset** (the low-level pair):
+
+       tg_font_load_range(font, tiles, 3, 4, 0, 32, 95, 0, fg, bg);   /* ASCII 32..126 become tiles 0..94 */
+       tg_map_put_string(map, 5, 5, x, y, "Hello", -32, pal);         /* tile = glyph number + offset */
+
+   `tg_font_load_range` moves consecutive glyphs into consecutive tiles (`half` picks the top or bottom 8 rows of a
+   16-row glyph, so a tall font is two ranges printed on two map rows). `tg_map_put_string` writes the glyph numbers
+   of a string's bytes as tile numbers plus the offset; `tg_map_put_glyphs` does the same for a list of 16-bit numbers
+   (above 255, or including 0). The offset is tile number minus glyph number, so a set that starts at space just uses
+   -32: the codes 0..31 come out below tile 0 and are skipped (the cell is left alone and the position moves on).
+2. **Charset-based**: `tg_font_load` returns a `tg_charset_t` and `tg_text_put` takes UTF-8 text, looks each character
+   up in that charset and skips the ones it does not have. Use it when you want accented letters or box drawing from a
+   string without working out numbers.
 
 `make demo_text` renders a sample of every font to `fonts.ppm`.
 

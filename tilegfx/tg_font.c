@@ -48,6 +48,40 @@ void tg_tile_from_glyph(uint8_t *tile, unsigned tile_log2, unsigned depth, const
     }
 }
 
+void tg_font_load_range(const tg_font_t *font, uint8_t *tiles, unsigned tile_log2, unsigned depth, unsigned first_tile,
+                        uint32_t first_cp, unsigned count, unsigned half, uint8_t fg, uint8_t bg)
+{
+    static const uint8_t blank[8];
+    const size_t bytes = tg_tile_bytes(tile_log2, depth);
+    for (unsigned i = 0; i < count; i++) {
+        const uint8_t *g = tg_font_glyph(font, first_cp + i);
+        tg_tile_from_glyph(tiles + (size_t)(first_tile + i) * bytes, tile_log2, depth,
+                           g && 8 * (half + 1) <= font->height ? g + 8 * half : blank, fg, bg);
+    }
+}
+
+static void put_tile(uint16_t *map, unsigned map_w_log2, unsigned map_h_log2, int x, int y, int tile, unsigned pal)
+{
+    if (tile < 0 || tile > TG_TILE_MASK)
+        return;
+    map[(((unsigned)y & ((1u << map_h_log2) - 1)) << map_w_log2) | ((unsigned)x & ((1u << map_w_log2) - 1))] =
+        TG_ENTRY(tile, pal, 0);
+}
+
+void tg_map_put_glyphs(uint16_t *map, unsigned map_w_log2, unsigned map_h_log2, int x, int y, const uint16_t *glyphs,
+                       size_t count, int glyph_offset, unsigned pal)
+{
+    for (size_t i = 0; i < count; i++)
+        put_tile(map, map_w_log2, map_h_log2, x + (int)i, y, (int)glyphs[i] + glyph_offset, pal);
+}
+
+void tg_map_put_string(uint16_t *map, unsigned map_w_log2, unsigned map_h_log2, int x, int y, const char *text,
+                       int glyph_offset, unsigned pal)
+{
+    for (; *text; text++, x++)
+        put_tile(map, map_w_log2, map_h_log2, x, y, (int)(uint8_t)*text + glyph_offset, pal);
+}
+
 tg_charset_t tg_font_load(const tg_font_t *font, uint8_t *tiles, unsigned tile_log2, unsigned depth, uint16_t first_tile,
                           uint32_t first_cp, uint16_t count, uint8_t fg, uint8_t bg)
 {

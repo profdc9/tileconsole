@@ -294,12 +294,189 @@ static void test_text(void)
     (void)odd;
 }
 
+
+/* A map and a tile array wrapped in a tg_t, to look at through the compositor. */
+static void render_cell(uint16_t *map, unsigned map_w_log2, unsigned map_h_log2, uint8_t *tiles, unsigned tl, unsigned depth,
+                        unsigned cx, unsigned cy, unsigned row, uint8_t *idx)
+{
+    static tg_t g;
+    tg_init(&g);
+    g.layers[0] = (tg_layer_t){.kind = TG_LAYER_TILES, .tile_log2 = (uint8_t)tl, .depth = (uint8_t)depth,
+                               .map_w_log2 = (uint8_t)map_w_log2, .map_h_log2 = (uint8_t)map_h_log2, .map = map, .tiles = tiles};
+    g.layers[0].scroll_x = cx << tl;
+    g.layers[0].scroll_y = cy << tl;
+    tg_render_line_indices(&g, (int)row, idx);
+}
+
+/* The workflow in the header: ASCII 32..126 become tiles 0..94, and a string is printed with offset -32. */
+static void test_range_and_offset(void)
+{
+    static const tg_font_t *const small[] = {&tg_font_unscii8, &tg_font_unscii8_alt, &tg_font_unscii8_thin,
+                                             &tg_font_unscii8_fantasy, &tg_font_unscii8_mcr};
+    for (size_t f = 0; f < sizeof small / sizeof *small; f++)
+        for (unsigned tl = 3; tl <= 4; tl++)
+            for (unsigned depth = 4; depth <= 8; depth += 4)
+                for (unsigned pal = 0; pal < 3; pal++) {
+                    const tg_font_t *font = small[f];
+                    const unsigned size = 1u << tl;
+                    static uint8_t tiles[100 * 256];
+                    static uint16_t map[16 * 8];
+                    memset(tiles, 0xEE, sizeof tiles);
+                    memset(map, 0, sizeof map);
+                    const uint8_t fg = (uint8_t)(3 + f), bg = (uint8_t)(f & 1 ? 0 : 6);
+                    tg_font_load_range(font, tiles, tl, depth, 0, 32, 95, 0, fg, bg);
+                    const char *text = "Hello, World!~";                       /* includes '~', code 126, the last glyph */
+                    tg_map_put_string(map, 4, 3, 2, 5, text, -32, pal);
+                    for (unsigned i = 0; text[i]; i++) {
+                        CHECK(map[5 * 16 + 2 + i] == TG_ENTRY((uint8_t)text[i] - 32, pal, 0));
+                        const uint8_t *glyph = tg_font_glyph(font, (uint8_t)text[i]);
+                        for (unsigned y = 0; y < size; y++) {
+                            uint8_t idx[TG_WIDTH];
+                            render_cell(map, 4, 3, tiles, tl, depth, 2 + i, 5, y, idx);
+                            for (unsigned x = 0; x < size; x++) {
+                                uint8_t want = expect_pixel(glyph, tl, depth, x, y, fg, bg);
+                                if (depth == 4 && want)
+                                    want |= (uint8_t)(pal << 4);
+                                CHECK(idx[x] == want);
+                            }
+                        }
+                    }
+                    /* The tiles past the range were not touched. */
+                    const size_t bytes = tg_tile_bytes(tl, depth);
+                    for (size_t b = 95 * bytes; b < 100 * bytes; b++)
+                        CHECK(tiles[b] == 0xEE);
+                }
+
+    /* The same tiles as tg_font_load makes for a one-tile-per-character font. */
+    {
+        static uint8_t a[110 * 256], b[110 * 256];
+        memset(a, 0, sizeof a);
+        memset(b, 0, sizeof b);
+        for (unsigned tl = 3; tl <= 4; tl++)
+            for (unsigned depth = 4; depth <= 8; depth += 4) {
+                tg_font_load_range(&tg_font_unscii8_mcr, a, tl, depth, 7, 0x20, 95, 0, 5, 2);
+                tg_font_load(&tg_font_unscii8_mcr, b, tl, depth, 7, 0x20, 95, 5, 2);
+                CHECK(memcmp(a, b, 102 * tg_tile_bytes(tl, depth)) == 0);
+            }
+    }
+
+    /* A tall font in two ranges: the top halves, then the bottom halves; printed one map row apart. */
+    for (unsigned tl = 3; tl <= 4; tl++)
+        for (unsigned depth = 4; depth <= 8; depth += 4)
+            for (int which = 0; which < 2; which++) {
+                const tg_font_t *font = which ? &tg_font_unscii16 : &tg_font_unscii8_tall;
+                const unsigned size = 1u << tl;
+                static uint8_t tiles[200 * 256];
+                static uint16_t map[16 * 8];
+                memset(tiles, 0, sizeof tiles);
+                memset(map, 0, sizeof map);
+                tg_font_load_range(font, tiles, tl, depth, 0, 32, 95, 0, 7, 0);      /* tiles 0..94: tops */
+                tg_font_load_range(font, tiles, tl, depth, 95, 32, 95, 1, 7, 0);     /* tiles 95..189: bottoms */
+                const char *text = "Tall!";
+                tg_map_put_string(map, 4, 3, 1, 2, text, -32, 0);
+                tg_map_put_string(map, 4, 3, 1, 3, text, -32 + 95, 0);
+                for (unsigned i = 0; text[i]; i++) {
+                    const uint8_t *glyph = tg_font_glyph(font, (uint8_t)text[i]);
+                    for (unsigned half = 0; half < 2; half++)
+                        for (unsigned y = 0; y < size; y++) {
+                            uint8_t idx[TG_WIDTH];
+                            render_cell(map, 4, 3, tiles, tl, depth, 1 + i, 2 + half, y, idx);
+                            for (unsigned x = 0; x < size; x++)
+                                CHECK(idx[x] == expect_pixel(glyph + 8 * half, tl, depth, x, y, 7, 0));
+                        }
+                }
+            }
+    /* Asking for the second half of an 8-row font gives blanks. */
+    {
+        static uint8_t tiles[4 * 64];
+        memset(tiles, 0x77, sizeof tiles);
+        tg_font_load_range(&tg_font_unscii8, tiles, 3, 8, 0, 0x41, 4, 1, 9, 3);
+        for (size_t b = 0; b < sizeof tiles; b++)
+            CHECK(tiles[b] == 3);
+    }
+
+    /* Codepoints the font lacks become tiles of background; the ones it has are the glyphs. */
+    {
+        static uint8_t tiles[16 * 64];
+        memset(tiles, 0, sizeof tiles);
+        int have = 0, lack = 0;
+        tg_font_load_range(&tg_font_unscii8, tiles, 3, 8, 0, 0x300, 16, 0, 9, 4);
+        for (unsigned i = 0; i < 16; i++) {
+            const uint8_t *g = tg_font_glyph(&tg_font_unscii8, 0x300 + i);
+            have += g != NULL;
+            lack += g == NULL;
+            for (unsigned y = 0; y < 8; y++)
+                for (unsigned x = 0; x < 8; x++)
+                    CHECK(tiles[i * 64 + y * 8 + x] == (g && (g[y] >> (7 - x) & 1) ? 9 : 4));
+        }
+        CHECK(have > 0 && lack > 0);                       /* the range really mixes the two cases */
+    }
+}
+
+static void test_map_put(void)
+{
+    static uint16_t map[16 * 8];
+    const uint16_t S = 0xFFFF;                             /* a sentinel for "never written" */
+#define FILL() do { for (size_t i = 0; i < sizeof map / sizeof *map; i++) map[i] = S; } while (0)
+
+    /* Offset -32: codes below 32 have no tile and are skipped, but the position still moves on. */
+    FILL();
+    tg_map_put_string(map, 4, 3, 0, 0, "\x01\x1F A", -32, 2);
+    CHECK(map[0] == S && map[1] == S);
+    CHECK(map[2] == TG_ENTRY(0, 2, 0) && map[3] == TG_ENTRY(33, 2, 0) && map[4] == S);
+
+    /* Positive offsets, and the edges of the tile number range. */
+    FILL();
+    tg_map_put_string(map, 4, 3, 0, 0, "\x7B\x7C\xFF", 900, 0);   /* 123 + 900 = 1023 fits; 124 + 900 = 1024 and 255 + 900 do not */
+    CHECK(map[0] == TG_ENTRY(1023, 0, 0) && map[1] == S && map[2] == S);
+    FILL();
+    tg_map_put_string(map, 4, 3, 0, 0, "\x00\x01", 0, 0);        /* a string cannot hold glyph 0 after the start... */
+    CHECK(map[0] == S);                                       /* ...an empty string writes nothing (the NUL ends it) */
+
+    /* Bytes above 0x7F are glyph numbers as they are, not UTF-8. */
+    FILL();
+    tg_map_put_string(map, 4, 3, 0, 0, "\xE9", -32, 0);
+    CHECK(map[0] == TG_ENTRY(233 - 32, 0, 0));
+
+    /* Wrapping on both axes, with negative positions. */
+    FILL();
+    tg_map_put_string(map, 4, 3, 14, 7, "ABCD", -65, 0);        /* columns 14, 15, 0, 1 of row 7 */
+    CHECK(map[7 * 16 + 14] == TG_ENTRY(0, 0, 0) && map[7 * 16 + 15] == TG_ENTRY(1, 0, 0));
+    CHECK(map[7 * 16 + 0] == TG_ENTRY(2, 0, 0) && map[7 * 16 + 1] == TG_ENTRY(3, 0, 0));
+    FILL();
+    tg_map_put_string(map, 4, 3, -1, -1, "XY", -65, 0);        /* column 15 and 0 of row 7 */
+    CHECK(map[7 * 16 + 15] == TG_ENTRY('X' - 65, 0, 0) && map[7 * 16 + 0] == TG_ENTRY('Y' - 65, 0, 0));
+    FILL();
+    tg_map_put_string(map, 4, 3, 0, 9, "Z", -65, 0);            /* row 9 is row 1 */
+    CHECK(map[1 * 16] == TG_ENTRY('Z' - 65, 0, 0));
+
+    /* Glyph numbers as 16 bit values: above 255, and including 0, which a string cannot carry. */
+    FILL();
+    const uint16_t g[] = {0, 300, 5, 0, 1000};
+    tg_map_put_glyphs(map, 4, 3, 3, 1, g, 5, -1, 4);
+    CHECK(map[1 * 16 + 3] == S);                              /* 0 - 1 = -1: skipped */
+    CHECK(map[1 * 16 + 4] == TG_ENTRY(299, 4, 0));
+    CHECK(map[1 * 16 + 5] == TG_ENTRY(4, 4, 0));
+    CHECK(map[1 * 16 + 6] == S);                              /* the second 0 did not end the list */
+    CHECK(map[1 * 16 + 7] == TG_ENTRY(999, 4, 0));
+    FILL();
+    tg_map_put_glyphs(map, 4, 3, 0, 0, g, 0, 0, 0);            /* nothing to do */
+    for (size_t i = 0; i < sizeof map / sizeof *map; i++)
+        CHECK(map[i] == S);
+    FILL();
+    tg_map_put_string(map, 4, 3, 0, 0, "", 0, 0);
+    for (size_t i = 0; i < sizeof map / sizeof *map; i++)
+        CHECK(map[i] == S);
+}
+
 int main(void)
 {
     test_structure();
     test_against_source();
     test_tile_from_glyph();
     test_text();
+    test_range_and_offset();
+    test_map_put();
     printf("all %d checks passed\n", checks);
     return 0;
 }

@@ -42,6 +42,38 @@ size_t tg_tile_bytes(unsigned tile_log2, unsigned depth);
  */
 void tg_tile_from_glyph(uint8_t *tile, unsigned tile_log2, unsigned depth, const uint8_t *glyph, uint8_t fg, uint8_t bg);
 
+/*
+ * The explicit, low-level pair: move a range of glyphs into a range of tiles, then print with a glyph-to-tile offset.
+ *
+ *   tg_font_load_range(font, tiles, 3, 4, 0, 32, 95, 0, fg, bg);   // ASCII 32..126 become tiles 0..94
+ *   tg_map_put_string(map, 5, 5, x, y, "Hello", -32, 0);           // 'H' is 72, so tile 72 - 32 = 40
+ *
+ * The offset is tile number minus glyph number, so it also covers sets that start at space and have no glyphs for
+ * 0..31: with -32 those codes come out below tile 0 and are skipped.
+ */
+
+/*
+ * Program tiles first_tile .. first_tile + count - 1 from the glyphs first_cp .. first_cp + count - 1, in order. `half`
+ * picks which 8 rows of the glyph are used: 0 is the top 8 (all there is for an 8-row font), 1 the bottom 8 of a
+ * 16-row font. So a tall font takes two calls, one per half, into two tile ranges. A codepoint the font lacks (and a
+ * half it lacks) becomes a tile of all `bg`. fg and bg as in tg_tile_from_glyph.
+ */
+void tg_font_load_range(const tg_font_t *font, uint8_t *tiles, unsigned tile_log2, unsigned depth, unsigned first_tile,
+                        uint32_t first_cp, unsigned count, unsigned half, uint8_t fg, uint8_t bg);
+
+/*
+ * Put glyph numbers into a tile array (a layer's map): the entry written for glyph g is tile g + glyph_offset, with
+ * sub-palette `pal` for 4 bpp tiles. They go left to right from tile (x, y), wrapping round the map. A glyph whose tile
+ * number comes out below 0 or above 1023 is skipped: its cell is left as it was, and the position still moves on.
+ * (Glyph numbers above the range you loaded are not checked: they show whatever tiles happen to be there.)
+ * tg_map_put_string takes the glyph numbers from the bytes of a string, which is how ASCII text is printed; use
+ * tg_map_put_glyphs for numbers above 255 or numbers that include 0.
+ */
+void tg_map_put_glyphs(uint16_t *map, unsigned map_w_log2, unsigned map_h_log2, int x, int y, const uint16_t *glyphs,
+                       size_t count, int glyph_offset, unsigned pal);
+void tg_map_put_string(uint16_t *map, unsigned map_w_log2, unsigned map_h_log2, int x, int y, const char *text,
+                       int glyph_offset, unsigned pal);
+
 /* A run of characters whose tiles have been programmed, for tg_text_put. */
 typedef struct {
     const tg_font_t *font;
