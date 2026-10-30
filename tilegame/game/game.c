@@ -15,10 +15,10 @@
 #define SKID 0x28
 #define GRAVITY 0x38
 #define MAX_FALL 0x500
-#define JUMP_SPEED 0x470
+#define JUMP_SPEED 0x500          /* about 3.5 tiles with the button held */
 #define JUMP_CUT 0x180        /* a jump cut short by releasing the button rises no faster than this */
 #define STOMP_BOUNCE 0x300
-#define STOMP_BOUNCE_HELD 0x470
+#define STOMP_BOUNCE_HELD 0x4C0
 #define ENEMY_SPEED 0x50
 #define COYOTE_FRAMES 6
 #define JUMP_BUFFER_FRAMES 6

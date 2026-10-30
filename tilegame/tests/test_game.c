@@ -153,7 +153,7 @@ static int rise_of_jump(int hold_frames)
 static void test_jumping(void)
 {
     const int tap = rise_of_jump(0), held = rise_of_jump(60);
-    CHECK(held >= 40 && held <= 52);                                /* about 2.8 tiles with the button held */
+    CHECK(held >= 52 && held <= 60);                                /* about 3.4 tiles with the button held: a 3-tile platform, not a 4-tile one */
     CHECK(tap >= 8 && tap < held - 10);                             /* a tap is a good deal lower */
     int last = 0;
     for (int h = 0; h < 30; h += 3) {                               /* and in between, the longer the button is held the higher */
@@ -432,6 +432,87 @@ static void test_bot_finishes_the_level(void)
            g.coins, g.level.ncoins, g.score);
 }
 
+
+/* ---- can a person actually get onto every platform? ---- */
+
+static bool box_clear_at(const game_t *g, int cell_x, int cell_y)
+{
+    const int l = cell_x + 3, t = cell_y + 2;
+    for (int dy = 0; dy < 14; dy += 13)
+        for (int dx = 0; dx < 10; dx += 9)
+            if (solid_at_px(g, l + dx, t + dy))
+                return false;
+    return true;
+}
+
+/* Is there a jump (a starting spot on some floor near it, a speed, a direction and a time to hold the button) that ends with
+ * the player standing on the brick platform in row `ty`, columns x0..x1? */
+static bool platform_reachable(int ty, int x0, int x1)
+{
+    static const int offsets[] = {0, 8};
+    static const int speeds[] = {0, 0x180, 0x2A0};
+    static const int holds[] = {8, 20, 32, 44, 60};
+    game_t g0;
+    game_init(&g0);
+    for (int c = x0 - 9; c <= x1 + 9; c++)
+        for (int r = ty + 1; r < LEVEL_H; r++) {
+            /* A floor: a solid tile with air above it, below the platform. */
+            if (c < 0 || c >= LEVEL_W || !tile_is_solid(g0.level.tile[r][c]) || tile_is_solid(g0.level.tile[r - 1][c]))
+                continue;
+            for (size_t oi = 0; oi < sizeof offsets / sizeof *offsets; oi++)
+                for (int dir = -1; dir <= 1; dir += 2)
+                    for (size_t si = 0; si < sizeof speeds / sizeof *speeds; si++)
+                        for (size_t hi = 0; hi < sizeof holds / sizeof *holds; hi++) {
+                            game_t g = g0;
+                            const int cell_x = c * TILE + offsets[oi] - 3, cell_y = r * TILE - 16;
+                            if (!box_clear_at(&g, cell_x, cell_y))
+                                continue;
+                            g.p.b.x = cell_x * 256;
+                            g.p.b.y = cell_y * 256;
+                            g.p.b.vx = dir * speeds[si];
+                            memset(g.enemy, 0, sizeof g.enemy);
+                            g.level.nenemies = 0;
+                            g.level.ncoins = 0;
+                            plat_buttons_t prev = 0;
+                            for (int f = 0; f < 90; f++) {
+                                plat_buttons_t held = (dir > 0 ? PLAT_BTN_RIGHT : PLAT_BTN_LEFT) | (speeds[si] > 0x180 ? PLAT_BTN_B : 0);
+                                if (f < holds[hi])
+                                    held |= PLAT_BTN_A;
+                                game_update(&g, held, held & (plat_buttons_t)~prev);
+                                prev = held;
+                                if (g.state != GS_PLAYING)
+                                    break;
+                                const int centre = body_left(&g.p.b) + g.p.b.w / 2;
+                                if (g.p.b.on_ground && body_top(&g.p.b) + g.p.b.h == ty * TILE && centre >= x0 * TILE &&
+                                    centre < (x1 + 1) * TILE)
+                                    return true;
+                            }
+                        }
+        }
+    return false;
+}
+
+static void test_every_platform_can_be_reached(void)
+{
+    game_t g;
+    game_init(&g);
+    int platforms = 0;
+    for (int y = 0; y < LEVEL_H; y++)
+        for (int x = 0; x < LEVEL_W; x++) {
+            if (g.level.tile[y][x] != T_BRICK || (x > 0 && g.level.tile[y][x - 1] == T_BRICK))
+                continue;
+            int x1 = x;
+            while (x1 + 1 < LEVEL_W && g.level.tile[y][x1 + 1] == T_BRICK)
+                x1++;
+            const bool ok = platform_reachable(y, x, x1);
+            if (!ok)
+                printf("  the brick platform at row %d, columns %d..%d cannot be reached\n", y, x, x1);
+            CHECK(ok);
+            platforms++;
+        }
+    CHECK(platforms >= 5);
+}
+
 /* The same inputs always give the same game. */
 static unsigned hash_state(const game_t *g)
 {
@@ -475,6 +556,7 @@ int main(void)
     test_goal_and_camera();
     test_level_sanity();
     test_bot_finishes_the_level();
+    test_every_platform_can_be_reached();
     test_determinism();
     printf("all %d checks passed\n", checks);
     return 0;

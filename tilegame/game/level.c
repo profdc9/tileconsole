@@ -52,7 +52,7 @@ void level_build(level_t *lv)
     /* 1. A flat start with a few coins and a brick platform. */
     ground(lv, 0, 24);
     coins(lv, 8, 10, 10);
-    bricks(lv, 14, 17, 9);
+    bricks(lv, 14, 17, 9);        /* three tiles up: needs a held jump, and leaves room to jump underneath */
     coins(lv, 14, 17, 8);
     enemy(lv, 18, GROUND_ROW);
 
@@ -71,15 +71,15 @@ void level_build(level_t *lv)
     enemy(lv, 58, GROUND_ROW);
 
     /* 4. A pit with a single stepping stone, and a wall to jump. */
-    ground(lv, 67, 80);
+    ground(lv, 67, 82);
     bricks(lv, 63, 64, 11);
     coins(lv, 63, 64, 9);
     tower(lv, 72, 2);
     coins(lv, 71, 73, 8);
-    enemy(lv, 76, GROUND_ROW);
+    enemy(lv, 74, GROUND_ROW);
 
     /* 5. High platforms. */
-    ground(lv, 83, 99);
+    ground(lv, 85, 99);
     bricks(lv, 86, 89, 9);
     bricks(lv, 91, 94, 7);
     coins(lv, 86, 89, 8);
