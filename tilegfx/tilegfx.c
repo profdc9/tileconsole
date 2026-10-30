@@ -3,6 +3,13 @@
 
 #include <string.h>
 
+/* On a microcontroller, define TG_HOT_SECTION as a section name (a string) to keep the compositor out of flash. */
+#ifdef TG_HOT_SECTION
+#define TG_HOT __attribute__((section(TG_HOT_SECTION)))
+#else
+#define TG_HOT
+#endif
+
 void tg_init(tg_t *g)
 {
     memset(g, 0, sizeof *g);
@@ -11,7 +18,7 @@ void tg_init(tg_t *g)
 }
 
 /* Write one pixel of a tile or sprite row if it is opaque and on screen. */
-static inline void put(uint8_t *dst, int x, uint8_t index)
+TG_HOT static inline void put(uint8_t *dst, int x, uint8_t index)
 {
     if (index && (unsigned)x < TG_WIDTH)
         dst[x] = index;
@@ -21,7 +28,7 @@ static inline void put(uint8_t *dst, int x, uint8_t index)
  * Draw one row of one tile at screen x. `row` is the row of the tile already chosen with any
  * v-flip applied; `pal` only matters for 4 bpp.
  */
-static inline void draw_tile_row(uint8_t *dst, int sx, const uint8_t *tiles, unsigned tile, unsigned row,
+TG_HOT static inline void draw_tile_row(uint8_t *dst, int sx, const uint8_t *tiles, unsigned tile, unsigned row,
                                  unsigned tile_log2, unsigned depth, bool hflip, unsigned pal)
 {
     const unsigned size = 1u << tile_log2;
@@ -41,7 +48,7 @@ static inline void draw_tile_row(uint8_t *dst, int sx, const uint8_t *tiles, uns
     }
 }
 
-static void draw_tile_layer(const tg_layer_t *L, int line, uint8_t *dst)
+TG_HOT static void draw_tile_layer(const tg_layer_t *L, int line, uint8_t *dst)
 {
     const unsigned tl = L->tile_log2;
     const unsigned size = 1u << tl;
@@ -64,7 +71,7 @@ static void draw_tile_layer(const tg_layer_t *L, int line, uint8_t *dst)
     }
 }
 
-static void draw_bitmap_layer(const tg_layer_t *L, int line, uint8_t *dst)
+TG_HOT static void draw_bitmap_layer(const tg_layer_t *L, int line, uint8_t *dst)
 {
     const uint8_t *src = L->bitmap + (size_t)line * TG_WIDTH;
     for (int x = 0; x < TG_WIDTH; x++)
@@ -72,7 +79,7 @@ static void draw_bitmap_layer(const tg_layer_t *L, int line, uint8_t *dst)
             dst[x] = src[x];
 }
 
-void tg_render_line_indices(tg_t *g, int line, uint8_t idx[TG_WIDTH])
+TG_HOT void tg_render_line_indices(tg_t *g, int line, uint8_t idx[TG_WIDTH])
 {
     if (g->line_cb)
         g->line_cb(g, line, g->line_cb_user);
@@ -111,7 +118,7 @@ void tg_render_line_indices(tg_t *g, int line, uint8_t idx[TG_WIDTH])
     }
 }
 
-void tg_render_line(tg_t *g, int line, uint32_t out[TG_WIDTH])
+TG_HOT void tg_render_line(tg_t *g, int line, uint32_t out[TG_WIDTH])
 {
     uint8_t idx[TG_WIDTH];
     tg_render_line_indices(g, line, idx);
