@@ -4,3 +4,5 @@ test_platform_sdl
 build*/
 test_hid_kbd
 test_game
+test_view
+platformer

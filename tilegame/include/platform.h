@@ -39,7 +39,13 @@ void plat_shutdown(void);
  */
 uint32_t plat_wait_frame(void);
 
-/* Show this state from the next frame on. The state is copied, so the caller may go on changing its own. */
+/*
+ * Show this state from the next frame on. The state itself (the tg_t) is copied, so the caller may go on changing its own.
+ * What it POINTS to is not: tile maps, tile graphics, per-line scroll tables and sprite graphics are shared with the
+ * display, which on the board is another core reading them while the game runs. Anything that changes from frame to frame
+ * should therefore be double-buffered: write to the buffer that was not just presented, then present a state that points
+ * at it. (Data that never changes after start-up needs nothing.)
+ */
 void plat_present(const tg_t *g);
 
 /* True once the user has closed the window. Always false on the board. */
