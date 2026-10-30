@@ -15,3 +15,18 @@ Any tile size and depth combination is supported; 16x16 at 8 bpp is 256 bytes a 
 `make check` runs the headless tests (scrolling and wrap-around in all four tile modes, flips, sub-palettes, sprite
 clipping and order, layer order, per-line scroll). `make demo_sdl` builds the SDL2 demo; `./demo_sdl --bench`
 times the compositor (desktop numbers only). MIT licensed (see `LICENSE`).
+
+## Text
+
+`tg_font.h` and `tg_fonts.h` add bitmap fonts and the helpers that put them on a tile layer. The fonts are the public-domain
+[Unscii](https://viznut.fi/unscii/) variants (not the GPL `unscii-16-full`; see `fonts/FONTS.md`), one source file each so
+that only the fonts you name are linked:
+
+- `tg_tile_from_glyph(tile, tile_log2, depth, glyph, fg, bg)` programs a tile from an 8-byte glyph (one byte a row, MSB
+  leftmost): set pixels get colour index `fg`, the others `bg` (0 is transparent). Works for 8x8 and 16x16 tiles (a
+  16x16 tile doubles every pixel), at 4 or 8 bpp. Any array in that format works, not only these fonts.
+- `tg_font_glyph(font, codepoint)` finds a glyph by Unicode codepoint; `tg_font_load` programs a run of characters into
+  consecutive tiles; `tg_text_put` writes a UTF-8 string into a layer's map.
+
+`make demo_text` renders a sample of every font to `fonts.ppm`.
+
