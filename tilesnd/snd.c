@@ -5,6 +5,13 @@
 
 #include "snd_notes.h"
 
+/* On a microcontroller, define SND_HOT_SECTION as a section name (a string) to keep the mixing code out of flash. */
+#ifdef SND_HOT_SECTION
+#define SND_HOT __attribute__((section(SND_HOT_SECTION)))
+#else
+#define SND_HOT
+#endif
+
 #define ENV_ONE 65536
 
 enum { ST_ATTACK, ST_DECAY, ST_SUSTAIN, ST_RELEASE };
@@ -84,7 +91,7 @@ bool snd_set_adsr(snd_t *s, int voice, uint16_t attack_ms, uint16_t decay_ms, ui
 
 /* ---- envelope ---- */
 
-static void env_enter_decay(snd_voice_t *v)
+SND_HOT static void env_enter_decay(snd_voice_t *v)
 {
     if (v->decay_samples == 0 || v->sustain >= ENV_ONE) {
         v->env = (int32_t)v->sustain;
@@ -121,7 +128,7 @@ static void env_release(snd_voice_t *v)
 }
 
 /* The envelope has reached its target. */
-static void env_advance(snd_voice_t *v)
+SND_HOT static void env_advance(snd_voice_t *v)
 {
     switch (v->stage) {
     case ST_ATTACK:
@@ -156,7 +163,7 @@ static void pcm_set_pitch(const snd_t *s, snd_voice_t *v, uint32_t pitch_q16)
     v->inc_frac = (uint32_t)(inc & 0xFFFF);
 }
 
-static void apply(snd_t *s, const snd_cmd_t *c)
+SND_HOT static void apply(snd_t *s, const snd_cmd_t *c)
 {
     snd_voice_t *v = &s->voices[c->voice % SND_MAX_VOICES];
     switch (c->op) {
@@ -249,7 +256,7 @@ static inline int32_t pcm_fetch(const snd_sample_t *sm, uint32_t i)
     return sm->bits == 8 ? (int32_t)((const int8_t *)sm->data)[i] * 256 : (int32_t)((const int16_t *)sm->data)[i];
 }
 
-static void render_voice(snd_t *s, snd_voice_t *v, int n)
+SND_HOT static void render_voice(snd_t *s, snd_voice_t *v, int n)
 {
     int32_t *accl = s->acc[0], *accr = s->acc[1];
     const uint32_t vol = unity(v->vol);
@@ -349,7 +356,7 @@ static void render_voice(snd_t *s, snd_voice_t *v, int n)
     }
 }
 
-void snd_render(snd_t *s, int16_t *lr, int frames)
+SND_HOT void snd_render(snd_t *s, int16_t *lr, int frames)
 {
     uint32_t head = s->q_head;
     const uint32_t tail = __atomic_load_n(&s->q_tail, __ATOMIC_ACQUIRE);
