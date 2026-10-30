@@ -162,9 +162,13 @@ static void bench_all(const tg_t *game)
                 v.layers[0].kind = TG_LAYER_OFF;
             if (n == 5)
                 v.layers[0] = (tg_layer_t){.kind = TG_LAYER_BITMAP, .bitmap = bench_bitmap};
-            if (n != 3 && n != 4)
+            if (n != 3 && n != 4) {   /* no sprites, or (case 6) 128 empty sprites that are looked at every line */
                 memset(v.sprites, 0, sizeof v.sprites);
-            v.sprite_count = (n == 3 || n == 4) ? game->sprite_count : (n == 6 ? TG_MAX_SPRITES : 0);
+                v.sprite_count = 0;
+                if (n == 6)
+                    for (int i = 0; i < TG_MAX_SPRITES; i++)
+                        v.sprite_order[v.sprite_count++] = (uint8_t)i;
+            }
         bench_run(&v, &bench_avg[n], &bench_max[n]);
     }
 }
