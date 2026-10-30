@@ -17,6 +17,7 @@ typedef struct {
     bool used;
     uint8_t ep_in, ep_out;
     uint8_t buf[32] TU_ATTR_ALIGNED(4);
+    uint8_t out[8] TU_ATTR_ALIGNED(4);   /* what is sent on the OUT endpoint */
 } xdev_t;
 
 static xdev_t xdev[CFG_TUH_DEVICE_MAX + 1];
@@ -25,6 +26,7 @@ static xdev_t xdev[CFG_TUH_DEVICE_MAX + 1];
 static struct {
     uint32_t opened, configured, queued, claim_failed, xfer_failed, callbacks, callbacks_ok;
     uint32_t last_result, last_len;
+    uint32_t out_queued, out_done, out_result, out_failed;
 } dbg;
 
 static bool x_init(void)
@@ -89,8 +91,26 @@ static bool x_set_config(uint8_t dev_addr, uint8_t itf_num)
 {
     xdev_t *x = &xdev[dev_addr];
     dbg.configured++;
-    if (x->used)
+    if (x->used) {
         start_receive(dev_addr, x);
+        /* What Linux's xpad driver does for every Xbox 360 style pad: set the LED ("player 1 on"). Some third-party pads do not
+         * send input until the host has said something, and a pad that does not care ignores it. */
+        if (x->ep_out) {
+            x->out[0] = 0x01;
+            x->out[1] = 0x03;
+            x->out[2] = 0x06;
+            if (usbh_edpt_claim(dev_addr, x->ep_out)) {
+                if (usbh_edpt_xfer(dev_addr, x->ep_out, x->out, 3)) {
+                    dbg.out_queued++;
+                } else {
+                    dbg.out_failed++;
+                    usbh_edpt_release(dev_addr, x->ep_out);
+                }
+            } else {
+                dbg.out_failed++;
+            }
+        }
+    }
     usbh_driver_set_config_complete(dev_addr, itf_num);
     return true;
 }
@@ -98,8 +118,13 @@ static bool x_set_config(uint8_t dev_addr, uint8_t itf_num)
 static bool x_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
 {
     xdev_t *x = &xdev[dev_addr];
+    if (x->used && ep_addr == x->ep_out) {   /* the LED command went out */
+        dbg.out_done++;
+        dbg.out_result = (uint32_t)result;
+        return true;
+    }
     if (!x->used || ep_addr != x->ep_in)
-        return true;   /* the OUT endpoint is not used */
+        return true;
     dbg.callbacks++;
     dbg.last_result = (uint32_t)result;
     dbg.last_len = xferred_bytes;
@@ -139,6 +164,8 @@ int xinput_debug(char (*lines)[41], int max_lines)
     LINE("XD CLAIMFAIL %lu XFERFAIL %lu", (unsigned long)dbg.claim_failed, (unsigned long)dbg.xfer_failed);
     LINE("XD CALLBACKS %lu OK %lu", (unsigned long)dbg.callbacks, (unsigned long)dbg.callbacks_ok);
     LINE("XD LAST RESULT %lu LENGTH %lu", (unsigned long)dbg.last_result, (unsigned long)dbg.last_len);
+    LINE("XD LED QUEUED %lu DONE %lu RES %lu FAIL %lu", (unsigned long)dbg.out_queued, (unsigned long)dbg.out_done,
+         (unsigned long)dbg.out_result, (unsigned long)dbg.out_failed);
 #undef LINE
     return n;
 }
