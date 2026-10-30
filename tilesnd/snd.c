@@ -105,7 +105,7 @@ SND_HOT static void env_enter_decay(snd_voice_t *v)
     v->env_target = (int32_t)v->sustain;
 }
 
-static void env_start(snd_voice_t *v)
+SND_HOT static void env_start(snd_voice_t *v)
 {
     if (v->attack_samples == 0) {
         v->env = ENV_ONE;
@@ -119,7 +119,7 @@ static void env_start(snd_voice_t *v)
     v->env_target = ENV_ONE;
 }
 
-static void env_release(snd_voice_t *v)
+SND_HOT static void env_release(snd_voice_t *v)
 {
     int32_t step = v->env / (int32_t)v->release_samples;
     v->stage = ST_RELEASE;
@@ -368,7 +368,12 @@ SND_HOT void snd_render(snd_t *s, int16_t *lr, int frames)
 
     while (frames > 0) {
         const int n = frames < SND_BLOCK ? frames : SND_BLOCK;
-        memset(s->acc, 0, sizeof s->acc);
+        /* Not memset: on a microcontroller that is a call into flash. The barrier stops the compiler turning this into one. */
+        for (int i = 0; i < SND_BLOCK; i++) {
+            s->acc[0][i] = 0;
+            s->acc[1][i] = 0;
+            __asm__ volatile("" ::: "memory");
+        }
         for (int i = 0; i < SND_MAX_VOICES; i++)
             if (s->voices[i].kind != SND_OFF)
                 render_voice(s, &s->voices[i], n);
