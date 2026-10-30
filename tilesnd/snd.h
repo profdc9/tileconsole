@@ -97,6 +97,8 @@ bool snd_set_duty(snd_t *s, int voice, uint8_t duty);
 /*
  * The envelope used by the next note on the voice (and the current one): attack and decay and release times in
  * milliseconds, sustain as a level 0..255. The default is no attack, no decay, full sustain and a 5 ms release.
+ * A sustain level of 0 makes a note end by itself once its decay is done, which is what percussive sounds want: no
+ * snd_key_off is needed and the voice is free again. Any other sustain holds until snd_key_off or snd_stop.
  */
 bool snd_set_adsr(snd_t *s, int voice, uint16_t attack_ms, uint16_t decay_ms, uint8_t sustain, uint16_t release_ms);
 

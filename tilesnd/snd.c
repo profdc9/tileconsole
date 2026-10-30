@@ -97,6 +97,8 @@ SND_HOT static void env_enter_decay(snd_voice_t *v)
         v->env = (int32_t)v->sustain;
         v->stage = ST_SUSTAIN;
         v->env_step = 0;
+        if (v->sustain == 0)   /* nothing left to hold: the note is over */
+            v->kind = SND_OFF;
         return;
     }
     int32_t step = (int32_t)((ENV_ONE - v->sustain) / v->decay_samples);
@@ -139,6 +141,8 @@ SND_HOT static void env_advance(snd_voice_t *v)
         v->env = (int32_t)v->sustain;
         v->stage = ST_SUSTAIN;
         v->env_step = 0;
+        if (v->sustain == 0)   /* decayed to nothing: the note is over, and the voice is free */
+            v->kind = SND_OFF;
         break;
     default:   /* ST_RELEASE: the note is over */
         v->env = 0;

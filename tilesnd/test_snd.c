@@ -277,7 +277,36 @@ static void test_envelope(void)
     CHECK(!snd_voice_active(&s, 0));
     CHECK(ch(100, 0) > 0 && ch(100, 0) < 32767);
 
+    /* A percussive note (sustain 0) frees its voice when the decay is done, with no key-off. */
+    fresh(&s);
+    snd_set_adsr(&s, 0, 0, 20, 0, 5);                      /* 20 ms = 960 samples of decay */
+    snd_play_tone(&s, 0, SND_PULSE, SND_HZ(1), 255, 0, 255, NULL);
+    render(&s, 900);
+    CHECK(snd_voice_active(&s, 0));
+    for (int i = 1; i < 900; i++)
+        CHECK(ch(i, 0) <= ch(i - 1, 0));                    /* fading all the way */
+    render(&s, 100);
+    CHECK(!snd_voice_active(&s, 0));
+    CHECK(ch(99, 0) == 0);
+    /* With an attack in front of it, too; and with no decay time it is over at once. */
+    snd_set_adsr(&s, 1, 5, 10, 0, 5);
+    snd_play_tone(&s, 1, SND_TRIANGLE, SND_HZ(200), 255, 0, 0, NULL);
+    render(&s, 200);
+    CHECK(snd_voice_active(&s, 1));
+    render(&s, 600);
+    CHECK(!snd_voice_active(&s, 1));
+    snd_set_adsr(&s, 2, 0, 0, 0, 5);
+    snd_play_tone(&s, 2, SND_PULSE, SND_HZ(200), 255, 0, 128, NULL);
+    render(&s, 10);
+    CHECK(!snd_voice_active(&s, 2));
+    /* A sustain above 0 still holds for ever. */
+    snd_set_adsr(&s, 3, 0, 10, 1, 5);
+    snd_play_tone(&s, 3, SND_PULSE, SND_HZ(200), 255, 0, 128, NULL);
+    render(&s, 2000);
+    CHECK(snd_voice_active(&s, 3));
+
     /* snd_stop is immediate. */
+    fresh(&s);
     snd_play_tone(&s, 0, SND_PULSE, SND_HZ(1), 255, 0, 255, NULL);
     render(&s, 10);
     snd_stop(&s, 0);
