@@ -23,7 +23,7 @@ static uint32_t rng = 7;
 static uint32_t rnd(void) { rng = rng * 1664525u + 1013904223u; return rng >> 8; }
 
 /* The colour of one pixel of the 640 x 480 picture, worked out the plain way: which cell, which glyph row, which bit. */
-static uint16_t ref_pixel(const tg_text_t *t, int x, int y)
+static uint16_t ref_pixel(const tg_text_t *t, int x, int y, uint32_t frame)
 {
     if (!t)
         return 0;
@@ -33,6 +33,11 @@ static uint16_t ref_pixel(const tg_text_t *t, int x, int y)
     const int col = x / 8, row = ty / 16;
     const uint16_t cell = t->cells[row * 80 + col];
     const int ch = cell & 255, fg = (cell >> 8) & 15, bg = (cell >> 12) & 15;
+    /* The cursor: in its cell, on its scanlines, when showing: the cell is solid in its foreground colour. */
+    const int blink_off = (t->cursor_flags & 2) && (frame / 16) % 2 == 1;
+    if ((t->cursor_flags & 1) && !blink_off && col == t->cursor_col && row == t->cursor_row && ty % 16 >= t->cursor_start &&
+        ty % 16 <= t->cursor_end)
+        return t->palette[fg];
     const int bit = (t->font[ch * 16 + ty % 16] >> (7 - x % 8)) & 1;
     return t->palette[bit ? fg : bg];
 }
@@ -44,7 +49,7 @@ static void check_line(tg_t *g, int line)
     tg_render_display_line(g, line, out);
     for (int x = 0; x < 640; x++) {
         const uint16_t got = (uint16_t)(out[x / 2] >> (16 * (x & 1)));   /* the left pixel is the low half */
-        CHECK(got == ref_pixel(g->text, x, line));
+        CHECK(got == ref_pixel(g->text, x, line, g->frame));
     }
 }
 
@@ -59,10 +64,23 @@ static void test_render_random(void)
             screen.font[i] = (uint8_t)rnd();
         for (int i = 0; i < 16; i++)
             screen.palette[i] = (uint16_t)rnd();
+        screen.cursor_col = (int8_t)((int)(rnd() % 84) - 2);        /* often on the screen, sometimes not */
+        screen.cursor_row = (int8_t)((int)(rnd() % 29) - 2);
+        screen.cursor_start = (uint8_t)(rnd() % 16);                 /* start > end happens too: nothing is drawn then */
+        screen.cursor_end = (uint8_t)(rnd() % 16);
+        screen.cursor_flags = (uint8_t)(rnd() % 4);
+        if (round % 3 == 0) {                                        /* make sure the cursor is on the screen in a good share of rounds */
+            screen.cursor_col = (int8_t)(rnd() % 80);
+            screen.cursor_row = (int8_t)(rnd() % 25);
+            screen.cursor_start = (uint8_t)(rnd() % 8);
+            screen.cursor_end = (uint8_t)(8 + rnd() % 8);
+            screen.cursor_flags |= TG_CURSOR_VISIBLE;
+        }
         tg_t g;
         tg_init(&g);
         g.mode = TG_MODE_TEXT;
         g.text = &screen;
+        g.frame = rnd() % 200;
         for (int line = 0; line < 480; line++)
             check_line(&g, line);
     }
@@ -93,6 +111,135 @@ static void test_render_edges(void)
     CHECK(out[0] == 0xFFFFFFFFu && out[319] == 0xFFFFFFFFu);
     tg_render_display_line(&g, 440, out);
     CHECK(out[0] == 0 && out[319] == 0);
+}
+
+static void test_cursor(void)
+{
+    static tg_text_t t;
+    memset(&t, 0, sizeof t);
+    CHECK(t.cursor_flags == 0);                    /* zeroed: hidden */
+    tg_text_init(&t);
+    CHECK(t.cursor_col == 0 && t.cursor_row == 0 && t.cursor_start == 14 && t.cursor_end == 15);
+    CHECK(!(t.cursor_flags & TG_CURSOR_VISIBLE) && (t.cursor_flags & TG_CURSOR_BLINK));
+    tg_text_load_cp437(&t);
+    for (int i = 0; i < TG_TEXT_CELLS; i++)
+        t.cells[i] = TG_TEXT_CELL('X', TG_TEXT_ATTR(TG_TEXT_YELLOW, TG_TEXT_BLUE));
+    tg_t g;
+    tg_init(&g);
+    g.mode = TG_MODE_TEXT;
+    g.text = &t;
+    uint32_t out[TG_WIDTH];
+    const uint16_t yellow = t.palette[TG_TEXT_YELLOW];
+
+    /* Hidden: the picture is the same for every frame and has no solid cell. */
+    for (int line = 0; line < 480; line++)
+        check_line(&g, line);
+
+    tg_text_set_cursor(&t, 5, 7);
+    tg_text_show_cursor(&t, true);
+    CHECK(t.cursor_col == 5 && t.cursor_row == 7 && (t.cursor_flags & TG_CURSOR_VISIBLE));
+    /* An underline in cell (5, 7): scanlines 14 and 15 are solid yellow across the 8 pixels, the others are not. */
+    g.frame = 0;
+    for (int r = 0; r < 16; r++) {
+        tg_render_display_line(&g, 40 + 7 * 16 + r, out);
+        int solid = 1;
+        for (int k = 0; k < 4; k++)
+            solid &= out[4 * 5 + k] == yellow * 0x10001u;
+        CHECK(solid == (r >= 14));
+    }
+    /* The cells either side are untouched, and no other row has a cursor. */
+    for (int line = 0; line < 480; line++)
+        check_line(&g, line);
+
+    /* The blink schedule: on for 16 frames, off for 16, and so on; the frame number alone decides. */
+    for (uint32_t f = 0; f < 200; f++) {
+        g.frame = f;
+        tg_render_display_line(&g, 40 + 7 * 16 + 15, out);
+        const int on = out[20] == yellow * 0x10001u && out[23] == yellow * 0x10001u;
+        CHECK(on == ((f / 16) % 2 == 0));
+    }
+    tg_text_set_cursor_blink(&t, false);           /* steady: showing at every frame */
+    CHECK(!(t.cursor_flags & TG_CURSOR_BLINK));
+    for (uint32_t f = 0; f < 70; f++) {
+        g.frame = f;
+        tg_render_display_line(&g, 40 + 7 * 16 + 15, out);
+        CHECK(out[20] == yellow * 0x10001u);
+    }
+    tg_text_set_cursor_blink(&t, true);
+    CHECK(t.cursor_flags & TG_CURSOR_BLINK);
+
+    /* Shapes. */
+    g.frame = 0;
+    tg_text_set_cursor_shape(&t, 0, 15);           /* a block */
+    for (int r = 0; r < 16; r++) {
+        tg_render_display_line(&g, 40 + 7 * 16 + r, out);
+        CHECK(out[20] == yellow * 0x10001u && out[23] == yellow * 0x10001u);
+    }
+    tg_text_set_cursor_shape(&t, 7, 8);
+    CHECK(t.cursor_start == 7 && t.cursor_end == 8);
+    tg_text_set_cursor_shape(&t, -5, 99);          /* clamped */
+    CHECK(t.cursor_start == 0 && t.cursor_end == 15);
+    tg_text_set_cursor_shape(&t, 99, -5);
+    CHECK(t.cursor_start == 15 && t.cursor_end == 0);
+    for (int line = 0; line < 480; line++) {               /* start > end: nothing is drawn, so the picture is the one without a cursor */
+        uint32_t with[TG_WIDTH], without[TG_WIDTH];
+        tg_render_display_line(&g, line, with);
+        t.cursor_flags &= (uint8_t)~TG_CURSOR_VISIBLE;
+        tg_render_display_line(&g, line, without);
+        t.cursor_flags |= TG_CURSOR_VISIBLE;
+        CHECK(memcmp(with, without, sizeof with) == 0);
+    }
+    tg_text_set_cursor_shape(&t, 14, 15);
+
+    /* Positions off the screen draw nothing and cannot wrap into it. */
+    static const int bad[][2] = {{-1, 3}, {80, 3}, {3, -1}, {3, 25}, {1000, 3}, {3, 1000}, {-1000, 3}, {3, -1000}, {336, 3}, {3, 281}, {259, 3}, {3, 259}};
+    for (size_t i = 0; i < sizeof bad / sizeof *bad; i++) {
+        tg_text_set_cursor(&t, bad[i][0], bad[i][1]);
+        for (int line = 0; line < 480; line++) {
+            uint32_t with[TG_WIDTH], without[TG_WIDTH];
+            tg_render_display_line(&g, line, with);
+            t.cursor_flags &= (uint8_t)~TG_CURSOR_VISIBLE;
+            tg_render_display_line(&g, line, without);
+            t.cursor_flags |= TG_CURSOR_VISIBLE;
+            CHECK(memcmp(with, without, sizeof with) == 0);          /* the same as with no cursor at all */
+        }
+    }
+    /* Fields set directly rather than through the helpers: columns and rows outside the screen draw nothing, and nothing is written past the
+     * end of the line (the guard words after it must be untouched). */
+    static const int8_t odd[] = {-128, -2, -1, 80, 81, 127};
+    tg_text_set_cursor_shape(&t, 0, 15);
+    t.cursor_flags = TG_CURSOR_VISIBLE;
+    for (size_t i = 0; i < sizeof odd; i++)
+        for (int axis = 0; axis < 2; axis++) {
+            t.cursor_col = axis ? 5 : odd[i];
+            t.cursor_row = axis ? odd[i] : 7;
+            for (int line = 0; line < 480; line++) {
+                uint32_t with[TG_WIDTH + 8], without[TG_WIDTH];
+                for (int k = 0; k < 8; k++)
+                    with[TG_WIDTH + k] = 0xDEADBEEFu;
+                tg_render_display_line(&g, line, with);
+                t.cursor_flags = 0;
+                tg_render_display_line(&g, line, without);
+                t.cursor_flags = TG_CURSOR_VISIBLE;
+                CHECK(memcmp(with, without, sizeof without) == 0);
+                for (int k = 0; k < 8; k++)
+                    CHECK(with[TG_WIDTH + k] == 0xDEADBEEFu);
+            }
+        }
+    t.cursor_flags = TG_CURSOR_VISIBLE | TG_CURSOR_BLINK;
+    tg_text_set_cursor_shape(&t, 14, 15);
+    tg_text_show_cursor(&t, false);
+    tg_text_set_cursor(&t, 5, 7);
+    g.frame = 0;
+    for (int line = 0; line < 480; line++)
+        check_line(&g, line);                       /* hidden again */
+    tg_text_show_cursor(&t, true);
+    CHECK(t.cursor_flags & TG_CURSOR_VISIBLE);
+
+    /* The cursor takes the foreground colour of the cell it is on, whatever that is. */
+    t.cells[7 * 80 + 5] = TG_TEXT_CELL(0xDB, TG_TEXT_ATTR(TG_TEXT_LIGHT_RED, TG_TEXT_GREEN));
+    tg_render_display_line(&g, 40 + 7 * 16 + 14, out);
+    CHECK(out[20] == t.palette[TG_TEXT_LIGHT_RED] * 0x10001u && out[23] == t.palette[TG_TEXT_LIGHT_RED] * 0x10001u);
 }
 
 static void test_modes(void)
@@ -240,6 +387,7 @@ int main(void)
     test_render_random();
     test_render_edges();
     test_modes();
+    test_cursor();
     test_helpers();
     test_cp437();
     printf("all %d checks passed\n", checks);

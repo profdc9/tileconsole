@@ -43,6 +43,16 @@ uint32_t tg_cp437_to_unicode(uint8_t ch);
 /* Redefine a glyph: 16 bytes, top row first, the leftmost pixel in bit 7 of each. */
 void tg_text_set_glyph(tg_text_t *t, uint8_t ch, const uint8_t rows[TG_GLYPH_HEIGHT]);
 
+/*
+ * The cursor. A fresh tg_text_init screen has it hidden, at the top left, as an underline (scanlines 14 and 15 of the cell), blinking once it
+ * is shown. It is drawn in the foreground colour of the cell it is on, over the scanlines start..end of that cell (0 and 15 make a block). It
+ * blinks by the frame number that the platform layer gives the picture, so it keeps blinking while the program does nothing.
+ */
+void tg_text_set_cursor(tg_text_t *t, int col, int row);               /* moves it (a position off the screen draws nothing) */
+void tg_text_show_cursor(tg_text_t *t, bool visible);
+void tg_text_set_cursor_shape(tg_text_t *t, int start, int end);       /* scanlines 0..15, start <= end; they are clamped to that */
+void tg_text_set_cursor_blink(tg_text_t *t, bool blink);               /* false: a steady cursor */
+
 void tg_text_clear(tg_text_t *t, uint8_t attr);   /* spaces in this attribute */
 void tg_text_put_cell(tg_text_t *t, int col, int row, uint8_t ch, uint8_t attr);   /* outside the screen: nothing */
 /* The string goes along the row and is cut off at the right edge (it does not wrap); characters left of the screen are skipped. */

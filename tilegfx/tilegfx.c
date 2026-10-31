@@ -310,6 +310,12 @@ TG_HOT static void render_text_line(const tg_t *g, int line, uint32_t out[TG_WID
         return;
     }
     const uint16_t *cell = t->cells + (y / TG_GLYPH_HEIGHT) * TG_TEXT_COLS;
+    int cursor = -1;   /* the column whose cell is drawn solid on this line, if the cursor is on it and showing */
+    if ((t->cursor_flags & TG_CURSOR_VISIBLE) && t->cursor_row == y / TG_GLYPH_HEIGHT && t->cursor_col >= 0 && t->cursor_col < TG_TEXT_COLS) {
+        const int r = y % TG_GLYPH_HEIGHT;
+        if (r >= t->cursor_start && r <= t->cursor_end && (!(t->cursor_flags & TG_CURSOR_BLINK) || (g->frame / TG_CURSOR_BLINK_FRAMES) % 2 == 0))
+            cursor = t->cursor_col;
+    }
     const uint8_t *font_row = t->font + (y % TG_GLYPH_HEIGHT);
     const uint16_t *pal = t->palette;
     for (int col = 0; col < TG_TEXT_COLS; col++) {
@@ -321,6 +327,10 @@ TG_HOT static void render_text_line(const tg_t *g, int line, uint32_t out[TG_WID
         out[4 * col + 1] = pair[(bits >> 4) & 3];
         out[4 * col + 2] = pair[(bits >> 2) & 3];
         out[4 * col + 3] = pair[bits & 3];
+    }
+    if (cursor >= 0) {
+        const uint32_t solid = pal[(cell[cursor] >> 8) & 15] * 0x10001u;
+        out[4 * cursor] = out[4 * cursor + 1] = out[4 * cursor + 2] = out[4 * cursor + 3] = solid;
     }
 }
 

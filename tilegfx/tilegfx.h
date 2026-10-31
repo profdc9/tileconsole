@@ -41,10 +41,18 @@
 #define TG_TEXT_ATTR(fg, bg) ((uint16_t)((((bg) & 15) << 4) | ((fg) & 15)))
 #define TG_TEXT_CELL(ch, attr) ((uint16_t)(((attr) << 8) | ((ch) & 255)))
 
+/* The cursor, as the PC's: drawn in the foreground colour of its cell, over some of the 16 scanlines of the cell. */
+#define TG_CURSOR_VISIBLE 1
+#define TG_CURSOR_BLINK 2                          /* on for TG_CURSOR_BLINK_FRAMES frames, off for as many */
+#define TG_CURSOR_BLINK_FRAMES 16                  /* a blink every 32 frames: about 2 a second at 60 frames a second */
+
 typedef struct {
     uint16_t cells[TG_TEXT_CELLS];                 /* row by row: TG_TEXT_CELL(character, attribute) */
     uint8_t font[256 * TG_GLYPH_HEIGHT];           /* glyph c is font[16 * c .. 16 * c + 15], top row first, leftmost pixel = bit 7 */
     uint16_t palette[16];                          /* RGB565 */
+    int8_t cursor_col, cursor_row;                 /* the cursor's cell; outside the screen: no cursor is drawn */
+    uint8_t cursor_start, cursor_end;              /* the first and last scanline (0..15) it covers; none is drawn if start > end */
+    uint8_t cursor_flags;                          /* TG_CURSOR_*; all zero (the cursor is hidden) in a zeroed screen */
 } tg_text_t;
 
 typedef enum { TG_MODE_TILES = 0, TG_MODE_TEXT } tg_mode_t;
@@ -111,6 +119,7 @@ typedef struct tg tg_t;
 typedef void (*tg_line_cb_t)(tg_t *g, int line, void *user);
 
 struct tg {
+    uint32_t frame;          /* a frame counter, set by the platform layer for every frame it draws: the text mode cursor blinks by it */
     tg_mode_t mode;          /* TG_MODE_TILES: everything below; TG_MODE_TEXT: only `text` is shown */
     const tg_text_t *text;   /* the text screen for TG_MODE_TEXT; it belongs to the caller (the platform layer copies it) */
 

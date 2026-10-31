@@ -57,3 +57,8 @@ start as the standard PC colours. Everything is in a `tg_text_t` (8 KB: cells, f
 from the Unscii 8x16 font (four characters Unscii lacks are drawn in `tg_text_cp437.c`). The platform layer copies the whole screen in
 `plat_present`, so it can be changed at once. `tg_display_lines`, `tg_display_line_shift` and `tg_render_display_line` give a backend the
 picture in either mode, one line at a time. `make test_text` checks every line of random screens against a pixel-by-pixel reference.
+
+The cursor is the PC's: a position, a shape (a range of the 16 scanlines of its cell, an underline by default, a block for 0 to 15), a visible
+flag and a blink flag (`tg_text_set_cursor`, `tg_text_set_cursor_shape`, `tg_text_show_cursor`, `tg_text_set_cursor_blink`). It is drawn in the
+foreground colour of its cell and is hidden until shown. It blinks by `tg_t.frame`, which the platform layer sets for every frame it draws, so
+it goes on blinking while the program does nothing: on for 16 frames, off for 16.

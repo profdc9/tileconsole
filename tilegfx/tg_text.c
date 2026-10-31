@@ -18,6 +18,33 @@ void tg_text_init(tg_text_t *t)
 {
     tg_text_default_palette(t->palette);
     tg_text_clear(t, TG_TEXT_ATTR(TG_TEXT_LIGHT_GREY, TG_TEXT_BLACK));
+    t->cursor_col = t->cursor_row = 0;
+    t->cursor_start = 14;
+    t->cursor_end = 15;
+    t->cursor_flags = TG_CURSOR_BLINK;   /* hidden until tg_text_show_cursor */
+}
+
+void tg_text_set_cursor(tg_text_t *t, int col, int row)
+{
+    /* Anything off the screen is stored as "no cell" (-1) so that a large number cannot wrap round into the screen. */
+    t->cursor_col = (int8_t)(col >= 0 && col < TG_TEXT_COLS ? col : -1);
+    t->cursor_row = (int8_t)(row >= 0 && row < TG_TEXT_ROWS ? row : -1);
+}
+
+void tg_text_show_cursor(tg_text_t *t, bool visible)
+{
+    t->cursor_flags = (uint8_t)(visible ? t->cursor_flags | TG_CURSOR_VISIBLE : t->cursor_flags & ~TG_CURSOR_VISIBLE);
+}
+
+void tg_text_set_cursor_shape(tg_text_t *t, int start, int end)
+{
+    t->cursor_start = (uint8_t)(start < 0 ? 0 : start > 15 ? 15 : start);
+    t->cursor_end = (uint8_t)(end < 0 ? 0 : end > 15 ? 15 : end);
+}
+
+void tg_text_set_cursor_blink(tg_text_t *t, bool blink)
+{
+    t->cursor_flags = (uint8_t)(blink ? t->cursor_flags | TG_CURSOR_BLINK : t->cursor_flags & ~TG_CURSOR_BLINK);
 }
 
 void tg_text_set_glyph(tg_text_t *t, uint8_t ch, const uint8_t rows[TG_GLYPH_HEIGHT])
