@@ -324,9 +324,9 @@ TG_HOT static void render_text_line(const tg_t *g, int line, uint32_t out[TG_WID
     }
 }
 
-int tg_display_lines(const tg_t *g) { return g->mode == TG_MODE_TEXT ? TG_DISPLAY_HEIGHT : TG_HEIGHT; }
+TG_HOT int tg_display_lines(const tg_t *g) { return g->mode == TG_MODE_TEXT ? TG_DISPLAY_HEIGHT : TG_HEIGHT; }
 
-int tg_display_line_shift(const tg_t *g) { return g->mode == TG_MODE_TEXT ? 0 : 1; }
+TG_HOT int tg_display_line_shift(const tg_t *g) { return g->mode == TG_MODE_TEXT ? 0 : 1; }
 
 TG_HOT void tg_render_display_line(tg_t *g, int line, uint32_t out[TG_WIDTH])
 {

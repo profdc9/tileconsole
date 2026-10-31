@@ -46,3 +46,14 @@ steps without a layer. Font numbers go through `tg_fontlist.c`, which refers to 
 mask, bit n for font n) to keep unwanted ones out of a program, or use `tg_layer_load_font_ptr` with the one font object.
 
 `make demo_text` renders a sample of every font to `fonts.ppm`.
+
+## Text mode
+
+`g.mode = TG_MODE_TEXT` shows an 80 x 25 text screen instead of the tile layers: 640 x 400 pixels in the middle of the 640 x 480 picture, with
+8 x 16 character cells like the IBM PC. A cell is a character code and an attribute (foreground colour in the low nibble, background in the
+high one, each one of 16). The 256 glyphs are kept in RAM, so they can be redefined (always 8 x 16), and so are the 16 palette entries, which
+start as the standard PC colours. Everything is in a `tg_text_t` (8 KB: cells, font, palette); `tg_text.h` has the helpers
+(`tg_text_put_string`, `tg_text_scroll_up`, `tg_text_set_glyph`, ...) and `tg_text_load_cp437` fills the glyphs with the PC character set
+from the Unscii 8x16 font (four characters Unscii lacks are drawn in `tg_text_cp437.c`). The platform layer copies the whole screen in
+`plat_present`, so it can be changed at once. `tg_display_lines`, `tg_display_line_shift` and `tg_render_display_line` give a backend the
+picture in either mode, one line at a time. `make test_text` checks every line of random screens against a pixel-by-pixel reference.
