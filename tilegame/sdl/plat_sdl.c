@@ -183,6 +183,7 @@ static void compose_and_show(void)
         }
         have_state = false;
     }
+    shown.frame = frame_no;   /* what the text mode cursor blinks by */
     uint32_t line[TG_WIDTH];
     const int lines = tg_display_lines(&shown), repeat = 1 << tg_display_line_shift(&shown);
     for (int y = 0; y < lines; y++) {

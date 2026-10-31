@@ -8,6 +8,7 @@
 
 #include "plat_sdl.h"
 #include "platform.h"
+#include "tg_text.h"
 
 static int checks;
 #define CHECK(cond)                                                          \
@@ -189,6 +190,46 @@ static void test_text_mode(void)
             CHECK(d[(2 * y + 1) * TG_DISPLAY_WIDTH + 2 * x] == c && d[(2 * y + 1) * TG_DISPLAY_WIDTH + 2 * x + 1] == c);
         }
     CHECK(pink > 1000 && pink < TG_WIDTH * TG_HEIGHT);
+}
+
+/* The text mode cursor blinks by the frame number the backend gives each frame, so it blinks without being presented again. */
+static void test_cursor_blink(void)
+{
+    static tg_text_t t;
+    tg_text_init(&t);
+    for (int i = 0; i < TG_TEXT_CELLS; i++)
+        t.cells[i] = TG_TEXT_CELL(' ', TG_TEXT_ATTR(TG_TEXT_YELLOW, TG_TEXT_BLUE));   /* spaces: only the cursor is yellow */
+    tg_text_set_cursor(&t, 10, 3);
+    tg_text_show_cursor(&t, true);
+    tg_text_set_cursor_shape(&t, 0, 15);
+    static tg_t g;
+    tg_init(&g);
+    g.mode = TG_MODE_TEXT;
+    g.text = &t;
+    plat_present(&g);                                      /* once: no more presenting while it blinks */
+    const uint16_t yellow = t.palette[TG_TEXT_YELLOW];
+    int states[100], changes = 0;
+    uint32_t frames[100];
+    for (int i = 0; i < 100; i++) {
+        frames[i] = plat_wait_frame();
+        const uint16_t *d = plat_sdl_display();
+        const int on = d[(40 + 3 * 16 + 8) * TG_DISPLAY_WIDTH + 10 * 8 + 3] == yellow;   /* a pixel in the middle of the cursor cell */
+        CHECK(on == (d[(40 + 3 * 16 + 8) * TG_DISPLAY_WIDTH + 10 * 8 + 4] == yellow));
+        states[i] = on;
+        if (i && states[i] != states[i - 1]) {
+            changes++;
+        }
+    }
+    CHECK(changes >= 5 && changes <= 7);                    /* 100 frames: the state flips every 16 */
+    for (int i = 0; i < 100; i++)                           /* it follows the frame number alone: the picture shown has number (returned - 1) */
+        CHECK(states[i] == (int)(((frames[i] - 1) / TG_CURSOR_BLINK_FRAMES) % 2 == 0));
+    tg_text_set_cursor_blink(&t, false);                    /* steady: on in every frame */
+    plat_present(&g);
+    plat_wait_frame();
+    for (int i = 0; i < 40; i++) {
+        plat_wait_frame();
+        CHECK(plat_sdl_display()[(40 + 3 * 16 + 8) * TG_DISPLAY_WIDTH + 10 * 8 + 3] == yellow);
+    }
 }
 
 static volatile long audio_frames, audio_calls;
@@ -418,6 +459,7 @@ int main(void)
     test_input();
     test_present();
     test_text_mode();
+    test_cursor_blink();
     test_audio();
     test_mouse();
     test_controllers();

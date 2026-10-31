@@ -148,12 +148,55 @@ static void page_scroll(tg_text_t *t, uint32_t frame, uint32_t *lines_done)
     title(t, "SCROLLING", 3);
 }
 
+/* Typing at a prompt, with the cursor following, and the cursor changing shape. Worked out from the frame number alone. */
+static void page_cursor(tg_text_t *t, uint32_t frame)
+{
+    static const char *const script[] = {"DIR /W", "ECHO HELLO FROM THE TEXT MODE", "TYPE README.TXT", "CHKDSK C:", "EDIT NOTES.TXT"};
+    enum { N = sizeof script / sizeof *script, PER_CHAR = 5, PAUSE = 45, FIRST_ROW = 3 };
+    title(t, "THE CURSOR", 4);
+    for (int r = FIRST_ROW; r < 23; r++)
+        for (int c = 0; c < TG_TEXT_COLS; c++)
+            tg_text_put_cell(t, c, r, ' ', GREY_ON_BLACK);
+    uint32_t cycle = 0;
+    for (int i = 0; i < N; i++)
+        cycle += (uint32_t)strlen(script[i]) * PER_CHAR + PAUSE;
+    uint32_t f = frame % cycle;
+    int cursor_col = 5, cursor_row = FIRST_ROW;
+    for (int i = 0; i < N; i++) {
+        const uint32_t len = (uint32_t)strlen(script[i]), span = len * PER_CHAR + PAUSE;
+        const int row = FIRST_ROW + i * 2;
+        tg_text_put_string(t, 0, row, "C:\\>", TG_TEXT_ATTR(TG_TEXT_LIGHT_GREY, TG_TEXT_BLACK));
+        if (f >= span) {   /* a finished line, and its reply */
+            tg_text_put_string(t, 5, row, script[i], TG_TEXT_ATTR(TG_TEXT_WHITE, TG_TEXT_BLACK));
+            tg_text_put_string(t, 0, row + 1, "ok", TG_TEXT_ATTR(TG_TEXT_DARK_GREY, TG_TEXT_BLACK));
+            f -= span;
+            continue;
+        }
+        const uint32_t typed = f / PER_CHAR < len ? f / PER_CHAR : len;   /* the line being typed */
+        for (uint32_t k = 0; k < typed; k++)
+            tg_text_put_cell(t, 5 + (int)k, row, (uint8_t)script[i][k], TG_TEXT_ATTR(TG_TEXT_WHITE, TG_TEXT_BLACK));
+        cursor_col = 5 + (int)typed;
+        cursor_row = row;
+        break;
+    }
+    tg_text_set_cursor(t, cursor_col, cursor_row);
+    tg_text_show_cursor(t, true);
+    static const struct { int start, end; const char *name; } shapes[] = {
+        {14, 15, "underline (scanlines 14 to 15)"}, {0, 15, "block (0 to 15)"}, {8, 15, "half block (8 to 15)"}, {7, 8, "thin line (7 to 8)"}};
+    const int s = (int)(frame / 120 % 4);
+    tg_text_set_cursor_shape(t, shapes[s].start, shapes[s].end);
+    char line[64];
+    snprintf(line, sizeof line, "Cursor shape: %s", shapes[s].name);
+    tg_text_put_string(t, 2, 22, line, TG_TEXT_ATTR(TG_TEXT_YELLOW, TG_TEXT_BLACK));
+}
+
 void textdemo_draw(tg_text_t *t, int page, uint32_t frame)
 {
     static int last_page = -1;
     static uint32_t lines_done;
     if (page != last_page) {
         tg_text_clear(t, GREY_ON_BLACK);
+        tg_text_show_cursor(t, false);   /* only the cursor page shows it */
         last_page = page;
         lines_done = frame / 15;
     }
@@ -161,6 +204,7 @@ void textdemo_draw(tg_text_t *t, int page, uint32_t frame)
     case 0: page_characters(t); break;
     case 1: page_colours(t); break;
     case 2: page_windows(t, frame); break;
-    default: page_scroll(t, frame, &lines_done); break;
+    case 3: page_scroll(t, frame, &lines_done); break;
+    default: page_cursor(t, frame); break;
     }
 }

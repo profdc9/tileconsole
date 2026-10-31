@@ -8,8 +8,8 @@ SDL = $(shell pkg-config --cflags --libs sdl2)
 
 all: game_demo padtest platformer textdemo test_platform_sdl test_hid_kbd test_hid_pad test_game test_view
 
-test_platform_sdl: tests/test_platform_sdl.c sdl/plat_sdl.c src/mouse_acc.c sdl/plat_sdl.h include/platform.h $(TILEGFX)/tilegfx.c
-	$(CC) $(CFLAGS) -g -fsanitize=address,undefined $(INC) tests/test_platform_sdl.c sdl/plat_sdl.c src/mouse_acc.c $(TILEGFX)/tilegfx.c -o $@ $(SDL) -lm
+test_platform_sdl: tests/test_platform_sdl.c sdl/plat_sdl.c src/mouse_acc.c sdl/plat_sdl.h include/platform.h $(TILEGFX)/tilegfx.c $(TILEGFX)/tg_text.c
+	$(CC) $(CFLAGS) -g -fsanitize=address,undefined $(INC) tests/test_platform_sdl.c sdl/plat_sdl.c src/mouse_acc.c $(TILEGFX)/tilegfx.c $(TILEGFX)/tg_text.c -o $@ $(SDL) -lm
 
 game_demo: demo/game_demo.c sdl/plat_sdl.c src/mouse_acc.c include/platform.h $(TILEGFX)/tilegfx.c $(TILEGFX)/scene.c $(TILESND)/snd.c
 	$(CC) $(CFLAGS) $(INC) demo/game_demo.c sdl/plat_sdl.c src/mouse_acc.c $(TILEGFX)/tilegfx.c $(TILEGFX)/scene.c $(TILESND)/snd.c -o $@ $(SDL) -lm

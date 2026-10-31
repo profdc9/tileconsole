@@ -213,6 +213,7 @@ static void __not_in_flash_func(render_step)(void)
             pending_valid = false;
         }
         spin_unlock(lock, s);
+        live.frame = my_gen;   /* what the text mode cursor blinks by: it goes on blinking while the program does nothing */
         frame_lines = tg_display_lines(&live);
         scan_shift = (uint32_t)tg_display_line_shift(&live);
     }

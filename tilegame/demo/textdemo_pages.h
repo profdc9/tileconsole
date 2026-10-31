@@ -7,7 +7,7 @@
 
 #include "tg_text.h"
 
-#define TEXTDEMO_PAGES 4
+#define TEXTDEMO_PAGES 5
 
 /* The standard palette, the PC character set and a blank screen. Returns how many characters have no glyph (none). */
 unsigned textdemo_init(tg_text_t *t);
