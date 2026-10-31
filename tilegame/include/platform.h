@@ -41,6 +41,7 @@ uint32_t plat_wait_frame(void);
 
 /*
  * Show this state from the next frame on. The state itself (the tg_t) is copied, so the caller may go on changing its own.
+ * (A tg_t is 2.3 KB: on the board the default stack is only 2 KB, so keep it in static storage, not on the stack.)
  * What it POINTS to is not: tile maps, tile graphics, per-line scroll tables and sprite graphics are shared with the
  * display, which on the board is another core reading them while the game runs. Anything that changes from frame to frame
  * should therefore be double-buffered: write to the buffer that was not just presented, then present a state that points

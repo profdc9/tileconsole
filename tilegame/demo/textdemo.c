@@ -14,7 +14,7 @@ int main(void)
         return 1;
     if (textdemo_init(&screen) != 0)
         return 2;
-    tg_t g;
+    static tg_t g;   /* not on the stack: a tg_t is 2.3 KB and the board's default stack is 2 KB */
     tg_init(&g);
     g.mode = TG_MODE_TEXT;
     g.text = &screen;
