@@ -24,6 +24,31 @@
 #define TG_MAX_SPRITES 128
 #define TG_MAX_SPRITES_PER_LINE 32
 
+/*
+ * Text mode, as on the original IBM PC: 80 x 25 character cells of 8 x 16 pixels, 640 x 400 pixels, shown in the middle of the
+ * 640 x 480 picture with black above and below. Each cell is a character code (low byte) and an attribute (high byte): the
+ * foreground colour in the low nibble and the background in the high one, both indexes into a palette of 16. The 256 glyphs are
+ * kept in RAM next to the cells, so they can be redefined; they are always 8 x 16. See tg_text.h.
+ */
+#define TG_TEXT_COLS 80
+#define TG_TEXT_ROWS 25
+#define TG_TEXT_CELLS (TG_TEXT_COLS * TG_TEXT_ROWS)
+#define TG_GLYPH_HEIGHT 16
+#define TG_DISPLAY_WIDTH 640           /* the picture, in text mode (one pixel per pixel) and in tile mode (doubled) */
+#define TG_DISPLAY_HEIGHT 480
+#define TG_TEXT_TOP ((TG_DISPLAY_HEIGHT - TG_TEXT_ROWS * TG_GLYPH_HEIGHT) / 2)   /* black lines above the text: 40 */
+
+#define TG_TEXT_ATTR(fg, bg) ((uint16_t)((((bg) & 15) << 4) | ((fg) & 15)))
+#define TG_TEXT_CELL(ch, attr) ((uint16_t)(((attr) << 8) | ((ch) & 255)))
+
+typedef struct {
+    uint16_t cells[TG_TEXT_CELLS];                 /* row by row: TG_TEXT_CELL(character, attribute) */
+    uint8_t font[256 * TG_GLYPH_HEIGHT];           /* glyph c is font[16 * c .. 16 * c + 15], top row first, leftmost pixel = bit 7 */
+    uint16_t palette[16];                          /* RGB565 */
+} tg_text_t;
+
+typedef enum { TG_MODE_TILES = 0, TG_MODE_TEXT } tg_mode_t;
+
 /* A tile array entry: bits 0-9 tile number, 10 h-flip, 11 v-flip, 12-15 sub-palette (4 bpp tiles). */
 #define TG_TILE_MASK 0x03FF
 #define TG_HFLIP 0x0400
@@ -86,6 +111,9 @@ typedef struct tg tg_t;
 typedef void (*tg_line_cb_t)(tg_t *g, int line, void *user);
 
 struct tg {
+    tg_mode_t mode;          /* TG_MODE_TILES: everything below; TG_MODE_TEXT: only `text` is shown */
+    const tg_text_t *text;   /* the text screen for TG_MODE_TEXT; it belongs to the caller (the platform layer copies it) */
+
     uint16_t palette[256];   /* RGB565; entry 0 is the backdrop colour */
     tg_layer_t layers[TG_MAX_LAYERS];   /* drawn in order, 0 at the back */
 
@@ -123,5 +151,14 @@ void tg_render_line_indices(tg_t *g, int line, uint8_t idx[TG_WIDTH]);
 
 /* Compose one line as RGB565, two identical pixels per 32-bit word (one 640-pixel HDMI line). */
 void tg_render_line(tg_t *g, int line, uint32_t out[TG_WIDTH]);
+
+/*
+ * The picture in either mode, one 640-pixel line at a time, as 320 words of two RGB565 pixels each (the left pixel in the low half).
+ * tg_display_lines is how many lines there are (240 in tile mode, where each line is shown twice, and 480 in text mode, where
+ * every line is its own); tg_display_line_shift is 1 and 0 for those: picture line N is made from display line N >> shift.
+ */
+int tg_display_lines(const tg_t *g);
+int tg_display_line_shift(const tg_t *g);
+void tg_render_display_line(tg_t *g, int line, uint32_t out[TG_WIDTH]);
 
 #endif

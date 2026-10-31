@@ -293,3 +293,45 @@ TG_HOT void tg_render_line(tg_t *g, int line, uint32_t out[TG_WIDTH])
         out[x + 3] = c3 * 0x10001u;
     }
 }
+
+/* ---- text mode ---- */
+
+/* One display line of text mode: 80 cells, each 8 pixels, which is 4 words. A word is made from two bits of a glyph row, so each cell
+ * needs four words (background pair, foreground pair, and the two mixed pairs) built from its two colours. */
+TG_HOT static void render_text_line(const tg_t *g, int line, uint32_t out[TG_WIDTH])
+{
+    const tg_text_t *t = g->text;
+    const int y = line - TG_TEXT_TOP;
+    if (!t || y < 0 || y >= TG_TEXT_ROWS * TG_GLYPH_HEIGHT) {   /* above, below or no text: black */
+        for (int x = 0; x < TG_WIDTH; x++) {
+            out[x] = 0;
+            __asm__ volatile("" ::: "memory");   /* not memset: on a microcontroller that is a call into flash */
+        }
+        return;
+    }
+    const uint16_t *cell = t->cells + (y / TG_GLYPH_HEIGHT) * TG_TEXT_COLS;
+    const uint8_t *font_row = t->font + (y % TG_GLYPH_HEIGHT);
+    const uint16_t *pal = t->palette;
+    for (int col = 0; col < TG_TEXT_COLS; col++) {
+        const uint32_t c = cell[col];
+        const uint32_t fg = pal[(c >> 8) & 15], bg = pal[(c >> 12) & 15];
+        const uint32_t bits = font_row[(c & 255) * TG_GLYPH_HEIGHT];
+        const uint32_t pair[4] = {bg * 0x10001u, bg | fg << 16, fg | bg << 16, fg * 0x10001u};   /* left pixel in the low half */
+        out[4 * col] = pair[bits >> 6];
+        out[4 * col + 1] = pair[(bits >> 4) & 3];
+        out[4 * col + 2] = pair[(bits >> 2) & 3];
+        out[4 * col + 3] = pair[bits & 3];
+    }
+}
+
+int tg_display_lines(const tg_t *g) { return g->mode == TG_MODE_TEXT ? TG_DISPLAY_HEIGHT : TG_HEIGHT; }
+
+int tg_display_line_shift(const tg_t *g) { return g->mode == TG_MODE_TEXT ? 0 : 1; }
+
+TG_HOT void tg_render_display_line(tg_t *g, int line, uint32_t out[TG_WIDTH])
+{
+    if (g->mode == TG_MODE_TEXT)
+        render_text_line(g, line, out);
+    else
+        tg_render_line(g, line, out);
+}
