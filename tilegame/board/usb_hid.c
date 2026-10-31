@@ -91,7 +91,11 @@ void usb_hid_init(void)
     tuh_init(BOARD_TUH_RHPORT);
 }
 
-void usb_hid_task(void) { tuh_task(); }
+void usb_hid_task(void)
+{
+    tuh_task();
+    xinput_poll();
+}
 
 plat_buttons_t usb_hid_buttons(int player)
 {

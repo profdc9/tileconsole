@@ -429,7 +429,7 @@ static void test_xinput(void)
         {2, 0x01, PLAT_BTN_UP},  {2, 0x02, PLAT_BTN_DOWN}, {2, 0x04, PLAT_BTN_LEFT},   {2, 0x08, PLAT_BTN_RIGHT},
         {2, 0x10, PLAT_BTN_START}, {2, 0x20, PLAT_BTN_SELECT}, {2, 0x40, 0},           {2, 0x80, 0},   /* stick clicks: unused */
         {3, 0x01, PLAT_BTN_L},   {3, 0x02, PLAT_BTN_R},   {3, 0x04, 0},                {3, 0x08, 0},   /* guide and the unused bit */
-        {3, 0x10, PLAT_BTN_A},   {3, 0x20, PLAT_BTN_B},   {3, 0x40, PLAT_BTN_X},       {3, 0x80, PLAT_BTN_Y},
+        {3, 0x10, PLAT_BTN_B},   {3, 0x20, PLAT_BTN_A},   {3, 0x40, PLAT_BTN_Y},       {3, 0x80, PLAT_BTN_X},   /* by position */
     };
     for (size_t i = 0; i < sizeof map / sizeof *map; i++) {
         memset(r, 0, sizeof r);
