@@ -52,8 +52,8 @@ int main(void)
         int row = 1;
         tg_layer_put_string(&g.layers[0], 2, row++, "INPUT DIAGNOSTIC", 2);
         row++;
-        char lines[16][41];
-        const int n = plat_input_diag(lines, 16);
+        char lines[22][41];
+        const int n = plat_input_diag(lines, 22);
         for (int i = 0; i < n; i++)
             tg_layer_put_string(&g.layers[0], 2, row++, lines[i], 1);
         row++;

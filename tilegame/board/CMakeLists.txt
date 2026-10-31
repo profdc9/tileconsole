@@ -42,7 +42,7 @@ function(tilegame_board_app name source)
         target_include_directories(${name} PRIVATE ${CMAKE_CURRENT_LIST_DIR})   # tusb_config.h and usb_hid.h
         target_compile_definitions(${name} PRIVATE PLAT_USB_HID=1 PLAT_STATS=0)
         target_link_libraries(${name} tinyusb_host tinyusb_board)
-        target_link_options(${name} PRIVATE -Wl,--wrap=panic)   # a panic in the USB interrupt handler is reported after the reset
+        target_link_options(${name} PRIVATE -Wl,--wrap=panic -Wl,--wrap=hub_edpt_status_xfer)   # a panic in the USB interrupt handler is reported after the reset
         pico_enable_stdio_usb(${name} 0)
     else()
         pico_enable_stdio_usb(${name} 1)

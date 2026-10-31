@@ -13,6 +13,7 @@
 #include "hardware/gpio.h"
 #include "hardware/structs/usb.h"
 #include "hardware/structs/usb_dpram.h"
+#include "pico/time.h"
 #include "tusb.h"
 
 #include "hid_kbd.h"
@@ -31,9 +32,12 @@
 #define NO_PAD 0xFF
 
 typedef enum { K_NONE = 0, K_KEYBOARD, K_MOUSE, K_PAD } kind_t;
+enum { PEND_NONE = 0, PEND_PROTOCOL, PEND_RECEIVE };   /* what an interface still needs: boot protocol, then reports polled */
+#define SETTLE_MS 200   /* wait this long after the last device or interface appeared before sending it anything */
 
 typedef struct {
     uint8_t kind;
+    uint8_t pending;               /* work for usb_hid_task once enumeration has settled: PEND_* */
     uint8_t pad;                   /* index into pad_pool */
     uint8_t player;                /* for a pad */
     const hid_pad_map_t *map;
@@ -98,7 +102,42 @@ void usb_hid_init(void)
     usb_hw_clear->inte = USB_INTE_ERROR_DATA_SEQ_BITS;
 }
 
-static uint32_t seq_errors;
+static uint32_t seq_errors, hid_mounts, last_mount_ms;
+
+/* TinyUSB asks the hub for its next status report with hub_edpt_status_xfer (-Wl,--wrap on it). If that ever fails, a hub stops noticing
+ * devices that are plugged in, so the calls and failures are counted for the diagnostic screen. */
+extern bool __real_hub_edpt_status_xfer(uint8_t dev_addr);
+static struct { uint32_t calls, failed; uint8_t last_addr; } hubarm;
+
+bool __wrap_hub_edpt_status_xfer(uint8_t dev_addr)
+{
+    const bool ok = __real_hub_edpt_status_xfer(dev_addr);
+    hubarm.calls++;
+    hubarm.last_addr = dev_addr;
+    if (!ok)
+        hubarm.failed++;
+    return ok;
+}
+
+/* TinyUSB must not be asked for anything from inside a mount callback: a control transfer started there collides with the enumeration
+ * in progress, which then never completes, and a hub's later devices are never looked at. So the callback only records what the
+ * interface needs and this does it once things have been quiet for a moment, one control transfer at a time. */
+static void start_pending(void)
+{
+    if (to_ms_since_boot(get_absolute_time()) - last_mount_ms < SETTLE_MS)
+        return;
+    for (int d = 1; d <= CFG_TUH_DEVICE_MAX; d++)
+        for (int i = 0; i < CFG_TUH_HID; i++) {
+            iface_t *f = &ifc[d][i];
+            if (f->pending == PEND_PROTOCOL) {
+                if (tuh_hid_set_protocol((uint8_t)d, (uint8_t)i, HID_PROTOCOL_BOOT))
+                    f->pending = PEND_RECEIVE;
+                return;   /* one control transfer at a time */
+            }
+            if (f->pending == PEND_RECEIVE && tuh_hid_receive_report((uint8_t)d, (uint8_t)i))
+                f->pending = PEND_NONE;
+        }
+}
 
 void usb_hid_task(void)
 {
@@ -108,6 +147,7 @@ void usb_hid_task(void)
     }
     tuh_task();
     xinput_poll();
+    start_pending();
 }
 
 plat_buttons_t usb_hid_buttons(int player)
@@ -161,6 +201,7 @@ static void device_is_a_pad(uint8_t dev_addr)
 
 void usb_hid_xinput_attach(uint8_t dev_addr)
 {
+    last_mount_ms = to_ms_since_boot(get_absolute_time());
     if (dev_addr > CFG_TUH_DEVICE_MAX)
         return;
     const uint8_t player = free_player();
@@ -197,6 +238,8 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t idx, const uint8_t *report_desc,
 {
     if (!valid(dev_addr, idx))
         return;
+    hid_mounts++;
+    last_mount_ms = to_ms_since_boot(get_absolute_time());
     iface_t *f = &ifc[dev_addr][idx];
     memset(f, 0, sizeof *f);
     f->pad = NO_PAD;
@@ -217,7 +260,7 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t idx, const uint8_t *report_desc,
         f->kind = proto == HID_ITF_PROTOCOL_KEYBOARD ? K_KEYBOARD : K_MOUSE;
         if (f->kind == K_MOUSE)
             mouse_acc_move(&mouse, 0, 0, 0);   /* a mouse is there */
-        tuh_hid_set_protocol(dev_addr, idx, HID_PROTOCOL_BOOT);
+        f->pending = PEND_PROTOCOL;
     } else {
         unsigned slot = 0;
         while (slot < PAD_POOL && pad_used[slot])
@@ -239,6 +282,7 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t idx, const uint8_t *report_desc,
             f->pad = (uint8_t)slot;
             f->player = player;
             f->map = hid_pad_map_for(vid, pid);
+            f->pending = PEND_RECEIVE;
             device_is_a_pad(dev_addr);
         } else {
             diag.nother++;
@@ -246,7 +290,6 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t idx, const uint8_t *report_desc,
         }
     }
     update_led();
-    tuh_hid_receive_report(dev_addr, idx);
 }
 
 void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t idx)
@@ -331,10 +374,26 @@ int usb_hid_diag(char (*lines)[41], int max)
     LINE("KBD %d MOUSE %d PAD %d XINPUT %d", kbd, mice, pads, xpads);
     LINE("OTHER %d, KEYBOARD/MOUSE IGNORED %lu", diag.nother, (unsigned long)diag.ignored);
     LINE("DATA SEQUENCE ERRORS SEEN %lu", (unsigned long)seq_errors);
+    /* Every device the stack has enumerated, with its vendor and product ids (the hub, the keyboard, the pad...). */
+    for (int d = 1; d <= CFG_TUH_DEVICE_MAX; d += 3) {
+        char row[41] = "";
+        for (int k = d; k < d + 3 && k <= CFG_TUH_DEVICE_MAX; k++) {
+            uint16_t vid = 0, pid = 0;
+            if (tuh_mounted((uint8_t)k))
+                tuh_vid_pid_get((uint8_t)k, &vid, &pid);
+            snprintf(row + strlen(row), sizeof row - strlen(row), "%sD%d %04X:%04X", k > d ? " " : "", k, vid, pid);
+        }
+        LINE("%s", row);
+    }
+    LINE("HID MOUNTED %lu ITF OPEN D1 %u D2 %u D3 %u", (unsigned long)hid_mounts, tuh_hid_itf_get_count(1), tuh_hid_itf_get_count(2),
+         tuh_hid_itf_get_count(3));
+    LINE("HUB STATUS ARMED %lu FAILED %lu (HUB %u)", (unsigned long)hubarm.calls, (unsigned long)hubarm.failed, hubarm.last_addr);
+    if (!xpads)
+        n += xinput_debug(lines + n, n < max ? 1 : 0);   /* did the XInput driver ever open a pad? (the first counter line) */
     /* The USB controller itself: what is it doing when the input stops? */
     LINE("SIE %08lX BUFST %08lX", (unsigned long)usb_hw->sie_status, (unsigned long)usb_hw->buf_status);
     LINE("EPX CTRL %08lX BUF %08lX", (unsigned long)usbh_dpram->epx_ctrl, (unsigned long)usbh_dpram->epx_buf_ctrl);
-    for (int e = 0, shown = 0; e < 15 && shown < 2; e++) {
+    for (int e = 0, shown = 0; !xpads && e < 15 && shown < 3; e++) {   /* (not when a pad is shown: the XInput lines need the room) */
         const uint32_t ctrl = usbh_dpram->int_ep_ctrl[e].ctrl;
         if (!(ctrl & (1u << 31)))   /* the enable bit */
             continue;   /* not in use */

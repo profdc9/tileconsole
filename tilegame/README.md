@@ -42,9 +42,14 @@ coins, stomp the walking enemies and avoid the pits; three lives.
 
 ## USB hubs
 
-Full-speed devices (XInput pads, most HID gamepads) worked through every hub tried. Low-speed devices (most keyboards and mice)
-depend on the hub: the board is a full-speed host, so a hub talks to a low-speed device without its transaction translator. Behind one
-bus-powered USB 3.0 hub a low-speed keyboard was recognised but stopped after a few reports, with data sequence errors from the host
-controller (that hub was fine on a laptop, at high speed). Behind a second hub the same keyboard worked with no errors. If a keyboard
-or mouse stops behind a hub, try another hub or plug it in directly. The stack no longer panics on data sequence errors (see
-`board/usb_hid.c`), and a stuck main loop or panic resets the board; the diagnostic screen (`padtest`) shows why.
+A keyboard and a gamepad behind one hub work together. Two things made that work, both in `board/usb_hid.c`:
+
+- TinyUSB must not be asked for anything from inside a mount callback. A control transfer started there collides with the
+  enumeration in progress, which then never completes, and the hub's later devices are never looked at. The callbacks only record
+  what an interface needs and `usb_hid_task` does it 200 ms after the last device appeared, one control transfer at a time.
+- The RP2040/RP2350 host driver panics inside its interrupt handler on a data sequence error, which a low speed device behind some
+  hubs produces. That interrupt is masked; the errors are counted on the diagnostic screen.
+
+Not every hub works: with one bus-powered USB 3.0 hub a low-speed keyboard stopped after a few reports (it worked on a laptop and
+behind a second hub). Full-speed devices (XInput pads, most HID gamepads) worked behind both. A stuck main loop or a panic resets the
+board and the diagnostic screen (`padtest`) shows why.
