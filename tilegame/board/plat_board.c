@@ -415,6 +415,25 @@ int plat_input_diag(char (*lines)[41], int max_lines)
 #endif
 }
 
+void plat_debug_line(char line[41])
+{
+    static char text[41];
+#if PLAT_USB_HID
+    static uint32_t last_us, last_frame;
+    const uint32_t now = time_us_32();
+    if (now - last_us >= 1000000) {
+        uint32_t max_us, total_us;
+        usb_hid_task_stats(&max_us, &total_us);
+        const uint32_t elapsed = now - last_us;
+        snprintf(text, sizeof text, "FPS %lu USB %lu%% MAX %lu US", (unsigned long)((frame_no - last_frame) * 1000000ull / elapsed),
+                 (unsigned long)(total_us * 100ull / elapsed), (unsigned long)max_us);
+        last_us = now;
+        last_frame = frame_no;
+    }
+#endif
+    memcpy(line, text, sizeof text);
+}
+
 void plat_mouse_set_position(int x, int y)
 {
 #if PLAT_USB_HID

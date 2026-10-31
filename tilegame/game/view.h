@@ -31,6 +31,7 @@ typedef struct {
     uint16_t main_map[2][32 * 16];
     uint16_t hud_map[2][64 * 32];
     int bg_tiles_used;
+    char debug[41];   /* an optional line of text under the HUD (empty: none) */
     int buf;   /* which of the double buffers the next frame is written to */
     int player_slot, enemy_slot[MAX_ENEMIES], coin_slot[COIN_POOL];
 } view_t;

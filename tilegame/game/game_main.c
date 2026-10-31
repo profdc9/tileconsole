@@ -145,6 +145,9 @@ int main(void)
     while (!plat_quit_requested()) {
         plat_wait_frame();
         game_update(&game, plat_buttons(0), plat_buttons_pressed(0));
+#ifdef GAME_DEBUG_HUD
+        plat_debug_line(view.debug);
+#endif
         view_draw(&view, &game);
         plat_present(&view.g);
 

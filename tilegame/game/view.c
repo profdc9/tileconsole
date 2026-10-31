@@ -365,6 +365,8 @@ void view_draw(view_t *v, const game_t *game)
     p = put_uint(p, (unsigned)game->lives, 1);
     *p = 0;
     tg_layer_put_string(&g->layers[2], 4, 1, line, PAL_TEXT);
+    if (v->debug[0])
+        tg_layer_put_string(&g->layers[2], 4, 3, v->debug, PAL_TEXT);
     if (game->state == GS_GAMEOVER) {
         centred(&g->layers[2], 12, "GAME OVER", PAL_TEXT_HI);
         centred(&g->layers[2], 14, "PRESS START", PAL_TEXT);

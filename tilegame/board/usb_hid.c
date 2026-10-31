@@ -139,8 +139,18 @@ static void start_pending(void)
         }
 }
 
+static uint32_t task_us_max, task_us_total;
+
+void usb_hid_task_stats(uint32_t *max_us, uint32_t *total_us)
+{
+    *max_us = task_us_max;
+    *total_us = task_us_total;
+    task_us_max = task_us_total = 0;
+}
+
 void usb_hid_task(void)
 {
+    const uint32_t started = time_us_32();
     if (usb_hw->sie_status & USB_SIE_STATUS_DATA_SEQ_ERROR_BITS) {
         usb_hw_clear->sie_status = USB_SIE_STATUS_DATA_SEQ_ERROR_BITS;
         seq_errors++;
@@ -148,6 +158,10 @@ void usb_hid_task(void)
     tuh_task();
     xinput_poll();
     start_pending();
+    const uint32_t took = time_us_32() - started;
+    task_us_total += took;
+    if (took > task_us_max)
+        task_us_max = took;
 }
 
 plat_buttons_t usb_hid_buttons(int player)

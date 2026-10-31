@@ -110,6 +110,8 @@ void plat_mouse_set_position(int x, int y);
  * elsewhere it says little.
  */
 int plat_input_diag(char (*lines)[41], int max_lines);
+/* One line of text about how the platform layer is doing (frame rate and so on), for an on-screen readout; empty if there is none. */
+void plat_debug_line(char line[41]);
 
 /* ---- audio ---- */
 

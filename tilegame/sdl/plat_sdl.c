@@ -242,6 +242,8 @@ uint32_t plat_millis(void)
 
 uint32_t plat_frame(void) { return frame_no; }
 
+void plat_debug_line(char line[41]) { line[0] = 0; }
+
 int plat_input_diag(char (*lines)[41], int max_lines)
 {
     int n = 0, pads = 0;
