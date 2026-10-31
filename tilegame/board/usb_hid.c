@@ -11,6 +11,8 @@
 #include <string.h>
 
 #include "hardware/gpio.h"
+#include "hardware/structs/usb.h"
+#include "hardware/structs/usb_dpram.h"
 #include "tusb.h"
 
 #include "hid_kbd.h"
@@ -18,6 +20,8 @@
 #include "hid_pad.h"
 #include "mouse_acc.h"
 #include "xinput.h"
+
+#define usb_hw_clear ((usb_hw_t *)hw_clear_alias_untyped(usb_hw))   /* write 1s to clear bits of a register */
 
 #ifndef PLAT_LED_PIN
 #define PLAT_LED_PIN 25
@@ -89,10 +93,19 @@ void usb_hid_init(void)
     gpio_set_dir(PLAT_LED_PIN, GPIO_OUT);
     gpio_put(PLAT_LED_PIN, 0);
     tuh_init(BOARD_TUH_RHPORT);
+    /* TinyUSB's RP2040 driver panics inside its interrupt handler on a data sequence error, which a low speed device behind a hub
+     * produces (a repeated packet; the hardware has already dropped it). Do not take that interrupt; usb_hid_task counts them. */
+    usb_hw_clear->inte = USB_INTE_ERROR_DATA_SEQ_BITS;
 }
+
+static uint32_t seq_errors;
 
 void usb_hid_task(void)
 {
+    if (usb_hw->sie_status & USB_SIE_STATUS_DATA_SEQ_ERROR_BITS) {
+        usb_hw_clear->sie_status = USB_SIE_STATUS_DATA_SEQ_ERROR_BITS;
+        seq_errors++;
+    }
     tuh_task();
     xinput_poll();
 }
@@ -317,6 +330,18 @@ int usb_hid_diag(char (*lines)[41], int max)
         xpads += xin[d].present;
     LINE("KBD %d MOUSE %d PAD %d XINPUT %d", kbd, mice, pads, xpads);
     LINE("OTHER %d, KEYBOARD/MOUSE IGNORED %lu", diag.nother, (unsigned long)diag.ignored);
+    LINE("DATA SEQUENCE ERRORS SEEN %lu", (unsigned long)seq_errors);
+    /* The USB controller itself: what is it doing when the input stops? */
+    LINE("SIE %08lX BUFST %08lX", (unsigned long)usb_hw->sie_status, (unsigned long)usb_hw->buf_status);
+    LINE("EPX CTRL %08lX BUF %08lX", (unsigned long)usbh_dpram->epx_ctrl, (unsigned long)usbh_dpram->epx_buf_ctrl);
+    for (int e = 0, shown = 0; e < 15 && shown < 2; e++) {
+        const uint32_t ctrl = usbh_dpram->int_ep_ctrl[e].ctrl;
+        if (!(ctrl & (1u << 31)))   /* the enable bit */
+            continue;   /* not in use */
+        LINE("IEP%d CTRL %08lX BUF %08lX", e, (unsigned long)ctrl, (unsigned long)usbh_dpram->int_ep_buffer_ctrl[e].ctrl);
+        LINE("     ADDR %08lX", (unsigned long)usb_hw->int_ep_addr_ctrl[e]);
+        shown++;
+    }
     if (xpads) {
         LINE("XINPUT REPORTS %lu", (unsigned long)diag.xin_reports);
         LINE("X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X", diag.xin_last[0], diag.xin_last[1], diag.xin_last[2],

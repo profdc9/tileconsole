@@ -9,12 +9,16 @@
  *  - Input: a NES gamepad on three GPIO pins, read once per frame.
  *  - Audio: the game's callback is called from core 1 and its samples go out as HDMI audio packets.
  */
+#include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
 
 #include "hardware/clocks.h"
 #include "hardware/gpio.h"
 #include "hardware/structs/qmi.h"
+#include "hardware/structs/usb.h"
+#include "hardware/structs/watchdog.h"
+#include "hardware/watchdog.h"
 #include "hardware/sync.h"
 #include "hardware/vreg.h"
 #include "pico/multicore.h"
@@ -48,6 +52,62 @@
 #define LINE_WORDS (MODE_H_ACTIVE_PIXELS / 2)   /* 320: two RGB565 pixels per word */
 
 static uint32_t ring[RING][LINE_WORDS];
+
+/* ---- a hang monitor: with USB in host mode there is no console, so a hung core 0 is caught and reported by core 1 ----
+ * Core 0 bumps a counter every time round its frame loop. If it stops for two seconds, core 1 records what the USB controller was
+ * doing in the watchdog scratch registers (which survive the reset) and reboots; the next start shows them on the diagnostic screen. */
+#define HANG_MAGIC 0x48414E47u   /* "HANG" */
+#define PANIC_MAGIC 0x50414E49u  /* "PANI" */
+static volatile uint32_t core0_beat;
+static uint32_t hang_report[4];   /* what the previous run left behind, if it hung */
+static bool hung_last_run, panicked_last_run;
+
+#if PLAT_USB_HID
+/* The linker sends every call of panic() here (-Wl,--wrap=panic). There is no console to print on, so the start of the message and
+ * its first integer argument are kept across a reset. TinyUSB panics inside its interrupt handler on a data sequence error and on
+ * anything it does not expect, which would otherwise leave the board stuck there. */
+void __attribute__((noreturn)) __wrap_panic(const char *fmt, ...)
+{
+    uint32_t text[2] = {0, 0};
+    for (int i = 0; fmt && i < 8 && fmt[i]; i++)
+        ((char *)text)[i] = fmt[i];
+    va_list ap;
+    va_start(ap, fmt);
+    const uint32_t arg = va_arg(ap, uint32_t);
+    va_end(ap);
+    watchdog_hw->scratch[0] = PANIC_MAGIC;
+    watchdog_hw->scratch[1] = text[0];
+    watchdog_hw->scratch[2] = text[1];
+    watchdog_hw->scratch[3] = arg;
+    watchdog_reboot(0, 0, 0);
+    for (;;)
+        tight_loop_contents();
+}
+#endif
+
+static void __not_in_flash_func(hang_check)(void)
+{
+    static uint32_t seen, since_us;
+    const uint32_t now = time_us_32();
+    const uint32_t beat = core0_beat;
+    if (beat == 0)
+        return;   /* the game has not started its frame loop yet */
+    if (beat != seen) {
+        seen = beat;
+        since_us = now;
+        return;
+    }
+    if (now - since_us < 2000000)
+        return;
+    uint32_t nonzero = 0;   /* how often an interrupt is pending over a few microseconds: a storm reads nonzero every time */
+    for (int i = 0; i < 1000; i++)
+        nonzero += usb_hw->ints != 0;
+    watchdog_hw->scratch[0] = HANG_MAGIC;
+    watchdog_hw->scratch[1] = usb_hw->sie_status;
+    watchdog_hw->scratch[2] = usb_hw->ints;
+    watchdog_hw->scratch[3] = nonzero << 16 | (usb_hw->buf_status & 0xFFFF);
+    watchdog_reboot(0, 0, 0);
+}
 
 static tg_t live;              /* core 1's copy for the frame being drawn */
 static tg_t pending;           /* the mailbox from core 0 */
@@ -167,6 +227,7 @@ static void __not_in_flash_func(render_step)(void)
 
 static void __not_in_flash_func(background)(void)
 {
+    hang_check();
     render_step();
     audio_pump();
 }
@@ -239,6 +300,13 @@ bool plat_init(void)
     set_flash_timing(PLAT_CPU_MHZ);
     set_sys_clock_khz(PLAT_CPU_MHZ * 1000, true);
     stdio_init_all();
+    if (watchdog_hw->scratch[0] == HANG_MAGIC || watchdog_hw->scratch[0] == PANIC_MAGIC) {
+        hung_last_run = true;
+        panicked_last_run = watchdog_hw->scratch[0] == PANIC_MAGIC;
+        for (int i = 0; i < 4; i++)
+            hang_report[i] = watchdog_hw->scratch[i];
+        watchdog_hw->scratch[0] = 0;
+    }
 #if PLAT_USB_HID
     usb_hid_init();
 #endif
@@ -270,10 +338,12 @@ void plat_present(const tg_t *g)
 
 uint32_t plat_wait_frame(void)
 {
+    core0_beat++;
 #if PLAT_USB_HID
     usb_hid_task();   /* the USB host stack needs to run often; a late frame must not starve it */
 #endif
     while (frame_gen == seen_gen) {
+        core0_beat++;
 #if PLAT_USB_HID
         usb_hid_task();
 #endif
@@ -326,7 +396,18 @@ plat_mouse_t plat_mouse(void) { return mouse_frame; }
 int plat_input_diag(char (*lines)[41], int max_lines)
 {
 #if PLAT_USB_HID
-    return usb_hid_diag(lines, max_lines);
+    int n = 0;
+    if (panicked_last_run && max_lines >= 2) {
+        char text[9] = {0};
+        memcpy(text, &hang_report[1], 8);
+        snprintf(lines[n++], 41, "RESET AFTER A PANIC:");
+        snprintf(lines[n++], 41, "%.8s ARG %08lX", text, (unsigned long)hang_report[3]);
+    } else if (hung_last_run && max_lines >= 2) {
+        snprintf(lines[n++], 41, "RESET AFTER A HANG: SIE %08lX", (unsigned long)hang_report[1]);
+        snprintf(lines[n++], 41, "INTS %08lX PENDING %lu BUF %04lX", (unsigned long)hang_report[2], (unsigned long)(hang_report[3] >> 16),
+                 (unsigned long)(hang_report[3] & 0xFFFF));
+    }
+    return n + usb_hid_diag(lines + n, max_lines - n);
 #else
     if (max_lines > 0)
         snprintf(lines[0], 41, "NO USB INPUT IN THIS BUILD");
