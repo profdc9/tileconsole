@@ -42,7 +42,9 @@ coins, stomp the walking enemies and avoid the pits; three lives.
 
 ## USB hubs
 
-Full-speed devices (XInput pads, most HID gamepads) work through a hub. Low-speed devices (most keyboards and mice) work when plugged
-directly into the board. Behind a bus-powered USB 3.0 hub, a low-speed keyboard was recognised but stopped after a few reports, with
-data sequence errors from the RP2040/RP2350 host controller; the stack no longer panics on them (see `board/usb_hid.c`), but the
-keyboard does not recover. A host stack panic or a stuck main loop resets the board and the diagnostic screen (`padtest`) shows why.
+Full-speed devices (XInput pads, most HID gamepads) worked through every hub tried. Low-speed devices (most keyboards and mice)
+depend on the hub: the board is a full-speed host, so a hub talks to a low-speed device without its transaction translator. Behind one
+bus-powered USB 3.0 hub a low-speed keyboard was recognised but stopped after a few reports, with data sequence errors from the host
+controller (that hub was fine on a laptop, at high speed). Behind a second hub the same keyboard worked with no errors. If a keyboard
+or mouse stops behind a hub, try another hub or plug it in directly. The stack no longer panics on data sequence errors (see
+`board/usb_hid.c`), and a stuck main loop or panic resets the board; the diagnostic screen (`padtest`) shows why.
