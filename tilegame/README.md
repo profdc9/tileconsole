@@ -39,3 +39,10 @@ coins, stomp the walking enemies and avoid the pits; three lives.
 - SDL: controllers through SDL's game controller API. Board: `-DPLAT_USB_HID=ON` (the old name `PLAT_USB_KEYBOARD` still works)
   puts the USB port in host mode for keyboards, mice and gamepads, which takes the serial console. Xbox controllers are not HID
   and are not supported.
+
+## USB hubs
+
+Full-speed devices (XInput pads, most HID gamepads) work through a hub. Low-speed devices (most keyboards and mice) work when plugged
+directly into the board. Behind a bus-powered USB 3.0 hub, a low-speed keyboard was recognised but stopped after a few reports, with
+data sequence errors from the RP2040/RP2350 host controller; the stack no longer panics on them (see `board/usb_hid.c`), but the
+keyboard does not recover. A host stack panic or a stuck main loop resets the board and the diagnostic screen (`padtest`) shows why.
