@@ -114,6 +114,13 @@ static tg_t pending;           /* the mailbox from core 0 */
 static bool pending_valid;
 static spin_lock_t *lock;
 
+/* Text mode: the text screen goes in one of three buffers, which core 1 is handed by number so that it never copies one. One is
+ * the live frame's, one the newest presented, and core 0 writes the third (all changed under the lock). */
+static tg_text_t text_buf[3];
+static int text_pending = -1, text_live = -1;
+static volatile uint32_t scan_shift = 1;       /* picture line N is display line N >> scan_shift (tile mode doubles lines) */
+static volatile int32_t frame_lines = TG_HEIGHT;   /* display lines in the live frame: 240 in tile mode, 480 in text mode */
+
 static volatile uint32_t frame_gen;   /* counts vsyncs (written by the vsync interrupt) */
 static volatile int32_t cons;         /* highest source line the scanout has asked for this frame */
 static volatile int32_t rendered;     /* source lines finished this frame */
@@ -135,7 +142,7 @@ static void __scratch_x("") vsync(void)
 static const uint32_t *__scratch_x("") scanline_ptr(uint32_t v_scanline, uint32_t active_line)
 {
     (void)v_scanline;
-    uint32_t s = active_line >> 1;
+    uint32_t s = active_line >> scan_shift;
     cons = (int32_t)s;
     if (rendered - (int32_t)s <= 0) {   /* the renderer is late: repeat the previous line rather than show stale data */
         underruns++;
@@ -201,14 +208,18 @@ static void __not_in_flash_func(render_step)(void)
         uint32_t s = spin_lock_blocking(lock);
         if (pending_valid) {
             live = pending;
+            if (live.mode == TG_MODE_TEXT)
+                text_live = text_pending;
             pending_valid = false;
         }
         spin_unlock(lock, s);
+        frame_lines = tg_display_lines(&live);
+        scan_shift = (uint32_t)tg_display_line_shift(&live);
     }
     /* Source lines before cons-1 are no longer being read by the scanout, so their slots are free. */
-    while (next < TG_HEIGHT && next <= cons - 2 + RING) {
+    while (next < frame_lines && next <= cons - 2 + RING) {
         const uint32_t t0 = time_us_32();
-        tg_render_line(&live, next, ring[next % RING]);
+        tg_render_display_line(&live, next, ring[next % RING]);
         const uint32_t dt = time_us_32() - t0;
         render_us_total += dt;
         lines_done++;
@@ -330,8 +341,20 @@ void plat_shutdown(void) {}
 
 void plat_present(const tg_t *g)
 {
+    int idx = -1;
+    if (g->mode == TG_MODE_TEXT && g->text) {   /* the text screen is a snapshot: the caller may change it as soon as this returns */
+        uint32_t s = spin_lock_blocking(lock);
+        for (idx = 0; idx == text_pending || idx == text_live; idx++)
+            ;   /* the lowest of the three buffers that is neither the newest presented nor the live one */
+        spin_unlock(lock, s);
+        memcpy(&text_buf[idx], g->text, sizeof text_buf[idx]);
+    }
     uint32_t s = spin_lock_blocking(lock);
     pending = *g;
+    if (idx >= 0) {
+        pending.text = &text_buf[idx];
+        text_pending = idx;
+    }
     pending_valid = true;
     spin_unlock(lock, s);
 }

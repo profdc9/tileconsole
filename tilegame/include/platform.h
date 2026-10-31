@@ -45,6 +45,10 @@ uint32_t plat_wait_frame(void);
  * display, which on the board is another core reading them while the game runs. Anything that changes from frame to frame
  * should therefore be double-buffered: write to the buffer that was not just presented, then present a state that points
  * at it. (Data that never changes after start-up needs nothing.)
+ *
+ * The exception is text mode (g->mode == TG_MODE_TEXT): the whole text screen, g->text (the cells, the glyphs and the palette),
+ * is copied too, so it may be changed freely as soon as plat_present returns. Both modes are shown in the 640 x 480 picture; a
+ * program may switch between them from one frame to the next.
  */
 void plat_present(const tg_t *g);
 

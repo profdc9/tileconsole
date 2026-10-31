@@ -125,6 +125,72 @@ static void test_present(void)
     CHECK(plat_sdl_framebuffer()[100 * TG_WIDTH + 100] == 0x001F);
 }
 
+/* Text mode: a snapshot of the whole screen reaches the picture, pixel for pixel, and the mode can be left again. */
+static uint16_t ref_text_pixel(const tg_text_t *t, int x, int y)
+{
+    const int ty = y - 40;
+    if (ty < 0 || ty >= 400)
+        return 0;
+    const uint16_t cell = t->cells[(ty / 16) * 80 + x / 8];
+    return t->palette[((t->font[(cell & 255) * 16 + ty % 16] >> (7 - x % 8)) & 1) ? (cell >> 8) & 15 : (cell >> 12) & 15];
+}
+
+static void test_text_mode(void)
+{
+    static tg_text_t screen;
+    srand(5);
+    for (int i = 0; i < TG_TEXT_CELLS; i++)
+        screen.cells[i] = (uint16_t)rand();
+    for (size_t i = 0; i < sizeof screen.font; i++)
+        screen.font[i] = (uint8_t)rand();
+    for (int i = 0; i < 16; i++)
+        screen.palette[i] = (uint16_t)(rand() | 0x0021);
+    static tg_t g;
+    tg_init(&g);
+    g.mode = TG_MODE_TEXT;
+    g.text = &screen;
+    plat_present(&g);
+    screen.cells[0] ^= 0xFFFF;                                    /* the screen is copied: this is too late to show */
+    screen.palette[3] ^= 0x1234;
+    plat_wait_frame();
+    const uint16_t *d = plat_sdl_display();
+    tg_text_t shown = screen;
+    shown.cells[0] ^= 0xFFFF;                                     /* what was presented */
+    shown.palette[3] ^= 0x1234;
+    for (int y = 0; y < TG_DISPLAY_HEIGHT; y++)
+        for (int x = 0; x < TG_DISPLAY_WIDTH; x++)
+            CHECK(d[y * TG_DISPLAY_WIDTH + x] == ref_text_pixel(&shown, x, y));
+
+    plat_present(&g);                                             /* now with the change */
+    plat_wait_frame();
+    for (int y = 0; y < TG_DISPLAY_HEIGHT; y += 3)
+        for (int x = 0; x < TG_DISPLAY_WIDTH; x++)
+            CHECK(d[y * TG_DISPLAY_WIDTH + x] == ref_text_pixel(&screen, x, y));
+
+    /* Back to tile mode: the picture is the tile frame, each source pixel doubled in both directions. */
+    static tg_t tiles;
+    tg_init(&tiles);
+    tiles.palette[0] = 0x07E0;
+    tiles.palette[9] = 0xF81F;
+    static uint8_t bitmap[TG_WIDTH * TG_HEIGHT];
+    for (int i = 0; i < TG_WIDTH * TG_HEIGHT; i++)
+        bitmap[i] = (uint8_t)((i / TG_WIDTH + i % TG_WIDTH) % 3 ? 0 : 9);
+    tiles.layers[0] = (tg_layer_t){.kind = TG_LAYER_BITMAP, .bitmap = bitmap};
+    plat_present(&tiles);
+    plat_wait_frame();
+    d = plat_sdl_display();
+    const uint16_t *fb = plat_sdl_framebuffer();
+    int pink = 0;
+    for (int y = 0; y < TG_HEIGHT; y++)
+        for (int x = 0; x < TG_WIDTH; x++) {
+            const uint16_t c = fb[y * TG_WIDTH + x];
+            pink += c == 0xF81F;
+            CHECK(d[2 * y * TG_DISPLAY_WIDTH + 2 * x] == c && d[2 * y * TG_DISPLAY_WIDTH + 2 * x + 1] == c);
+            CHECK(d[(2 * y + 1) * TG_DISPLAY_WIDTH + 2 * x] == c && d[(2 * y + 1) * TG_DISPLAY_WIDTH + 2 * x + 1] == c);
+        }
+    CHECK(pink > 1000 && pink < TG_WIDTH * TG_HEIGHT);
+}
+
 static volatile long audio_frames, audio_calls;
 static volatile int audio_user_ok;
 static int audio_marker;
@@ -351,6 +417,7 @@ int main(void)
     test_timing();
     test_input();
     test_present();
+    test_text_mode();
     test_audio();
     test_mouse();
     test_controllers();

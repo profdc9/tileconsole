@@ -13,6 +13,7 @@ static SDL_Window *window;
 static SDL_Renderer *renderer;
 static SDL_Texture *texture;
 static tg_t pending, shown;
+static tg_text_t pending_text, shown_text;   /* a text screen is copied along with the frame, as on the board */
 static bool have_state;
 
 static uint32_t frame_no;
@@ -24,7 +25,8 @@ static plat_buttons_t key_state[PLAT_MAX_PLAYERS];   /* kept up to date by the k
 static SDL_GameController *pad[PLAT_MAX_PLAYERS];     /* the first two controllers are players 0 and 1 */
 static mouse_acc_t mouse;
 
-static uint16_t framebuffer[TG_WIDTH * TG_HEIGHT];
+static uint16_t framebuffer[TG_WIDTH * TG_HEIGHT];          /* the last tile mode frame, one pixel per source pixel */
+static uint16_t display[TG_DISPLAY_WIDTH * TG_DISPLAY_HEIGHT];   /* the last frame in either mode, as shown */
 
 static SDL_AudioDeviceID audio_dev;
 static plat_audio_fn audio_fn;
@@ -116,7 +118,7 @@ bool plat_init(void)
     for (int i = 0; i < SDL_NumJoysticks(); i++)
         open_controller(i);
 
-    window = SDL_CreateWindow("tilegame", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 2 * TG_WIDTH, 2 * TG_HEIGHT, 0);
+    window = SDL_CreateWindow("tilegame", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, TG_DISPLAY_WIDTH, TG_DISPLAY_HEIGHT, 0);
     if (!window)
         return false;
     renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_PRESENTVSYNC);
@@ -124,8 +126,8 @@ bool plat_init(void)
         renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_SOFTWARE);
     if (!renderer)
         return false;
-    SDL_RenderSetLogicalSize(renderer, TG_WIDTH, TG_HEIGHT);
-    texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGB565, SDL_TEXTUREACCESS_STREAMING, TG_WIDTH, TG_HEIGHT);
+    SDL_RenderSetLogicalSize(renderer, TG_DISPLAY_WIDTH, TG_DISPLAY_HEIGHT);
+    texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGB565, SDL_TEXTUREACCESS_STREAMING, TG_DISPLAY_WIDTH, TG_DISPLAY_HEIGHT);
     if (!texture)
         return false;
 
@@ -161,24 +163,40 @@ void plat_shutdown(void)
 void plat_present(const tg_t *g)
 {
     pending = *g;
+    if (g->mode == TG_MODE_TEXT && g->text) {   /* the text screen is a snapshot too: the caller may change it at once */
+        pending_text = *g->text;
+        pending.text = &pending_text;
+    }
     have_state = true;
 }
 
 const uint16_t *plat_sdl_framebuffer(void) { return framebuffer; }
+const uint16_t *plat_sdl_display(void) { return display; }
 
 static void compose_and_show(void)
 {
     if (have_state) {
         shown = pending;
+        if (shown.mode == TG_MODE_TEXT && pending.text) {
+            shown_text = pending_text;
+            shown.text = &shown_text;
+        }
         have_state = false;
     }
     uint32_t line[TG_WIDTH];
-    for (int y = 0; y < TG_HEIGHT; y++) {
-        tg_render_line(&shown, y, line);
-        for (int x = 0; x < TG_WIDTH; x++)
-            framebuffer[y * TG_WIDTH + x] = (uint16_t)line[x];
+    const int lines = tg_display_lines(&shown), repeat = 1 << tg_display_line_shift(&shown);
+    for (int y = 0; y < lines; y++) {
+        tg_render_display_line(&shown, y, line);
+        for (int x = 0; x < TG_WIDTH; x++) {   /* a word is two pixels, the left one in the low half */
+            for (int r = 0; r < repeat; r++) {
+                display[(y * repeat + r) * TG_DISPLAY_WIDTH + 2 * x] = (uint16_t)line[x];
+                display[(y * repeat + r) * TG_DISPLAY_WIDTH + 2 * x + 1] = (uint16_t)(line[x] >> 16);
+            }
+            if (shown.mode != TG_MODE_TEXT)
+                framebuffer[y * TG_WIDTH + x] = (uint16_t)line[x];
+        }
     }
-    SDL_UpdateTexture(texture, NULL, framebuffer, TG_WIDTH * 2);
+    SDL_UpdateTexture(texture, NULL, display, TG_DISPLAY_WIDTH * 2);
     SDL_RenderClear(renderer);
     SDL_RenderCopy(renderer, texture, NULL, NULL);
     SDL_RenderPresent(renderer);

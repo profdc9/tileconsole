@@ -8,8 +8,11 @@
 
 #include "platform.h"
 
-/* The last frame that was composed, TG_WIDTH x TG_HEIGHT RGB565. */
+/* The last tile mode frame that was composed, TG_WIDTH x TG_HEIGHT RGB565 (not updated in text mode). */
 const uint16_t *plat_sdl_framebuffer(void);
+
+/* The last frame in either mode as it is shown, TG_DISPLAY_WIDTH x TG_DISPLAY_HEIGHT (640 x 480) RGB565. */
+const uint16_t *plat_sdl_display(void);
 
 /* The button a key stands for, or 0. Player 0 uses the arrows, Z X A S, Return and Right Shift. */
 plat_buttons_t plat_sdl_button_for_key(SDL_Keycode key);

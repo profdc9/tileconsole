@@ -62,3 +62,9 @@ tilegame_board_app(platformer ${GAME_DIR}/game_main.c ${GAME_DIR}/game.c ${GAME_
                    ${TILEGFX_DIR}/tg_font.c ${TILEGFX_DIR}/fonts/unscii8.c)
 
 tilegame_board_app(padtest ${CMAKE_CURRENT_LIST_DIR}/../demo/padtest.c ${TILEGFX_DIR}/tg_font.c ${TILEGFX_DIR}/fonts/unscii8.c)
+
+# Text mode demo: 80 x 25 text in the 640 x 480 picture (needs the 8x16 font for the PC character set).
+set(DEMO_DIR ${CMAKE_CURRENT_LIST_DIR}/../demo)
+tilegame_board_app(textdemo ${DEMO_DIR}/textdemo.c ${DEMO_DIR}/textdemo_pages.c ${TILEGFX_DIR}/tg_text.c ${TILEGFX_DIR}/tg_text_cp437.c
+                   ${TILEGFX_DIR}/tg_font.c ${TILEGFX_DIR}/fonts/unscii16.c)
+target_include_directories(textdemo PRIVATE ${DEMO_DIR})
