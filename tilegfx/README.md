@@ -62,3 +62,11 @@ The cursor is the PC's: a position, a shape (a range of the 16 scanlines of its 
 flag and a blink flag (`tg_text_set_cursor`, `tg_text_set_cursor_shape`, `tg_text_show_cursor`, `tg_text_set_cursor_blink`). It is drawn in the
 foreground colour of its cell and is hidden until shown. It blinks by `tg_t.frame`, which the platform layer sets for every frame it draws, so
 it goes on blinking while the program does nothing: on for 16 frames, off for 16.
+
+## Console
+
+`tg_console.h` writes to a text screen the way a terminal does: `tg_console_puts`, `tg_console_putc` and `tg_console_printf` move a position along,
+with `\n`, `\r`, `\b`, `\t` acting as controls, wrapping at the right edge (put off until the next character, so an 80 character line followed by `\n`
+leaves no blank line, or dropped with `TG_CONSOLE_NOWRAP`) and scrolling at the bottom. The text screen's cursor follows the position. The
+`printf` work space is in the console (not on the stack), so one call writes at most 255 characters. `make test_console` compares random output against
+an independent model of a terminal.
