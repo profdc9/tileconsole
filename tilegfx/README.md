@@ -70,3 +70,12 @@ with `\n`, `\r`, `\b`, `\t` acting as controls, wrapping at the right edge (put 
 leaves no blank line, or dropped with `TG_CONSOLE_NOWRAP`) and scrolling at the bottom. The text screen's cursor follows the position. The
 `printf` work space is in the console (not on the stack), so one call writes at most 255 characters. `make test_console` compares random output against
 an independent model of a terminal.
+
+With `TG_CONSOLE_ANSI` set in `flags` the console also interprets ANSI/VT100 escape sequences, in `printf` output too: cursor moves and positioning,
+erase in display and line, insert and delete line, delete characters, a scroll region (`ESC[t;br`), save and restore the cursor, index and reverse
+index, and colours (`ESC[...m`: the ANSI colours are translated to the PC's, bold is the bright foreground, blink the bright background, plus 90-97
+and 100-107, 39 and 49). `TG_CONSOLE_LF_ONLY` makes `\n` a plain line feed, as on a terminal. See `tg_console.h` for the full list. It is off by
+default, so `printf` users see no change. `make test_ansi_oracle` compares it with Daniel Marks' `TNTSCAnsi` (the interpreter of PicoParanoia, zlib
+licence, copied to a scratch directory for the test and not modified) on the sequences the two share: 1.3 million comparisons of the whole screen
+and cursor, over 30000 random sequences. Where `TNTSCAnsi` differs on purpose (the cursor position after `ESC 8`, a zero as a count, the cursor
+after `ESC[r`, a line feed with the cursor outside the scroll region, a character in the last column), the console follows the VT100 instead.
