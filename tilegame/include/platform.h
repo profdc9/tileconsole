@@ -85,6 +85,29 @@ plat_buttons_t plat_buttons(int player);            /* held now */
 plat_buttons_t plat_buttons_pressed(int player);    /* went down since the previous frame */
 plat_buttons_t plat_buttons_released(int player);   /* went up since the previous frame */
 
+/* ---- typed characters ---- */
+
+/*
+ * The next typed character, or -1 if there is none: a stream like the one a PC program reads, for the US layout. Printable keys give their
+ * ASCII character (shift and caps lock applied), Enter 10, Backspace 8, Tab 9, Escape 27, Delete 127 and Ctrl with a letter 1..26. The cursor
+ * keys, Home, End, Page up and down, Insert and F1..F12 give the PLAT_KEY_* codes below (256 and up). A held key repeats. On the desktop the
+ * characters come from the window's text input, so the operating system's layout applies; non-ASCII characters are dropped. This is separate from
+ * plat_buttons: the same key presses count for both.
+ */
+#define PLAT_KEY_UP 0x100
+#define PLAT_KEY_DOWN 0x101
+#define PLAT_KEY_LEFT 0x102
+#define PLAT_KEY_RIGHT 0x103
+#define PLAT_KEY_HOME 0x104
+#define PLAT_KEY_END 0x105
+#define PLAT_KEY_PAGEUP 0x106
+#define PLAT_KEY_PAGEDOWN 0x107
+#define PLAT_KEY_INSERT 0x108
+#define PLAT_KEY_F1 0x110   /* F1 .. F12 are PLAT_KEY_F1 .. PLAT_KEY_F1 + 11 */
+#define PLAT_KEY_F(n) (PLAT_KEY_F1 + (n) - 1)
+
+int plat_getchar(void);
+
 /* ---- mouse ---- */
 
 #define PLAT_MOUSE_LEFT   1
