@@ -417,6 +417,15 @@ uint32_t plat_frame(void) { return frame_no; }
 
 plat_mouse_t plat_mouse(void) { return mouse_frame; }
 
+int plat_getchar(void)
+{
+#if PLAT_USB_HID
+    return usb_hid_getchar();
+#else
+    return -1;   /* the NES pad has no keyboard */
+#endif
+}
+
 int plat_input_diag(char (*lines)[41], int max_lines)
 {
 #if PLAT_USB_HID

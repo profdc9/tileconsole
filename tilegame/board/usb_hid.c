@@ -19,6 +19,7 @@
 #include "hid_kbd.h"
 #include "hid_mouse.h"
 #include "hid_pad.h"
+#include "keymap.h"
 #include "mouse_acc.h"
 #include "xinput.h"
 
@@ -42,6 +43,7 @@ typedef struct {
     uint8_t player;                /* for a pad */
     const hid_pad_map_t *map;
     plat_buttons_t held;
+    keymap_t keys;                 /* for a keyboard: what it has down, its lock keys and its key repeat */
 } iface_t;
 
 static iface_t ifc[CFG_TUH_DEVICE_MAX + 1][CFG_TUH_HID];
@@ -158,6 +160,15 @@ void usb_hid_task(void)
     tuh_task();
     xinput_poll();
     start_pending();
+    static uint32_t last_tick_ms;
+    const uint32_t now_ms = to_ms_since_boot(get_absolute_time());
+    if (now_ms != last_tick_ms) {   /* the key repeat of the held keys, at most once a millisecond */
+        last_tick_ms = now_ms;
+        for (int d = 1; d <= CFG_TUH_DEVICE_MAX; d++)
+            for (int i = 0; i < CFG_TUH_HID; i++)
+                if (ifc[d][i].kind == K_KEYBOARD)
+                    keymap_tick(&ifc[d][i].keys, now_ms);
+    }
     const uint32_t took = time_us_32() - started;
     task_us_total += took;
     if (took > task_us_max)
@@ -178,6 +189,8 @@ plat_buttons_t usb_hid_buttons(int player)
     }
     return b;
 }
+
+int usb_hid_getchar(void) { return keymap_getchar(); }
 
 plat_mouse_t usb_hid_mouse_frame(void)
 {
@@ -272,6 +285,8 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t idx, const uint8_t *report_desc,
     }
     if (proto == HID_ITF_PROTOCOL_KEYBOARD || proto == HID_ITF_PROTOCOL_MOUSE) {
         f->kind = proto == HID_ITF_PROTOCOL_KEYBOARD ? K_KEYBOARD : K_MOUSE;
+        if (f->kind == K_KEYBOARD)
+            keymap_init(&f->keys);
         if (f->kind == K_MOUSE)
             mouse_acc_move(&mouse, 0, 0, 0);   /* a mouse is there */
         f->pending = PEND_PROTOCOL;
@@ -313,6 +328,8 @@ void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t idx)
     iface_t *f = &ifc[dev_addr][idx];
     if (f->kind == K_PAD && f->pad < PAD_POOL)
         pad_used[f->pad] = false;
+    if (f->kind == K_KEYBOARD)
+        keymap_release_all(&f->keys);   /* a key that was held stops repeating */
     memset(f, 0, sizeof *f);
     bool still = xin[dev_addr].present;
     for (int k = 0; k < CFG_TUH_HID; k++)
@@ -347,6 +364,7 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t idx, const uint8_t *re
         plat_buttons_t b;
         if (hid_kbd_parse(report, len, &b))
             f->held = b;
+        keymap_report(&f->keys, report, len, to_ms_since_boot(get_absolute_time()));   /* and the typed characters (plat_getchar) */
         break;
     }
     case K_MOUSE: {

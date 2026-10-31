@@ -41,7 +41,7 @@ function(tilegame_board_app name source)
     target_link_libraries(${name} pico_stdlib pico_multicore hardware_vreg hardware_clocks hardware_dma
                           hardware_irq hardware_gpio hardware_sync pico_hdmi)
     if(PLAT_USB_HID)
-        target_sources(${name} PRIVATE usb_hid.c xinput_host.c ${CMAKE_CURRENT_LIST_DIR}/../src/xinput.c ${CMAKE_CURRENT_LIST_DIR}/../src/hid_kbd.c ${CMAKE_CURRENT_LIST_DIR}/../src/hid_pad.c
+        target_sources(${name} PRIVATE usb_hid.c xinput_host.c ${CMAKE_CURRENT_LIST_DIR}/../src/xinput.c ${CMAKE_CURRENT_LIST_DIR}/../src/hid_kbd.c ${CMAKE_CURRENT_LIST_DIR}/../src/keymap.c ${CMAKE_CURRENT_LIST_DIR}/../src/hid_pad.c
                        ${CMAKE_CURRENT_LIST_DIR}/../src/hid_mouse.c ${CMAKE_CURRENT_LIST_DIR}/../src/mouse_acc.c)
         target_include_directories(${name} PRIVATE ${CMAKE_CURRENT_LIST_DIR})   # tusb_config.h and usb_hid.h
         target_compile_definitions(${name} PRIVATE PLAT_USB_HID=1 PLAT_STATS=0)
@@ -68,3 +68,8 @@ set(DEMO_DIR ${CMAKE_CURRENT_LIST_DIR}/../demo)
 tilegame_board_app(textdemo ${DEMO_DIR}/textdemo.c ${DEMO_DIR}/textdemo_pages.c ${TILEGFX_DIR}/tg_text.c ${TILEGFX_DIR}/tg_text_cp437.c
                    ${TILEGFX_DIR}/tg_font.c ${TILEGFX_DIR}/fonts/unscii16.c)
 target_include_directories(textdemo PRIVATE ${DEMO_DIR})
+
+# Console demo: type at a prompt on the 80 x 25 text screen (a USB keyboard), printf output.
+tilegame_board_app(consdemo ${DEMO_DIR}/consdemo.c ${DEMO_DIR}/consdemo_logic.c ${TILEGFX_DIR}/tg_console.c ${TILEGFX_DIR}/tg_text.c
+                   ${TILEGFX_DIR}/tg_text_cp437.c ${TILEGFX_DIR}/tg_font.c ${TILEGFX_DIR}/fonts/unscii16.c)
+target_include_directories(consdemo PRIVATE ${DEMO_DIR})

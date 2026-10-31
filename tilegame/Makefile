@@ -6,7 +6,7 @@ CFLAGS ?= -std=c11 -Wall -Wextra -O2
 INC = -Iinclude -Isdl -I$(TILEGFX) -I$(TILESND)
 SDL = $(shell pkg-config --cflags --libs sdl2)
 
-all: game_demo padtest platformer textdemo test_platform_sdl test_hid_kbd test_keymap test_hid_pad test_game test_view
+all: game_demo padtest platformer textdemo consdemo test_consdemo test_platform_sdl test_hid_kbd test_keymap test_hid_pad test_game test_view
 
 test_platform_sdl: tests/test_platform_sdl.c sdl/plat_sdl.c src/mouse_acc.c sdl/plat_sdl.h include/platform.h $(TILEGFX)/tilegfx.c $(TILEGFX)/tg_text.c
 	$(CC) $(CFLAGS) -g -fsanitize=address,undefined $(INC) tests/test_platform_sdl.c sdl/plat_sdl.c src/mouse_acc.c $(TILEGFX)/tilegfx.c $(TILEGFX)/tg_text.c -o $@ $(SDL) -lm
@@ -34,6 +34,17 @@ TEXTSRC = $(TILEGFX)/tg_text.c $(TILEGFX)/tg_text_cp437.c $(TILEGFX)/tg_font.c $
 textdemo: demo/textdemo.c $(TEXTSRC) sdl/plat_sdl.c src/mouse_acc.c include/platform.h $(TILEGFX)/tilegfx.c
 	$(CC) $(CFLAGS) $(INC) -Idemo demo/textdemo.c $(TEXTSRC) sdl/plat_sdl.c src/mouse_acc.c $(TILEGFX)/tilegfx.c -o $@ $(SDL) -lm
 
+CONSSRC = $(TILEGFX)/tg_console.c $(TEXTSRC) demo/consdemo_logic.c
+
+consdemo: demo/consdemo.c $(CONSSRC) sdl/plat_sdl.c src/mouse_acc.c include/platform.h $(TILEGFX)/tilegfx.c
+	$(CC) $(CFLAGS) $(INC) -Idemo demo/consdemo.c $(CONSSRC) sdl/plat_sdl.c src/mouse_acc.c $(TILEGFX)/tilegfx.c -o $@ $(SDL) -lm
+
+test_consdemo: tests/test_consdemo.c $(CONSSRC) demo/consdemo_logic.h $(TILEGFX)/tilegfx.c
+	$(CC) $(CFLAGS) -g -fsanitize=address,undefined $(INC) -Idemo tests/test_consdemo.c $(CONSSRC) $(TILEGFX)/tilegfx.c -o $@
+
+shot_cons: tests/shot_cons.c $(CONSSRC) $(TILEGFX)/tilegfx.c
+	$(CC) $(CFLAGS) -g -fsanitize=address,undefined $(INC) -Idemo tests/shot_cons.c $(CONSSRC) $(TILEGFX)/tilegfx.c -o $@
+
 shot_text: tests/shot_text.c $(TEXTSRC) $(TILEGFX)/tilegfx.c
 	$(CC) $(CFLAGS) -g -fsanitize=address,undefined $(INC) -Idemo tests/shot_text.c $(TEXTSRC) $(TILEGFX)/tilegfx.c -o $@
 
@@ -43,10 +54,11 @@ test_view: tests/test_view.c $(GAMESRC) game/game.h game/level.h game/view.h $(T
 test_hid_pad: tests/test_hid_pad.c src/hid_pad.c src/hid_mouse.c src/mouse_acc.c src/xinput.c include/mouse_acc.h include/xinput.h include/hid_pad.h include/hid_mouse.h include/platform.h
 	$(CC) $(CFLAGS) -g -fsanitize=address,undefined $(INC) tests/test_hid_pad.c src/hid_pad.c src/hid_mouse.c src/mouse_acc.c src/xinput.c -o $@
 
-check: test_platform_sdl test_hid_kbd test_keymap test_hid_pad test_game test_view
+check: test_platform_sdl test_hid_kbd test_keymap test_consdemo test_hid_pad test_game test_view
 	./test_platform_sdl
 	./test_hid_kbd
 	./test_keymap
+	./test_consdemo
 	./test_hid_pad
 	./test_game
 	./test_view

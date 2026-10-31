@@ -20,6 +20,27 @@ static int checks;
         }                                                                    \
     } while (0)
 
+static void push_text(const char *utf8)
+{
+    SDL_Event e;
+    memset(&e, 0, sizeof e);
+    e.type = SDL_TEXTINPUT;
+    strncpy(e.text.text, utf8, sizeof e.text.text - 1);
+    SDL_PushEvent(&e);
+}
+
+static void push_key_mod(SDL_Keycode key, Uint16 mod, bool down, int repeat)
+{
+    SDL_Event e;
+    memset(&e, 0, sizeof e);
+    e.type = down ? SDL_KEYDOWN : SDL_KEYUP;
+    e.key.keysym.sym = key;
+    e.key.keysym.mod = mod;
+    e.key.state = down ? SDL_PRESSED : SDL_RELEASED;
+    e.key.repeat = (Uint8)repeat;
+    SDL_PushEvent(&e);
+}
+
 static void push_key(SDL_Keycode key, bool down, int repeat)
 {
     SDL_Event e;
@@ -230,6 +251,107 @@ static void test_cursor_blink(void)
         plat_wait_frame();
         CHECK(plat_sdl_display()[(40 + 3 * 16 + 8) * TG_DISPLAY_WIDTH + 10 * 8 + 3] == yellow);
     }
+}
+
+/* Typed characters: the window's text, ASCII only, and the keys that make no text. */
+static void test_chars(void)
+{
+    plat_wait_frame();
+    while (plat_getchar() >= 0)
+        ;
+    CHECK(plat_getchar() == -1);
+    push_text("Hi!");
+    push_text("caf\xC3\xA9 \xE2\x82\xAC");              /* "café €": only the ASCII is kept */
+    push_text("\x01\x1F\x7F");                            /* control codes and DEL are not text */
+    push_text("~");
+    plat_wait_frame();
+    const char *want = "Hi!caf ~";
+    for (const char *p = want; *p; p++)
+        CHECK(plat_getchar() == *p);
+    CHECK(plat_getchar() == -1);
+
+    push_key_mod(SDLK_RETURN, 0, true, 0);
+    push_key_mod(SDLK_BACKSPACE, 0, true, 0);
+    push_key_mod(SDLK_TAB, 0, true, 0);
+    push_key_mod(SDLK_ESCAPE, 0, true, 0);
+    push_key_mod(SDLK_DELETE, 0, true, 0);
+    push_key_mod(SDLK_KP_ENTER, 0, true, 0);
+    push_key_mod(SDLK_UP, 0, true, 0);
+    push_key_mod(SDLK_LEFT, 0, true, 1);                    /* an auto-repeat counts */
+    push_key_mod(SDLK_LEFT, 0, false, 0);                   /* a release does not */
+    push_key_mod(SDLK_HOME, 0, true, 0);
+    push_key_mod(SDLK_PAGEDOWN, 0, true, 0);
+    push_key_mod(SDLK_PAGEUP, 0, true, 0);
+    push_key_mod(SDLK_END, 0, true, 0);
+    push_key_mod(SDLK_INSERT, 0, true, 0);
+    push_key_mod(SDLK_DOWN, 0, true, 0);
+    push_key_mod(SDLK_RIGHT, 0, true, 0);
+    push_key_mod(SDLK_F1, 0, true, 0);
+    push_key_mod(SDLK_F12, 0, true, 0);
+    push_key_mod(SDLK_F5, KMOD_LSHIFT, true, 0);
+    plat_wait_frame();
+    static const int keys[] = {10, 8, 9, 27, 127, 10, PLAT_KEY_UP, PLAT_KEY_LEFT, PLAT_KEY_HOME, PLAT_KEY_PAGEDOWN,
+                               PLAT_KEY_PAGEUP, PLAT_KEY_END, PLAT_KEY_INSERT, PLAT_KEY_DOWN, PLAT_KEY_RIGHT, PLAT_KEY_F(1), PLAT_KEY_F(12), PLAT_KEY_F(5)};
+    for (size_t i = 0; i < sizeof keys / sizeof *keys; i++)
+        CHECK(plat_getchar() == keys[i]);
+    CHECK(plat_getchar() == -1);
+
+    /* Ctrl with a letter or one of three punctuation keys; the plain letter makes no character from a key press (its text arrives as text). */
+    push_key_mod(SDLK_a, KMOD_LCTRL, true, 0);
+    push_key_mod(SDLK_z, KMOD_RCTRL, true, 0);
+    push_key_mod(SDLK_LEFTBRACKET, KMOD_LCTRL, true, 0);
+    push_key_mod(SDLK_BACKSLASH, KMOD_LCTRL, true, 0);
+    push_key_mod(SDLK_RIGHTBRACKET, KMOD_LCTRL, true, 0);
+    push_key_mod(SDLK_SPACE, KMOD_LCTRL, true, 0);
+    push_key_mod(SDLK_a, 0, true, 0);
+    push_key_mod(SDLK_SPACE, 0, true, 0);
+    push_key_mod(SDLK_1, KMOD_LCTRL, true, 0);
+    plat_wait_frame();
+    static const int ctrl[] = {1, 26, 27, 28, 29, 0};
+    for (size_t i = 0; i < sizeof ctrl / sizeof *ctrl; i++)
+        CHECK(plat_getchar() == ctrl[i]);
+    CHECK(plat_getchar() == -1);
+
+    /* The queue holds 64 and drops the rest; the buttons are unaffected by typing. */
+    for (int round = 0; round < 4; round++) {                /* more than it holds, and round the ring more than once */
+        for (int i = 0; i < 100; i++) {
+            char one[2] = {(char)('a' + i % 26), 0};
+            push_text(one);
+        }
+        plat_wait_frame();
+        for (int i = 0; i < 64; i++)
+            CHECK(plat_getchar() == 'a' + i % 26);
+        CHECK(plat_getchar() == -1);
+        for (int i = 0; i < 40; i++)                         /* and a part-read queue, filled up again */
+            push_text("p");
+        plat_wait_frame();
+        for (int i = 0; i < 25; i++)
+            CHECK(plat_getchar() == 'p');
+        for (int i = 0; i < 49; i++)
+            push_text("q");
+        plat_wait_frame();
+        for (int i = 0; i < 15; i++)
+            CHECK(plat_getchar() == 'p');
+        for (int i = 0; i < 49; i++)
+            CHECK(plat_getchar() == 'q');
+        CHECK(plat_getchar() == -1);
+    }
+    push_key(SDLK_z, true, 0);
+    push_text("z");
+    plat_wait_frame();
+    CHECK(plat_getchar() == 'z' && plat_getchar() == -1);
+    CHECK(plat_buttons(0) & PLAT_BTN_B);                    /* Z is the B button too */
+    push_key(SDLK_z, false, 0);
+    push_key(SDLK_RETURN, false, 0);                        /* let go of everything pressed above that is also a button */
+    push_key(SDLK_UP, false, 0);
+    push_key(SDLK_DOWN, false, 0);
+    push_key(SDLK_RIGHT, false, 0);
+    push_key(SDLK_LEFT, false, 0);
+    push_key(SDLK_a, false, 0);
+    plat_wait_frame();
+    plat_wait_frame();
+    CHECK(plat_buttons(0) == 0);
+    CHECK(plat_sdl_char_for_key(SDLK_a, 0) == -1 && plat_sdl_char_for_key(SDLK_F13, 0) == -1 && plat_sdl_char_for_key(SDLK_UNKNOWN, KMOD_CTRL) == -1);
 }
 
 static volatile long audio_frames, audio_calls;
@@ -460,6 +582,7 @@ int main(void)
     test_present();
     test_text_mode();
     test_cursor_blink();
+    test_chars();
     test_audio();
     test_mouse();
     test_controllers();

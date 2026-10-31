@@ -22,6 +22,10 @@ static bool quit;
 
 static plat_buttons_t held[PLAT_MAX_PLAYERS], pressed[PLAT_MAX_PLAYERS], released[PLAT_MAX_PLAYERS];
 static plat_buttons_t key_state[PLAT_MAX_PLAYERS];   /* kept up to date by the key events */
+
+#define CHAR_QUEUE 64
+static int16_t char_queue[CHAR_QUEUE];                 /* typed characters, for plat_getchar */
+static unsigned char_head, char_count;
 static SDL_GameController *pad[PLAT_MAX_PLAYERS];     /* the first two controllers are players 0 and 1 */
 static mouse_acc_t mouse;
 
@@ -203,13 +207,73 @@ static void compose_and_show(void)
     SDL_RenderPresent(renderer);
 }
 
+static void char_push(int ch)
+{
+    if (char_count < CHAR_QUEUE)
+        char_queue[(char_head + char_count++) % CHAR_QUEUE] = (int16_t)ch;
+}
+
+int plat_getchar(void)
+{
+    if (!char_count)
+        return -1;
+    const int ch = char_queue[char_head];
+    char_head = (char_head + 1) % CHAR_QUEUE;
+    char_count--;
+    return ch;
+}
+
+int plat_sdl_char_for_key(SDL_Keycode key, Uint16 mod)
+{
+    if (mod & KMOD_CTRL) {   /* Ctrl with a letter or @ [ \ ] ^ _ gives a control code; the window sends no text for these */
+        if (key >= SDLK_a && key <= SDLK_z)
+            return key - SDLK_a + 1;
+        switch (key) {
+        case SDLK_LEFTBRACKET: return 27;
+        case SDLK_BACKSLASH: return 28;
+        case SDLK_RIGHTBRACKET: return 29;
+        case SDLK_SPACE: return 0;
+        default: break;
+        }
+    }
+    switch (key) {
+    case SDLK_RETURN: case SDLK_KP_ENTER: return 10;
+    case SDLK_BACKSPACE: return 8;
+    case SDLK_TAB: return 9;
+    case SDLK_ESCAPE: return 27;
+    case SDLK_DELETE: return 127;
+    case SDLK_UP: return PLAT_KEY_UP;
+    case SDLK_DOWN: return PLAT_KEY_DOWN;
+    case SDLK_LEFT: return PLAT_KEY_LEFT;
+    case SDLK_RIGHT: return PLAT_KEY_RIGHT;
+    case SDLK_HOME: return PLAT_KEY_HOME;
+    case SDLK_END: return PLAT_KEY_END;
+    case SDLK_PAGEUP: return PLAT_KEY_PAGEUP;
+    case SDLK_PAGEDOWN: return PLAT_KEY_PAGEDOWN;
+    case SDLK_INSERT: return PLAT_KEY_INSERT;
+    default: break;
+    }
+    if (key >= SDLK_F1 && key <= SDLK_F12)
+        return PLAT_KEY_F(key - SDLK_F1 + 1);
+    return -1;
+}
+
 static void handle_events(void)
 {
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
+        if (e.type == SDL_KEYDOWN) {   /* typed characters: an auto-repeat counts, unlike for the buttons below */
+            const int ch = plat_sdl_char_for_key(e.key.keysym.sym, e.key.keysym.mod);
+            if (ch >= 0)
+                char_push(ch);
+        }
         if (e.type == SDL_QUIT)
             quit = true;
-        else if (e.type == SDL_MOUSEMOTION)
+        else if (e.type == SDL_TEXTINPUT) {   /* what was typed, in the system's layout; only ASCII is kept */
+            for (const unsigned char *p = (const unsigned char *)e.text.text; *p; p++)
+                if (*p >= 0x20 && *p < 0x7F)
+                    char_push(*p);
+        } else if (e.type == SDL_MOUSEMOTION)
             mouse_acc_move(&mouse, e.motion.xrel, e.motion.yrel, 0);
         else if (e.type == SDL_MOUSEWHEEL)
             mouse_acc_move(&mouse, 0, 0, e.wheel.direction == SDL_MOUSEWHEEL_FLIPPED ? -e.wheel.y : e.wheel.y);

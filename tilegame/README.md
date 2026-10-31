@@ -53,3 +53,15 @@ A keyboard and a gamepad behind one hub work together. Two things made that work
 Not every hub works: with one bus-powered USB 3.0 hub a low-speed keyboard stopped after a few reports (it worked on a laptop and
 behind a second hub). Full-speed devices (XInput pads, most HID gamepads) worked behind both. A stuck main loop or a panic resets the
 board and the diagnostic screen (`padtest`) shows why.
+
+## Keyboard text input and the console demo
+
+`plat_getchar()` returns the next typed character (or -1): ASCII for printable keys with shift and caps lock applied, 10 for Enter, 8
+Backspace, 9 Tab, 27 Escape, 127 Delete, 1..26 for Ctrl with a letter, and `PLAT_KEY_*` codes (256 and up) for the cursor keys, Home, End,
+Page Up/Down, Insert and F1..F12. A held key repeats (after 500 ms, then every 33 ms). On the board `src/keymap.c` decodes the boot keyboard
+reports (US layout, caps lock and num lock tracked in software, the LEDs are not driven); on the desktop the characters come from SDL's text
+input, so the system layout applies and only ASCII is kept. `plat_getchar` is separate from `plat_buttons`: the same key presses count for both.
+
+`demo/consdemo.c` is a console you can type into: a prompt with a line editor (cursor keys, Home/End, Backspace/Delete, Ctrl+A/E/K/U/L/C, history)
+and commands (HELP, CLS, ECHO, COLOR, CURSOR, CHARS, TEST, UPTIME, KEYS). Its logic (`demo/consdemo_logic.c`) knows nothing of the platform, so
+`tests/test_consdemo.c` types into it. The console layer it is built on is `tilegfx/tg_console.h`.
