@@ -37,8 +37,8 @@ plat_buttons_t plat_sdl_button_for_key(SDL_Keycode key)
     case SDLK_DOWN:   return PLAT_BTN_DOWN;
     case SDLK_LEFT:   return PLAT_BTN_LEFT;
     case SDLK_RIGHT:  return PLAT_BTN_RIGHT;
-    case SDLK_z:      return PLAT_BTN_A;
-    case SDLK_x:      return PLAT_BTN_B;
+    case SDLK_z:      return PLAT_BTN_B;   /* Z and X sit like the pad's right and lower face buttons */
+    case SDLK_x:      return PLAT_BTN_A;
     case SDLK_a:      return PLAT_BTN_X;
     case SDLK_s:      return PLAT_BTN_Y;
     case SDLK_RETURN: return PLAT_BTN_START;

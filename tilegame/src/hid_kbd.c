@@ -11,8 +11,8 @@ plat_buttons_t hid_kbd_button_for_usage(uint8_t usage)
     case 0x51: return PLAT_BTN_DOWN;
     case 0x50: return PLAT_BTN_LEFT;
     case 0x4F: return PLAT_BTN_RIGHT;
-    case 0x1D: return PLAT_BTN_A;       /* Z */
-    case 0x1B: return PLAT_BTN_B;       /* X */
+    case 0x1D: return PLAT_BTN_B;       /* Z: the keys sit like the pad's face buttons (see game.h) */
+    case 0x1B: return PLAT_BTN_A;       /* X */
     case 0x04: return PLAT_BTN_X;       /* A */
     case 0x16: return PLAT_BTN_Y;       /* S */
     case 0x28:                          /* Return */

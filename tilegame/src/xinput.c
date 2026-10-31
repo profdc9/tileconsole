@@ -15,11 +15,10 @@ bool xinput_decode(const uint8_t *r, size_t length, plat_buttons_t *out)
     if (lo & 0x20) b |= PLAT_BTN_SELECT;
     if (hi & 0x01) b |= PLAT_BTN_L;
     if (hi & 0x02) b |= PLAT_BTN_R;
-    /* Buttons go by position, as on a Nintendo pad: Xbox B (right) is A, Xbox A (bottom) is B, Xbox Y (top) is X, Xbox X (left) is Y. */
-    if (hi & 0x20) b |= PLAT_BTN_A;
-    if (hi & 0x10) b |= PLAT_BTN_B;
-    if (hi & 0x80) b |= PLAT_BTN_X;
-    if (hi & 0x40) b |= PLAT_BTN_Y;
+    if (hi & 0x10) b |= PLAT_BTN_A;   /* the buttons keep the names printed on the pad; a game decides what each one does */
+    if (hi & 0x20) b |= PLAT_BTN_B;
+    if (hi & 0x40) b |= PLAT_BTN_X;
+    if (hi & 0x80) b |= PLAT_BTN_Y;
     const int16_t lx = (int16_t)(r[6] | (r[7] << 8)), ly = (int16_t)(r[8] | (r[9] << 8));
     if (lx < -XINPUT_STICK_THRESHOLD) b |= PLAT_BTN_LEFT;
     if (lx > XINPUT_STICK_THRESHOLD) b |= PLAT_BTN_RIGHT;

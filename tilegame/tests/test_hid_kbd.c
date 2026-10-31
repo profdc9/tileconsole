@@ -33,7 +33,7 @@ int main(void)
     /* Each mapped key alone. */
     static const struct { uint8_t usage; plat_buttons_t b; } keys[] = {
         {0x52, PLAT_BTN_UP}, {0x51, PLAT_BTN_DOWN}, {0x50, PLAT_BTN_LEFT}, {0x4F, PLAT_BTN_RIGHT},
-        {0x1D, PLAT_BTN_A},  {0x1B, PLAT_BTN_B},    {0x04, PLAT_BTN_X},    {0x16, PLAT_BTN_Y},
+        {0x1D, PLAT_BTN_B},  {0x1B, PLAT_BTN_A},    {0x04, PLAT_BTN_X},    {0x16, PLAT_BTN_Y},
         {0x28, PLAT_BTN_START}, {0x58, PLAT_BTN_START},
     };
     for (size_t i = 0; i < sizeof keys / sizeof *keys; i++) {
@@ -58,7 +58,7 @@ int main(void)
 
     /* Several keys at once, with a modifier and keys that mean nothing. */
     const uint8_t chord[8] = {0x22, 0, 0x4F, 0x52, 0x1D, 0x05 /* B: not mapped */, 0x28, 0};
-    CHECK(parse(chord, 8, 0, &ok) == (PLAT_BTN_RIGHT | PLAT_BTN_UP | PLAT_BTN_A | PLAT_BTN_START | PLAT_BTN_SELECT) && ok);
+    CHECK(parse(chord, 8, 0, &ok) == (PLAT_BTN_RIGHT | PLAT_BTN_UP | PLAT_BTN_B | PLAT_BTN_START | PLAT_BTN_SELECT) && ok);
 
     /* Releasing keys shows up as a smaller set in the next report. */
     const uint8_t later[8] = {0, 0, 0x4F, 0, 0, 0, 0, 0};

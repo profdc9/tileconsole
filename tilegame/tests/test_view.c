@@ -213,7 +213,7 @@ static bool solid_at_px(const game_t *g, int px, int py) { return tile_is_solid(
 
 static plat_buttons_t bot(const game_t *g)
 {
-    plat_buttons_t held = PLAT_BTN_RIGHT | PLAT_BTN_B;
+    plat_buttons_t held = PLAT_BTN_RIGHT | GAME_BTN_RUN;
     const body_t *b = &g->p.b;
     const int front = body_left(b) + b->w, top = body_top(b), bottom = top + b->h;
     const bool wall = solid_at_px(g, front + 3, bottom - 4) || solid_at_px(g, front + 3, top + 2);
@@ -228,9 +228,9 @@ static plat_buttons_t bot(const game_t *g)
             enemy_ahead = true;
     }
     if (b->on_ground && (wall || edge || enemy_ahead))
-        held |= PLAT_BTN_A;
+        held |= GAME_BTN_JUMP;
     else if (!b->on_ground && b->vy < 0)
-        held |= PLAT_BTN_A;
+        held |= GAME_BTN_JUMP;
     return held;
 }
 

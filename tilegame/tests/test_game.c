@@ -72,7 +72,7 @@ static void test_walking_and_running(void)
     flat_world(&g);
     run_frames(&g, PLAT_BTN_RIGHT, 120);
     CHECK(g.p.b.vx == 0x180 && !g.p.facing_left);                 /* walking speed */
-    run_frames(&g, PLAT_BTN_RIGHT | PLAT_BTN_B, 120);
+    run_frames(&g, PLAT_BTN_RIGHT | GAME_BTN_RUN, 120);
     CHECK(g.p.b.vx == 0x2A0);                                      /* running speed */
     const int before = g.p.b.x;
     run_frames(&g, 0, 200);
@@ -82,17 +82,17 @@ static void test_walking_and_running(void)
 
     /* Reversing from a run is quicker than speeding up (the skid). */
     flat_world(&g);
-    run_frames(&g, PLAT_BTN_RIGHT | PLAT_BTN_B, 100);
+    run_frames(&g, PLAT_BTN_RIGHT | GAME_BTN_RUN, 100);
     int frames_to_turn = 0;
     while (g.p.b.vx > 0 && frames_to_turn < 100) {
-        run_frames(&g, PLAT_BTN_LEFT | PLAT_BTN_B, 1);
+        run_frames(&g, PLAT_BTN_LEFT | GAME_BTN_RUN, 1);
         frames_to_turn++;
     }
     CHECK(frames_to_turn < 0x2A0 / 0x14);
 
     /* Letting go of the run button while fast eases back to a walk, without stopping dead. */
     flat_world(&g);
-    run_frames(&g, PLAT_BTN_RIGHT | PLAT_BTN_B, 100);
+    run_frames(&g, PLAT_BTN_RIGHT | GAME_BTN_RUN, 100);
     run_frames(&g, PLAT_BTN_RIGHT, 1);
     CHECK(g.p.b.vx > 0x180 && g.p.b.vx < 0x2A0);
     run_frames(&g, PLAT_BTN_RIGHT, 100);
@@ -105,17 +105,17 @@ static void test_walls_and_ceilings(void)
     flat_world(&g);
     for (int y = 8; y < GROUND_ROW; y++)
         g.level.tile[y][10] = T_BLOCK;
-    run_frames(&g, PLAT_BTN_RIGHT | PLAT_BTN_B, 200);
+    run_frames(&g, PLAT_BTN_RIGHT | GAME_BTN_RUN, 200);
     CHECK(g.p.b.vx == 0);
     CHECK(body_left(&g.p.b) + g.p.b.w == 10 * TILE);               /* flush against the wall */
     /* Pressing on does not push it in. */
-    run_frames(&g, PLAT_BTN_RIGHT | PLAT_BTN_B, 50);
+    run_frames(&g, PLAT_BTN_RIGHT | GAME_BTN_RUN, 50);
     CHECK(body_left(&g.p.b) + g.p.b.w == 10 * TILE);
 
     flat_world(&g);
     for (int y = 8; y < GROUND_ROW; y++)
         g.level.tile[y][0] = T_BLOCK;
-    run_frames(&g, PLAT_BTN_LEFT | PLAT_BTN_B, 300);
+    run_frames(&g, PLAT_BTN_LEFT | GAME_BTN_RUN, 300);
     CHECK(body_left(&g.p.b) == 1 * TILE);                          /* the left wall, the other way round */
 
     /* The edges of the level are walls. */
@@ -128,8 +128,8 @@ static void test_walls_and_ceilings(void)
     flat_world(&g);
     for (int x = 3; x < 8; x++)
         g.level.tile[9][x] = T_BRICK;
-    press_once(&g, PLAT_BTN_A);
-    run_frames(&g, PLAT_BTN_A, 30);
+    press_once(&g, GAME_BTN_JUMP);
+    run_frames(&g, GAME_BTN_JUMP, 30);
     CHECK(body_top(&g.p.b) >= 10 * TILE);                          /* never inside the brick row */
     CHECK(g.p.b.vy >= 0 || body_top(&g.p.b) == 10 * TILE);
 }
@@ -140,9 +140,9 @@ static int rise_of_jump(int hold_frames)
     flat_world(&g);
     const int start = feet(&g);
     int top = start;
-    press_once(&g, PLAT_BTN_A);
+    press_once(&g, GAME_BTN_JUMP);
     for (int f = 0; f < 90; f++) {
-        run_frames(&g, f < hold_frames ? PLAT_BTN_A : 0, 1);
+        run_frames(&g, f < hold_frames ? GAME_BTN_JUMP : 0, 1);
         if (feet(&g) < top)
             top = feet(&g);
     }
@@ -165,10 +165,10 @@ static void test_jumping(void)
     /* A jump can be made and it announces itself. */
     game_t g;
     flat_world(&g);
-    press_once(&g, PLAT_BTN_A);
+    press_once(&g, GAME_BTN_JUMP);
     CHECK(g.events & EV_JUMP);
     CHECK(!g.p.b.on_ground && g.p.b.vy < 0);
-    press_once(&g, PLAT_BTN_A);                                     /* not again in mid-air */
+    press_once(&g, GAME_BTN_JUMP);                                     /* not again in mid-air */
     CHECK(!(g.events & EV_JUMP));
 
     /* Coyote time: a jump just after walking off an edge works, a late one does not. */
@@ -189,7 +189,7 @@ static void test_jumping(void)
         }
         run_frames(&g, PLAT_BTN_RIGHT, late ? 8 : 3);               /* frames after leaving the ground */
         const int vy_before = g.p.b.vy;
-        game_update(&g, PLAT_BTN_RIGHT | PLAT_BTN_A, PLAT_BTN_A);
+        game_update(&g, PLAT_BTN_RIGHT | GAME_BTN_JUMP, GAME_BTN_JUMP);
         if (late)
             CHECK(!(g.events & EV_JUMP) && g.p.b.vy > vy_before - 1);
         else
@@ -203,7 +203,7 @@ static void test_jumping(void)
     plat_buttons_t prev = 0;
     bool jumped = false;
     for (int f = 0; f < 20 && !jumped; f++) {
-        const plat_buttons_t held_now = (f == 0) ? PLAT_BTN_A : 0;
+        const plat_buttons_t held_now = (f == 0) ? GAME_BTN_JUMP : 0;
         game_update(&g, held_now, held_now & (plat_buttons_t)~prev);
         prev = held_now;
         jumped = g.events & EV_JUMP;
@@ -240,7 +240,7 @@ static void test_pits_lives_and_game_over(void)
     }
     /* Game over stays until Start is pressed, and then it is a fresh game. */
     const int frame = (int)g.frame;
-    run_frames(&g, PLAT_BTN_RIGHT | PLAT_BTN_A, 30);
+    run_frames(&g, PLAT_BTN_RIGHT | GAME_BTN_JUMP, 30);
     CHECK(g.state == GS_GAMEOVER && (int)g.frame > frame);
     game_update(&g, PLAT_BTN_START, PLAT_BTN_START);
     CHECK(g.state == GS_PLAYING && g.lives == 3 && g.score == 0 && g.coins == 0);
@@ -391,7 +391,7 @@ static bool solid_at_px(const game_t *g, int px, int py) { return tile_is_solid(
 /* A simple player: run right, jump walls, gaps and enemies, and hold the jump while rising. */
 static plat_buttons_t bot(const game_t *g)
 {
-    plat_buttons_t held = PLAT_BTN_RIGHT | PLAT_BTN_B;
+    plat_buttons_t held = PLAT_BTN_RIGHT | GAME_BTN_RUN;
     const body_t *b = &g->p.b;
     const int front = body_left(b) + b->w, top = body_top(b), bottom = top + b->h;
     const bool wall = solid_at_px(g, front + 3, bottom - 4) || solid_at_px(g, front + 3, top + 2);
@@ -406,9 +406,9 @@ static plat_buttons_t bot(const game_t *g)
             enemy_ahead = true;
     }
     if (b->on_ground && (wall || edge || enemy_ahead))
-        held |= PLAT_BTN_A;
+        held |= GAME_BTN_JUMP;
     else if (!b->on_ground && b->vy < 0)
-        held |= PLAT_BTN_A;                                           /* keep holding it on the way up */
+        held |= GAME_BTN_JUMP;                                           /* keep holding it on the way up */
     return held;
 }
 
@@ -475,9 +475,9 @@ static bool platform_reachable(int ty, int x0, int x1)
                             g.level.ncoins = 0;
                             plat_buttons_t prev = 0;
                             for (int f = 0; f < 90; f++) {
-                                plat_buttons_t held = (dir > 0 ? PLAT_BTN_RIGHT : PLAT_BTN_LEFT) | (speeds[si] > 0x180 ? PLAT_BTN_B : 0);
+                                plat_buttons_t held = (dir > 0 ? PLAT_BTN_RIGHT : PLAT_BTN_LEFT) | (speeds[si] > 0x180 ? GAME_BTN_RUN : 0);
                                 if (f < holds[hi])
-                                    held |= PLAT_BTN_A;
+                                    held |= GAME_BTN_JUMP;
                                 game_update(&g, held, held & (plat_buttons_t)~prev);
                                 prev = held;
                                 if (g.state != GS_PLAYING)
@@ -534,7 +534,7 @@ static void test_determinism(void)
         for (int f = 0; f < 3000; f++) {
             seed = seed * 1664525u + 1013904223u;
             plat_buttons_t held = (plat_buttons_t)((seed >> 12) & (PLAT_BTN_UP | PLAT_BTN_DOWN | PLAT_BTN_LEFT | PLAT_BTN_RIGHT |
-                                                                      PLAT_BTN_A | PLAT_BTN_B | PLAT_BTN_START));
+                                                                      GAME_BTN_JUMP | GAME_BTN_RUN | PLAT_BTN_START));
             held |= PLAT_BTN_RIGHT;
             game_update(&g, held, held & (plat_buttons_t)~prev);
             prev = held;
@@ -544,8 +544,15 @@ static void test_determinism(void)
     CHECK(hashes[0] == hashes[1]);
 }
 
+/* The buttons by their printed names: lower = A, right = B. The right one jumps and the lower one runs, whatever the pad. */
+static void test_button_roles(void)
+{
+    CHECK(GAME_BTN_JUMP == PLAT_BTN_B && GAME_BTN_RUN == PLAT_BTN_A && GAME_BTN_JUMP != GAME_BTN_RUN);
+}
+
 int main(void)
 {
+    test_button_roles();
     test_standing_and_falling();
     test_walking_and_running();
     test_walls_and_ceilings();

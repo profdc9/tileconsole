@@ -12,6 +12,11 @@
 #include "level.h"
 #include "platform.h"   /* for the button bits only */
 
+/* Which buttons do what. On a pad the right-hand face button jumps and the lower one runs, as on a Nintendo pad (the platform layer
+ * names buttons as printed on the pad: lower = A, right = B), and the keyboard's Z and X are placed to match. */
+#define GAME_BTN_JUMP PLAT_BTN_B
+#define GAME_BTN_RUN PLAT_BTN_A
+
 #define FP 8   /* fractional bits of positions and speeds */
 
 /* Something that moves and bumps into tiles: a 16x16 sprite cell with a smaller hitbox inside it. */

@@ -177,7 +177,7 @@ static void update_player(game_t *g, plat_buttons_t held, plat_buttons_t pressed
     b->on_ground = standing(&g->level, b);
 
     /* Remember a jump press for a few frames, and allow a jump a few frames after leaving the ground. */
-    if (pressed & PLAT_BTN_A)
+    if (pressed & GAME_BTN_JUMP)
         p->jump_buffer = JUMP_BUFFER_FRAMES;
     else if (p->jump_buffer)
         p->jump_buffer--;
@@ -188,7 +188,7 @@ static void update_player(game_t *g, plat_buttons_t held, plat_buttons_t pressed
 
     /* Sideways. */
     const int dir = ((held & PLAT_BTN_RIGHT) ? 1 : 0) - ((held & PLAT_BTN_LEFT) ? 1 : 0);
-    const int32_t max_speed = (held & PLAT_BTN_B) ? RUN_MAX : WALK_MAX;
+    const int32_t max_speed = (held & GAME_BTN_RUN) ? RUN_MAX : WALK_MAX;
     if (dir == 0) {
         b->vx = approach(b->vx, 0, b->on_ground ? FRICTION : AIR_FRICTION);
     } else {
@@ -213,7 +213,7 @@ static void update_player(game_t *g, plat_buttons_t held, plat_buttons_t pressed
         p->coyote = 0;
         g->events |= EV_JUMP;
     }
-    if (!(held & PLAT_BTN_A) && b->vy < -JUMP_CUT)
+    if (!(held & GAME_BTN_JUMP) && b->vy < -JUMP_CUT)
         b->vy = -JUMP_CUT;
 
     if (b->on_ground) {

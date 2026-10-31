@@ -54,19 +54,19 @@ static void test_input(void)
     push_key(SDLK_RIGHT, true, 0);
     push_key(SDLK_x, true, 1);            /* an auto-repeat event for a key that was never pressed: ignored */
     plat_wait_frame();
-    CHECK(plat_buttons(0) == (PLAT_BTN_A | PLAT_BTN_RIGHT));
-    CHECK(plat_buttons_pressed(0) == (PLAT_BTN_A | PLAT_BTN_RIGHT));
+    CHECK(plat_buttons(0) == (PLAT_BTN_B | PLAT_BTN_RIGHT));
+    CHECK(plat_buttons_pressed(0) == (PLAT_BTN_B | PLAT_BTN_RIGHT));
     CHECK(plat_buttons_released(0) == 0);
 
     plat_wait_frame();                    /* still held, but no longer "just pressed" */
-    CHECK(plat_buttons(0) == (PLAT_BTN_A | PLAT_BTN_RIGHT));
+    CHECK(plat_buttons(0) == (PLAT_BTN_B | PLAT_BTN_RIGHT));
     CHECK(plat_buttons_pressed(0) == 0);
 
     push_key(SDLK_z, false, 0);
     push_key(SDLK_RETURN, true, 0);
     plat_wait_frame();
     CHECK(plat_buttons(0) == (PLAT_BTN_RIGHT | PLAT_BTN_START));
-    CHECK(plat_buttons_released(0) == PLAT_BTN_A);
+    CHECK(plat_buttons_released(0) == PLAT_BTN_B);
     CHECK(plat_buttons_pressed(0) == PLAT_BTN_START);
 
     /* A press and release that both happen within one frame is not lost to the edge detection of the next. */
