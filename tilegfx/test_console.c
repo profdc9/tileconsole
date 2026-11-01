@@ -63,11 +63,14 @@ static void m_put(model_t *m, uint8_t ch)
     }
     case '\a': return;
     }
-    if (m->pending) {
-        if (m->nowrap)
-            return;
-        m_newline(m);
+    if (m->nowrap) {   /* no wrap: written over the last column, and the cursor stays there */
+        m->cells[m->pos] = (uint16_t)(ch | m->attr << 8);
+        if (m->pos % 80 != 79)
+            m->pos++;
+        return;
     }
+    if (m->pending)
+        m_newline(m);
     m->cells[m->pos] = (uint16_t)(ch | m->attr << 8);
     if (m->pos % 80 == 79)
         m->pending = 1;
@@ -244,10 +247,27 @@ static void test_rules(void)
     tg_console_puts(&con, "a");
     CHECK(!(screen.cursor_flags & TG_CURSOR_VISIBLE));
 
-    /* NOWRAP: the characters past the edge are dropped, and the controls still work. */
+    /* NOWRAP: no wrap: the characters past the edge go over the one on the last column, the cursor stays on it, and the controls still work. */
     reset(0x07, TG_CONSOLE_NOWRAP);
     tg_console_puts(&con, "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789");
-    CHECK(con.row == 0 && con.col == 80 && screen.cells[79] == 0x0700 + '0' + 79 % 10 && screen.cells[80] == 0x0720);   /* nothing went to row 1 */
+    CHECK(con.row == 0 && con.col == 79 && screen.cells[79] == 0x0700 + '0' + 99 % 10 && screen.cells[78] == 0x0700 + '0' + 78 % 10 && screen.cells[80] == 0x0720);   /* nothing went to row 1 */
+    CHECK(screen.cursor_col == 79 && screen.cursor_row == 0);
+    tg_console_putc(&con, 'Z');
+    CHECK(con.col == 79 && screen.cells[79] == 0x075A);
+    tg_console_putc(&con, '\b');                                  /* backspace from the last column goes to the one before it */
+    CHECK(con.col == 78);
+    tg_console_putc(&con, 'Y');
+    CHECK(con.col == 79 && screen.cells[78] == 0x0759 && screen.cells[79] == 0x075A);
+    tg_console_putc(&con, '\t');
+    CHECK(con.col == 79);
+    /* Switching NOWRAP on while a wrap is waiting: the next character goes over the last column, and does not start the next row. */
+    reset(0x07, 0);
+    for (int i = 0; i < 80; i++)
+        tg_console_putc(&con, 'a');
+    CHECK(con.col == 80);
+    con.flags = TG_CONSOLE_NOWRAP;
+    tg_console_putc(&con, 'Z');
+    CHECK(con.row == 0 && con.col == 79 && screen.cells[79] == 0x075A && screen.cells[80] == 0x0720);
     tg_console_putc(&con, '\n');
     tg_console_putc(&con, 'k');
     CHECK(con.row == 1 && screen.cells[80] == 0x076B);          /* and a newline moves on as usual */

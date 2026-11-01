@@ -16,7 +16,8 @@
  *   \a  nothing (there is no bell)
  * Any other byte, including the ones the PC shows as faces and card suits, is drawn (and \033, the escape, unless TG_CONSOLE_ANSI is on). A character that does not fit on the line goes to
  * the start of the next one, scrolling if need be. The wrap is put off until the next character is drawn, so a line of exactly 80
- * characters followed by \n does not leave a blank line. With TG_CONSOLE_NOWRAP the characters past the right edge are dropped instead.
+ * characters followed by \n does not leave a blank line. With TG_CONSOLE_NOWRAP there is no wrap, as on a terminal with autowrap off: on the last column each
+ * character is written over the one there and the cursor stays.
  *
  * With TG_CONSOLE_ANSI (in flags, off by default) the console also interprets the ANSI/VT100 escape sequences, in the output of printf too, so a
  * program written for a terminal can use it. These are understood (n is a number, default 1; r and c are a row and column, counted from 1):

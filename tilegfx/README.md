@@ -67,7 +67,7 @@ it goes on blinking while the program does nothing: on for 16 frames, off for 16
 
 `tg_console.h` writes to a text screen the way a terminal does: `tg_console_puts`, `tg_console_putc` and `tg_console_printf` move a position along,
 with `\n`, `\r`, `\b`, `\t` acting as controls, wrapping at the right edge (put off until the next character, so an 80 character line followed by `\n`
-leaves no blank line, or dropped with `TG_CONSOLE_NOWRAP`) and scrolling at the bottom. The text screen's cursor follows the position. The
+leaves no blank line, or, with `TG_CONSOLE_NOWRAP`, no wrap at all: each character on the last column is written over the one there, as on a terminal with autowrap off) and scrolling at the bottom. The text screen's cursor follows the position. The
 `printf` work space is in the console (not on the stack), so one call writes at most 255 characters. `make test_console` compares random output against
 an independent model of a terminal.
 

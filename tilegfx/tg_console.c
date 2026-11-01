@@ -61,11 +61,16 @@ static void new_line(tg_console_t *c)
 
 static void put(tg_console_t *c, uint8_t ch)
 {
-    if (c->col >= TG_TEXT_COLS) {   /* a wrap was waiting for this character */
-        if (c->flags & TG_CONSOLE_NOWRAP)
-            return;
-        new_line(c);
+    if (c->flags & TG_CONSOLE_NOWRAP) {   /* no wrap: on the last column, each character is written over the one there, and the cursor stays */
+        if (c->col >= TG_TEXT_COLS)
+            c->col = TG_TEXT_COLS - 1;
+        tg_text_put_cell(c->text, c->col, c->row, ch, c->attr);
+        if (c->col < TG_TEXT_COLS - 1)
+            c->col++;
+        return;
     }
+    if (c->col >= TG_TEXT_COLS)     /* a wrap was waiting for this character */
+        new_line(c);
     tg_text_put_cell(c->text, c->col, c->row, ch, c->attr);
     c->col++;
 }

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Compares the console's ANSI mode with TNTSCAnsi (Daniel Marks' VT100 interpreter from PicoParanoia, zlib licence) on the sequences they have in
+// Compares the console's ANSI mode (with TG_CONSOLE_NOWRAP, as TNTSCAnsi does not wrap) with TNTSCAnsi (Daniel Marks' VT100 interpreter from PicoParanoia, zlib licence) on the sequences they have in
 // common: both are fed the same random sequences and must have the same characters and cursor after every step. TNTSCAnsi is compiled from a copy
 // made by the Makefile (see `make test_ansi_oracle`); this file only uses it, and does not change it.
 #include <cstdio>
@@ -67,7 +67,7 @@ static void begin(void)
     memset(&screen, 0, sizeof screen);
     tg_text_init(&screen);
     tg_console_init(&con, &screen, 0x07);
-    con.flags = TG_CONSOLE_ANSI | TG_CONSOLE_LF_ONLY;   // their line feed does not return the carriage
+    con.flags = TG_CONSOLE_ANSI | TG_CONSOLE_LF_ONLY | TG_CONSOLE_NOWRAP;   // their line feed does not return the carriage, and they do not wrap
     tg_console_clear(&con);
     history_len = 0;
     compare();
@@ -84,8 +84,8 @@ static void one_step(void)
 {
     char s[96];
     const int kind = (int)(rnd() % 100);
-    if (kind < 22) {   // text, at a column where it cannot reach the last one (they do not wrap there, we do)
-        int n = snprintf(s, sizeof s, "\033[%d;%dH", between(1, 25), between(1, 60));
+    if (kind < 22) {   // text, from anywhere on the row: it may run to the last column and past it (both write over the last column)
+        int n = snprintf(s, sizeof s, "\033[%d;%dH", between(1, 25), between(1, 80));
         for (int i = between(1, 15); i > 0; i--)
             s[n++] = (char)between(0x20, 0x7E);
         feed(s, n);
