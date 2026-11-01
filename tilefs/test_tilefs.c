@@ -506,6 +506,22 @@ static void test_paths(int kind)
     EQ(strcmp(fs_getcwd(), "/"), 0);
     EQ(fs_chdir("../../.."), 0);
     EQ(strcmp(fs_getcwd(), "/"), 0);
+    {   /* the absolute form of a path */
+        char out[FS_PATH_MAX + 1], tiny[5];
+        EQ(fs_chdir("/t/a"), 0);
+        EQ(fs_normalise("b/../b//./f", out, sizeof out), 0);
+        EQ(strcmp(out, "/t/a/b/f"), 0);
+        EQ(fs_normalise("/x/../y/", out, sizeof out), 0);
+        EQ(strcmp(out, "/y"), 0);
+        EQ(fs_normalise("../..", out, sizeof out), 0);
+        EQ(strcmp(out, "/"), 0);
+        EQ(fs_normalise("/t/a/b", tiny, sizeof tiny), FS_ENAMETOOLONG);   /* "/t/a/b" needs 7 bytes */
+        EQ(fs_normalise("/t/a/b", out, 6), FS_ENAMETOOLONG);      /* the end of string needs its byte too */
+        EQ(fs_normalise("/t/a/b", out, 7), 0);
+        EQ(fs_normalise("", out, sizeof out), FS_ENOENT);
+        EQ(fs_normalise("/t/a:b", out, sizeof out), FS_EBADNAME);
+        EQ(fs_chdir("/"), 0);
+    }
     /* bad names */
     EQ(fs_open("/t/a:b", FS_RDWR | FS_CREAT), FS_EBADNAME);
     EQ(fs_open("/t/a*", FS_RDWR | FS_CREAT), FS_EBADNAME);

@@ -132,6 +132,10 @@ int fs_opendir(const char *path);   /* a directory handle (>= 0), separate from 
 int fs_readdir(int dd, fs_dirent_t *e);   /* 1 for an entry, 0 at the end */
 int fs_closedir(int dd);
 
+/* The absolute form of a path as the layer reads it: relative to the current folder, with ".", ".." and extra slashes resolved. It does not
+ * look at the file system. FS_ENAMETOOLONG if out (of `size` bytes) is too small. */
+int fs_normalise(const char *path, char *out, size_t size);
+
 int fs_chdir(const char *path);
 const char *fs_getcwd(void);
 

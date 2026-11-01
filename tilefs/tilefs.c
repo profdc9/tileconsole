@@ -498,6 +498,18 @@ int fs_closedir(int dd)
     return e < 0 ? e : FS_OK;
 }
 
+int fs_normalise(const char *path, char *out, size_t size)
+{
+    char norm[FS_PATH_MAX + 1];
+    const int e = normalise(path, norm);
+    if (e)
+        return e;
+    if (strlen(norm) >= size)
+        return FS_ENAMETOOLONG;
+    strcpy(out, norm);
+    return FS_OK;
+}
+
 int fs_chdir(const char *path)
 {
     char norm[FS_PATH_MAX + 1];
