@@ -80,3 +80,13 @@ tilegame_board_app(editdemo ${DEMO_DIR}/editdemo.c ${DEMO_DIR}/editdemo_logic.c 
                    ${CMAKE_CURRENT_LIST_DIR}/../src/console_platform.c ${TILEGFX_DIR}/tg_console.c ${TILEGFX_DIR}/tg_text.c
                    ${TILEGFX_DIR}/tg_text_cp437.c ${TILEGFX_DIR}/tg_font.c ${TILEGFX_DIR}/fonts/unscii16.c)
 target_include_directories(editdemo PRIVATE ${DEMO_DIR} ${EDITOR_DIR})
+
+# SD card test: FatFs on the SD socket (SPI0, GPIO4-7). A USB keyboard gives R (again) and F, Y (format). The file system code
+# needs more stack than the 2 KB default: core 0 gets 4 KB, which is all its scratch bank holds (core 1 keeps 2 KB).
+set(TILEFS_DIR ${CMAKE_CURRENT_LIST_DIR}/../../tilefs CACHE PATH "The tilefs file system layer")
+include(${TILEFS_DIR}/tilefs.cmake)
+tilegame_board_app(sdtest ${DEMO_DIR}/sdtest.c ${DEMO_DIR}/sdtest_logic.c ${TILEGFX_DIR}/tg_console.c ${TILEGFX_DIR}/tg_text.c
+                   ${TILEGFX_DIR}/tg_text_cp437.c ${TILEGFX_DIR}/tg_font.c ${TILEGFX_DIR}/fonts/unscii16.c)
+tilefs_add(sdtest)
+target_include_directories(sdtest PRIVATE ${DEMO_DIR})
+target_compile_definitions(sdtest PRIVATE SDTEST_BOARD=1 PICO_STACK_SIZE=0x1000 PICO_CORE1_STACK_SIZE=0x800)

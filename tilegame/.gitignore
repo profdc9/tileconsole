@@ -20,3 +20,6 @@ test_platform_sdl
 test_view
 textdemo
 *.uf2
+sdtest
+test_sdtest
+sdcard.img
