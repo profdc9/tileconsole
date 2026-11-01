@@ -65,3 +65,23 @@ input, so the system layout applies and only ASCII is kept. `plat_getchar` is se
 `demo/consdemo.c` is a console you can type into: a prompt with a line editor (cursor keys, Home/End, Backspace/Delete, Ctrl+A/E/K/U/L/C, history)
 and commands (HELP, CLS, ECHO, COLOR, CURSOR, CHARS, TEST, UPTIME, KEYS). Its logic (`demo/consdemo_logic.c`) knows nothing of the platform, so
 `tests/test_consdemo.c` types into it. The console layer it is built on is `tilegfx/tg_console.h`.
+
+## PicoParanoia's console and editor
+
+`include/consoleio.h` and `src/console_shim.c` are the console API of PicoParanoia (Daniel Marks' encryption terminal, whose ANSI terminal,
+console and editor this builds on) on top of the text screen, the console in its ANSI mode, and the keyboard of the platform layer, so programs
+written for it build unchanged. Output is ANSI text with no autowrap, as PicoParanoia's TNTSCAnsi terminal does; input is a byte stream like a
+terminal's, with the keys that are not characters turned into the escape sequences the editor looks for (`console_expand_key`: the cursor keys,
+Home, End and Delete as the editor reads them, Page Up and Down as ^P^V and ^V, Insert as ^N, F1 as ^\ (help), F2 as ^P^J (record a macro), Enter as
+\r). `selectmenu` and `getstring` skip those sequences instead of taking them for typing. `console_use_platform()` takes the keys from `plat_getchar`
+and shows the screen with `plat_present`; tests give their own hooks (`console_set_hooks`).
+
+`editor/editor.c` is PicoParanoia's editor (from `ee.c`, public domain, altered by Daniel Marks, zlib licence), with his notice kept and ours added
+to the top of the file: the window is 78 x 22 (macros), it starts from a known state each time, a lone Escape key is told from a key sequence, and a
+number of defects that random testing found are fixed (see the notice: macros that play themselves or overrun their buffer, an unterminated
+prompt string, an off-by-one in `goto_ptr` that took the line counters out of step with the text, a stale mark, a right margin of 0, state left
+over from the last run). `make test_editor_oracle` runs random editing sessions through PicoParanoia's own editor (on its TNTSCAnsi) and this one and
+compares the screen, the saved file and whether the session ended, after applying the same fixes to a copy of PicoParanoia's files: all 10000 match.
+
+`demo/editdemo.c` (desktop: `make editdemo`; board: `editdemo-hid-504.uf2`) edits a file in memory with a small menu around it. The board has no
+filesystem yet, so the file is kept only while the program runs.

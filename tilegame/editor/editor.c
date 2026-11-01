@@ -46,6 +46,7 @@ not necessary, removing library dependencies, etc.
  *   - editor() starts from a known state: the flags, the right margin, the tab size and the length of the block are reset (PicoParanoia's keep what they were when it is run again);
  *   - get_key() takes an Escape with no key after it for a lone Escape (the original waits for two more keys): the keys that arrive as sequences
  *     arrive all at once, so if nothing is waiting after the Escape, it is the key itself;
+ *   - xold and yold in main_loop() start at -1 (the first time round the loop sets them anyway: this is for the compiler);
  *   - goto_ptr() goes up a line when the place asked for is the line break above the cursor line (ewb >= s, not ewb > s): the original stayed on the
  *     line, the line counters came apart from the text, and the cursor keys then read outside the buffer;
  *   - the mark (^A) is kept inside the text: the original left it where it was when text before it was deleted, and a copy to the mark then read
@@ -1051,7 +1052,7 @@ int key;
 /* win is only thing it knows */
 ESTATIC void main_loop()
 {
-  int  yold, xold;
+  int  yold = -1, xold = -1;
 
   show_top();
   show_note("New file",0);

@@ -1,5 +1,6 @@
 build*/
 consdemo
+editdemo
 game_demo
 *.log
 oracle_build/
@@ -9,6 +10,7 @@ shot_cons
 shot_text
 test_consdemo
 test_consoleio
+test_editdemo
 test_editor
 test_game
 test_hid_kbd

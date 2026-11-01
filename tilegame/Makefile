@@ -6,7 +6,7 @@ CFLAGS ?= -std=c11 -Wall -Wextra -O2
 INC = -Iinclude -Isdl -I$(TILEGFX) -I$(TILESND)
 SDL = $(shell pkg-config --cflags --libs sdl2)
 
-all: game_demo padtest platformer textdemo consdemo test_consdemo test_consoleio test_platform_sdl test_hid_kbd test_keymap test_hid_pad test_game test_view
+all: game_demo padtest platformer textdemo consdemo editdemo test_editdemo test_consdemo test_consoleio test_platform_sdl test_hid_kbd test_keymap test_hid_pad test_game test_view
 
 test_platform_sdl: tests/test_platform_sdl.c sdl/plat_sdl.c src/mouse_acc.c sdl/plat_sdl.h include/platform.h $(TILEGFX)/tilegfx.c $(TILEGFX)/tg_text.c
 	$(CC) $(CFLAGS) -g -fsanitize=address,undefined $(INC) tests/test_platform_sdl.c sdl/plat_sdl.c src/mouse_acc.c $(TILEGFX)/tilegfx.c $(TILEGFX)/tg_text.c -o $@ $(SDL) -lm
@@ -81,6 +81,14 @@ test_editor_oracle: tests/editor_oracle.c tests/editor_oracle_tnt.cpp editor/edi
 	  || { echo "MISMATCH"; exit 1; }
 	@echo "(a crash is a session in which that build stopped on a memory error: the original has some, see the notice at the top of editor/editor.c)"
 
+EDITSRC = demo/editdemo_logic.c editor/editor.c $(CONSOLEIO_SRC) src/console_platform.c
+
+editdemo: demo/editdemo.c $(EDITSRC) sdl/plat_sdl.c src/mouse_acc.c include/platform.h
+	$(CC) $(CFLAGS) -Wno-old-style-definition $(INC) -Ieditor -Idemo demo/editdemo.c $(EDITSRC) sdl/plat_sdl.c src/mouse_acc.c -o $@ $(SDL) -lm
+
+test_editdemo: tests/test_editdemo.c demo/editdemo_logic.c demo/editdemo_logic.h editor/editor.c $(CONSOLEIO_SRC)
+	$(CC) $(CFLAGS) -Wno-old-style-definition -g -fsanitize=address,undefined $(INC) -Ieditor -Idemo tests/test_editdemo.c demo/editdemo_logic.c editor/editor.c $(CONSOLEIO_SRC) -o $@
+
 shot_cons: tests/shot_cons.c $(CONSSRC) $(TILEGFX)/tilegfx.c
 	$(CC) $(CFLAGS) -g -fsanitize=address,undefined $(INC) -Idemo tests/shot_cons.c $(CONSSRC) $(TILEGFX)/tilegfx.c -o $@
 
@@ -93,13 +101,14 @@ test_view: tests/test_view.c $(GAMESRC) game/game.h game/level.h game/view.h $(T
 test_hid_pad: tests/test_hid_pad.c src/hid_pad.c src/hid_mouse.c src/mouse_acc.c src/xinput.c include/mouse_acc.h include/xinput.h include/hid_pad.h include/hid_mouse.h include/platform.h
 	$(CC) $(CFLAGS) -g -fsanitize=address,undefined $(INC) tests/test_hid_pad.c src/hid_pad.c src/hid_mouse.c src/mouse_acc.c src/xinput.c -o $@
 
-check: test_platform_sdl test_hid_kbd test_keymap test_consdemo test_consoleio test_editor test_hid_pad test_game test_view
+check: test_platform_sdl test_hid_kbd test_keymap test_consdemo test_consoleio test_editor test_editdemo test_hid_pad test_game test_view
 	./test_platform_sdl
 	./test_hid_kbd
 	./test_keymap
 	./test_consdemo
 	./test_consoleio
 	./test_editor
+	./test_editdemo
 	./test_hid_pad
 	./test_game
 	./test_view

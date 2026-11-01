@@ -73,3 +73,10 @@ target_include_directories(textdemo PRIVATE ${DEMO_DIR})
 tilegame_board_app(consdemo ${DEMO_DIR}/consdemo.c ${DEMO_DIR}/consdemo_logic.c ${TILEGFX_DIR}/tg_console.c ${TILEGFX_DIR}/tg_text.c
                    ${TILEGFX_DIR}/tg_text_cp437.c ${TILEGFX_DIR}/tg_font.c ${TILEGFX_DIR}/fonts/unscii16.c)
 target_include_directories(consdemo PRIVATE ${DEMO_DIR})
+
+# Editor demo: the editor of PicoParanoia on the 80 x 25 text screen, with the file in memory (a USB keyboard).
+set(EDITOR_DIR ${CMAKE_CURRENT_LIST_DIR}/../editor)
+tilegame_board_app(editdemo ${DEMO_DIR}/editdemo.c ${DEMO_DIR}/editdemo_logic.c ${EDITOR_DIR}/editor.c ${CMAKE_CURRENT_LIST_DIR}/../src/console_shim.c
+                   ${CMAKE_CURRENT_LIST_DIR}/../src/console_platform.c ${TILEGFX_DIR}/tg_console.c ${TILEGFX_DIR}/tg_text.c
+                   ${TILEGFX_DIR}/tg_text_cp437.c ${TILEGFX_DIR}/tg_font.c ${TILEGFX_DIR}/fonts/unscii16.c)
+target_include_directories(editdemo PRIVATE ${DEMO_DIR} ${EDITOR_DIR})
