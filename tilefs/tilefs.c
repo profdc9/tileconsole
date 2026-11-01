@@ -539,6 +539,8 @@ const char *fs_strerror(int code)
     case FS_ENOTEMPTY: return "directory not empty";
     case FS_EBADNAME: return "bad character in name";
     case FS_ENOMEM: return "out of memory";
+    case FS_ENODEV: return "no file system on the device";
+    case FS_ENOMEDIA: return "no card";
     default: return "unknown error";
     }
 }

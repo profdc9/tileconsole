@@ -9,6 +9,7 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "fs_fat.h"
 #include "tilefs.h"
 
 static unsigned long checks;
@@ -17,7 +18,8 @@ static unsigned long checks;
 #define EQ(a, b) do { const long long va_ = (long long)(a), vb_ = (long long)(b); checks++; \
     if (va_ != vb_) { fprintf(stderr, "FAIL %s:%d: %s == %s (%lld vs %lld)\n", __FILE__, __LINE__, #a, #b, va_, vb_); exit(1); } } while (0)
 
-enum { RAM, POSIX };
+enum { RAM, POSIX, FAT16, FAT32, EXFAT, NKINDS };
+static const char *const kind_name[NKINDS] = {"ram", "posix", "fat16", "fat32", "exfat"};
 
 static char host_dir[256];
 static fs_ram_t ram;
@@ -37,20 +39,79 @@ static void host_clean(void)
     host_dir[0] = '\0';
 }
 
+/* Disk images for the FAT kinds: two slots, each a drive of FatFs. */
+static fs_fat_t fat[2];
+static fs_blk_file_t blk[2];
+static char img[2][300];
+static int fat_is_up[2];
+
+static void fat_down(int i)
+{
+    if (fat_is_up[i]) {
+        fs_fat_done(&fat[i]);
+        if (fat_is_up[i] == 1) {
+            fs_blk_file_close(&blk[i]);
+            unlink(img[i]);
+        }
+        fat_is_up[i] = 0;
+    }
+}
+
+/* A new image of the kind, formatted, as FatFs drive i, mounted at `name`. */
+static void fat_up(int i, int kind, const char *name, int sfd)
+{
+    static const uint32_t sectors[] = {32768, 131072, 65536};   /* 16 MB FAT16, 64 MB FAT32 (it needs 65525 clusters), 32 MB exFAT */
+    static const int type[] = {FS_FAT_FAT, FS_FAT_FAT32, FS_FAT_EXFAT};
+    const char *tmp = getenv("TMPDIR");
+    fat_down(i);
+    snprintf(img[i], sizeof img[i], "%s/tilefs_img_XXXXXX", tmp ? tmp : "/tmp");
+    const int fd = mkstemp(img[i]);
+    CHECK(fd >= 0);
+    close(fd);
+    unlink(img[i]);   /* fs_blk_file_open makes it, sparse */
+    EQ(fs_blk_file_open(&blk[i], img[i], sectors[kind - FAT16]), 0);
+    fat_is_up[i] = 1;
+    EQ(fs_fat_format((unsigned)i, &fs_blk_file_dev, &blk[i], type[kind - FAT16] | (sfd ? FS_FAT_SFD : 0)), 0);
+    EQ(fs_fat_init(&fat[i], (unsigned)i, &fs_blk_file_dev, &blk[i]), 0);
+    EQ(fs_mount(name, &fs_fat_ops, &fat[i]), 0);
+}
+
+/* The same on a block of RAM instead of an image file, for tests that write a whole disk's worth. */
+static uint8_t ram_disk[64u << 20];
+static fs_blk_ram_t ram_blk;
+
+static void fat_up_ram(int kind, const char *name)
+{
+    static const uint32_t sectors[] = {32768, 131072, 65536};
+    static const int type[] = {FS_FAT_FAT, FS_FAT_FAT32, FS_FAT_EXFAT};
+    fs_reset();
+    fat_down(0);
+    memset(ram_disk, 0, (size_t)sectors[kind - FAT16] * 512);
+    EQ(fs_blk_ram_init(&ram_blk, ram_disk, (size_t)sectors[kind - FAT16] * 512), 0);
+    EQ(fs_fat_format(0, &fs_blk_ram_dev, &ram_blk, type[kind - FAT16] | FS_FAT_SFD), 0);
+    EQ(fs_fat_init(&fat[0], 0, &fs_blk_ram_dev, &ram_blk), 0);
+    fat_is_up[0] = 2;   /* up, but with no image file to close */
+    EQ(fs_mount(name, &fs_fat_ops, &fat[0]), 0);
+}
+
 /* A fresh, empty file system of the kind, mounted at /t. */
 static void setup(int kind)
 {
     fs_reset();
+    fat_down(0);
+    fat_down(1);
     if (kind == RAM) {
         EQ(fs_ram_init(&ram, pool, sizeof pool), 0);
         EQ(fs_mount("t", &fs_ram_ops, &ram), 0);
-    } else {
+    } else if (kind == POSIX) {
         host_clean();
         const char *tmp = getenv("TMPDIR");
         snprintf(host_dir, sizeof host_dir, "%s/tilefs_test_XXXXXX", tmp ? tmp : "/tmp");
         CHECK(mkdtemp(host_dir) != NULL);
         EQ(fs_posix_init(&posix_fs, host_dir), 0);
         EQ(fs_mount("/t", &fs_posix_ops, &posix_fs), 0);
+    } else {
+        fat_up(0, kind, "t", kind == FAT32);   /* FAT32 without a partition table, the others with one */
     }
 }
 
@@ -499,7 +560,7 @@ static void test_paths(int kind)
         strcat(rel, "abc/");
     EQ(fs_stat(rel, &(fs_stat_t){0}), FS_ENAMETOOLONG);
     EQ(fs_chdir("/"), 0);
-    if (kind == RAM) {   /* case does not matter on the RAM disk, and is kept */
+    if (kind != POSIX) {   /* case does not matter on the RAM disk or FAT, and is kept */
         EQ(put("/t/CamelCase", "c", 1), 1);
         CHECK(slurp_is("/t/camelcase", "c") && slurp_is("/T/CAMELCASE", "c"));
         EQ(fs_open("/t/camelCASE", FS_RDWR | FS_CREAT | FS_EXCL), FS_EEXIST);
@@ -911,7 +972,7 @@ static void wipe(const char *dir)
     }
 }
 
-static void test_differential(unsigned long ops)
+static void test_differential(int kind, unsigned long ops)
 {
     static fs_ram_t big;
     static uint8_t bpool[4 * 1024 * 1024];   /* 4096 entries: renaming moves whole trees, so they grow deeper than the paths used */
@@ -921,8 +982,12 @@ static void test_differential(unsigned long ops)
     for (int i = 0; i < FS_MAX_DIRS; i++)
         dr[i] = dp[i] = -1;
     setup(POSIX);
-    EQ(fs_ram_init(&big, bpool, sizeof bpool), 0);
-    EQ(fs_mount("r", &fs_ram_ops, &big), 0);
+    if (kind == RAM) {
+        EQ(fs_ram_init(&big, bpool, sizeof bpool), 0);
+        EQ(fs_mount("r", &fs_ram_ops, &big), 0);
+    } else {
+        fat_up(1, kind, "r", 0);
+    }
     EQ(fs_mount("p", &fs_posix_ops, &posix_fs), 0);
     for (unsigned long step = 0; step < ops; step++) {
         if (step % 40000 == 39999) {   /* renames move whole trees, so now and then start again, or the RAM disk's entries run out */
@@ -1061,9 +1126,537 @@ static void test_differential(unsigned long ops)
     (void)parts;
 }
 
+/* ---- the FAT file system against other people's tools ---- */
+
+static int have_tool(const char *path)
+{
+    return access(path, X_OK) == 0;
+}
+
+static int run(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+#include <stdarg.h>
+static int run(const char *fmt, ...)
+{
+    char cmd[1200];
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(cmd, sizeof cmd, fmt, ap);
+    va_end(ap);
+    strcat(cmd, " >/dev/null 2>&1");
+    return system(cmd);
+}
+
+/* Detaches the image from tilefs but keeps the file, so that other tools can look at it. */
+static void fat_release(int i)
+{
+    fs_reset();
+    EQ(fs_fat_done(&fat[i]), 0);
+    fs_blk_file_close(&blk[i]);
+}
+
+static void fill(uint8_t *p, size_t n, unsigned seed)
+{
+    for (size_t i = 0; i < n; i++)
+        p[i] = (uint8_t)((i * 31 + seed * 17 + (i >> 9)) & 0xFF);
+}
+
+/* Where the file system starts in an image: sector 0 if that sector is a boot sector (a jump instruction, then 0x55AA), else the start
+ * of the first partition of the MBR there. -1 if neither makes sense. */
+static long partition_start(const char *path)
+{
+    uint8_t s[512];
+    FILE *fp = fopen(path, "rb");
+    if (!fp)
+        return -1;
+    const size_t n = fread(s, 1, sizeof s, fp);
+    fclose(fp);
+    if (n != sizeof s || s[510] != 0x55 || s[511] != 0xAA)
+        return -1;
+    if (s[0] == 0xEB || s[0] == 0xE9)
+        return 0;
+    if (s[0x1BE + 4] == 0)
+        return -1;
+    return (long)(s[0x1BE + 8] | s[0x1BE + 9] << 8 | s[0x1BE + 10] << 16 | (long)s[0x1BE + 11] << 24);
+}
+
+/* fsck reads a file system, not a disk: a partition is copied out of the image first. */
+static void check_with_fsck(const char *fsck, const char *image, long first, const char *label)
+{
+    char part[400];
+    snprintf(part, sizeof part, "%s.part", image);
+    if (first > 0)
+        EQ(run("dd if='%s' of='%s' bs=512 skip=%ld", image, part, first), 0);
+    const int r = run("%s -n '%s'", fsck, first > 0 ? part : image);
+    if (r != 0) {
+        char cmd[900];
+        snprintf(cmd, sizeof cmd, "%s -n '%s' >&2", fsck, first > 0 ? part : image);
+        fprintf(stderr, "%s found a fault in the %s image:\n", fsck, label);
+        if (system(cmd)) {}
+    }
+    unlink(part);
+    EQ(r, 0);
+}
+
+/* Makes a tree with tilefs, then asks fsck whether the image is sound, and mtools (for FAT12/16/32) to read the files back. */
+static void test_foreign_check(int kind, int sfd)
+{
+    static uint8_t data[100000], back[100000];
+    const int exfat = kind == EXFAT;
+    const char *fsck = exfat ? "/usr/sbin/fsck.exfat" : "/usr/sbin/fsck.vfat";
+    if (!have_tool(fsck)) {
+        printf("  (no %s: skipped)\n", fsck);
+        return;
+    }
+    fs_reset();
+    fat_up(0, kind, "t", sfd);
+    EQ(fs_mkdir("/t/Documents"), 0);
+    EQ(fs_mkdir("/t/Documents/Sub Folder"), 0);
+    EQ(fs_mkdir("/t/Documents/Sub Folder/deeper"), 0);
+    const size_t sizes[] = {0, 1, 511, 512, 513, 4095, 4096, 4097, 33000, 100000};
+    char name[200];
+    for (unsigned i = 0; i < sizeof sizes / sizeof sizes[0]; i++) {
+        fill(data, sizes[i], i);
+        snprintf(name, sizeof name, "/t/Documents/Sub Folder/A Rather Long File Name Number %u.text", i);
+        EQ(put(name, data, sizes[i]), (int)sizes[i]);
+    }
+    fill(data, 70000, 99);
+    EQ(put("/t/Documents/deeper_file.bin", data, 70000), 70000);
+    EQ(fs_rename("/t/Documents/deeper_file.bin", "/t/Documents/Sub Folder/deeper/moved.bin"), 0);
+    EQ(fs_rename("/t/Documents/Sub Folder", "/t/Documents/Renamed Folder"), 0);
+    EQ(fs_unlink("/t/Documents/Renamed Folder/A Rather Long File Name Number 2.text"), 0);
+    EQ(fs_unlink("/t/Documents/Renamed Folder/A Rather Long File Name Number 8.text"), 0);
+    for (int i = 0; i < 40; i++) {   /* a directory with enough entries to need more than one cluster */
+        snprintf(name, sizeof name, "/t/many_entries_with_longish_names_%02d.dat", i);
+        EQ(put(name, "x", 1), 1);
+    }
+    EQ(fs_rmdir("/t/Documents/Renamed Folder/deeper"), FS_ENOTEMPTY);
+    {   /* grow a file in small steps, appending */
+        const int fd = fs_open("/t/grow.log", FS_WRONLY | FS_CREAT | FS_APPEND);
+        for (int i = 0; i < 300; i++)
+            EQ(fs_write(fd, "line of text 0123456789\n", 24), 24);
+        EQ(fs_close(fd), 0);
+    }
+    fat_release(0);
+    long first = partition_start(img[0]);
+    CHECK(first >= 0 && (first == 0) == (sfd != 0));
+    check_with_fsck(fsck, img[0], first, kind_name[kind]);
+    if (!exfat && have_tool("/usr/bin/mcopy")) {
+        char out[400];
+        snprintf(out, sizeof out, "%s.out", img[0]);
+        fill(data, 100000, 9);
+        EQ(run("mcopy -n -i '%s@@%ld' '::/Documents/Renamed Folder/A Rather Long File Name Number 9.text' '%s'", img[0], first * 512, out), 0);
+        FILE *fp = fopen(out, "rb");
+        CHECK(fp != NULL);
+        EQ(fread(back, 1, sizeof back, fp), 100000);
+        fclose(fp);
+        CHECK(!memcmp(back, data, 100000));
+        fill(data, 70000, 99);
+        EQ(run("mcopy -n -i '%s@@%ld' '::/Documents/Renamed Folder/deeper/moved.bin' '%s'", img[0], first * 512, out), 0);
+        fp = fopen(out, "rb");
+        CHECK(fp != NULL);
+        EQ(fread(back, 1, sizeof back, fp), 70000);
+        fclose(fp);
+        CHECK(!memcmp(back, data, 70000));
+        unlink(out);
+        EQ(run("mdir -i '%s@@%ld' '::/Documents/Renamed Folder/A Rather Long File Name Number 8.text'", img[0], first * 512) != 0, 1);   /* deleted */
+    }
+    fat_down(0);
+}
+
+/* The other direction: images made by mkfs, and by mtools, read and then written by tilefs. */
+static void test_foreign_made(int kind)
+{
+    static uint8_t data[50000], back[50000];
+    const int exfat = kind == EXFAT;
+    const char *mkfs = exfat ? "/usr/sbin/mkfs.exfat" : "/usr/sbin/mkfs.vfat";
+    const char *fsck = exfat ? "/usr/sbin/fsck.exfat" : "/usr/sbin/fsck.vfat";
+    if (!have_tool(mkfs) || !have_tool(fsck) || (!exfat && !have_tool("/usr/bin/mcopy"))) {
+        printf("  (tools missing: skipped)\n");
+        return;
+    }
+    fs_reset();
+    fat_down(0);
+    const char *tmp = getenv("TMPDIR");
+    snprintf(img[0], sizeof img[0], "%s/tilefs_img_XXXXXX", tmp ? tmp : "/tmp");
+    const int fd0 = mkstemp(img[0]);
+    CHECK(fd0 >= 0);
+    CHECK(ftruncate(fd0, (off_t)(kind == FAT16 ? 32768 : kind == FAT32 ? 131072 : 65536) * 512) == 0);
+    close(fd0);
+    EQ(run("%s %s '%s'", mkfs, kind == FAT16 ? "-F 16" : kind == FAT32 ? "-F 32" : "", img[0]), 0);
+    if (!exfat) {   /* put files in with mtools: a long name, a directory, a file of several clusters */
+        char path[400];
+        snprintf(path, sizeof path, "%s.src", img[0]);
+        fill(data, 50000, 3);
+        FILE *fp = fopen(path, "wb");
+        CHECK(fp && fwrite(data, 1, 50000, fp) == 50000);
+        fclose(fp);
+        EQ(run("mmd -i '%s' '::/Some Directory'", img[0]), 0);
+        EQ(run("mcopy -i '%s' '%s' '::/Some Directory/Made By Mtools With A Long Name.bin'", img[0], path), 0);
+        EQ(run("mcopy -i '%s' '%s' '::/SHORT.BIN'", img[0], path), 0);
+        unlink(path);
+    }
+    EQ(fs_blk_file_open(&blk[0], img[0], 0), 0);
+    fat_is_up[0] = 1;
+    EQ(fs_fat_init(&fat[0], 0, &fs_blk_file_dev, &blk[0]), 0);
+    EQ(fs_mount("t", &fs_fat_ops, &fat[0]), 0);
+    if (!exfat) {
+        fill(data, 50000, 3);
+        CHECK(slurp("/t/Some Directory/Made By Mtools With A Long Name.bin", back, sizeof back) == 50000 && !memcmp(back, data, 50000));
+        CHECK(slurp("/t/short.bin", back, sizeof back) == 50000 && !memcmp(back, data, 50000));   /* an 8.3 name, any case */
+        LISTS("/t", "SHORT.BIN Some Directory/");
+    }
+    fill(data, 20000, 4);
+    EQ(put("/t/written by tilefs.dat", data, 20000), 20000);
+    EQ(fs_mkdir("/t/New Dir"), 0);
+    EQ(put("/t/New Dir/x", data, 100), 100);
+    fat_release(0);
+    check_with_fsck(fsck, img[0], 0, kind_name[kind]);
+    fat_down(0);
+}
+
+/* ---- more of the FAT backend: times, faults, a full disk, odd names, two drives ---- */
+
+static void test_fat_time(void)
+{
+    static const struct { unsigned y, mo, d, h, mi, s; uint32_t unix_time; } known[] = {
+        {1980, 1, 1, 0, 0, 0, 315532800u},      {1999, 12, 31, 23, 59, 58, 946684798u}, {2000, 2, 29, 12, 34, 56, 951827696u},
+        {2024, 2, 29, 23, 59, 58, 1709251198u}, {2026, 1, 1, 0, 0, 0, 1767225600u},     {2038, 1, 19, 3, 14, 6, 2147483646u},
+        {2100, 3, 1, 0, 0, 0, 4107542400u},   /* 2100 is not a leap year */
+    };
+    for (unsigned i = 0; i < sizeof known / sizeof known[0]; i++) {
+        const uint32_t fat = fs_fat_from_unix(known[i].unix_time);
+        EQ(fat >> 25, known[i].y - 1980);
+        EQ((fat >> 21) & 15, known[i].mo);
+        EQ((fat >> 16) & 31, known[i].d);
+        EQ((fat >> 11) & 31, known[i].h);
+        EQ((fat >> 5) & 63, known[i].mi);
+        EQ((fat & 31) * 2, known[i].s);
+        EQ(fs_fat_to_unix((uint16_t)(fat >> 16), (uint16_t)fat), known[i].unix_time);
+    }
+    EQ(fs_fat_from_unix(1700000001u), fs_fat_from_unix(1700000000u));   /* two second steps round down */
+    EQ(fs_fat_to_unix((uint16_t)(fs_fat_from_unix(1700000001u) >> 16), (uint16_t)fs_fat_from_unix(1700000001u)), 1700000000u);
+    EQ(fs_fat_from_unix(0), fs_fat_from_unix(315532800u));            /* before 1980: the earliest there is */
+    EQ(fs_fat_to_unix((uint16_t)((127 << 9) | (12 << 5) | 31), (uint16_t)((23 << 11) | (59 << 5) | 29)), 0xFFFFFFFFu);   /* 2107 */
+    EQ(fs_fat_to_unix(0, 0), 0);   /* a zero date is not a date */
+    /* every even second over a few leap and non-leap years, both ways */
+    for (uint32_t t = 315532800u; t < 315532800u + 86400u * 366 * 3; t += 86400 / 3 * 2 + 4) {
+        const uint32_t fat = fs_fat_from_unix(t);
+        EQ(fs_fat_to_unix((uint16_t)(fat >> 16), (uint16_t)fat), t & ~1u);
+    }
+    for (uint32_t t = 4107542400u - 86400u * 5; t < 4107542400u + 86400u * 5; t += 3600) {   /* around 2100-03-01 */
+        const uint32_t fat = fs_fat_from_unix(t);
+        EQ(fs_fat_to_unix((uint16_t)(fat >> 16), (uint16_t)fat), t & ~1u);
+    }
+}
+
+static uint32_t fake_now;
+static uint32_t fake_clock(void) { return fake_now; }
+
+static void test_fat_clock(void)
+{
+    fs_stat_t st;
+    fs_fat_set_clock(fake_clock);
+    fake_now = 1700000001u;
+    setup(FAT16);
+    EQ(put("/t/f", "x", 1), 1);
+    EQ(fs_stat("/t/f", &st), 0);
+    EQ(st.mtime, 1700000000u);
+    fake_now = 1709251198u;
+    EQ(fs_mkdir("/t/d"), 0);
+    EQ(fs_stat("/t/d", &st), 0);
+    EQ(st.mtime, 1709251198u);
+    fake_now = 1800000000u;
+    EQ(put("/t/f", "yy", 2), 2);   /* a rewrite is a new time */
+    EQ(fs_stat("/t/f", &st), 0);
+    EQ(st.mtime, 1800000000u);
+    EQ(fs_stat("/t/d", &st), 0);
+    EQ(st.mtime, 1709251198u);
+    fs_fat_set_clock(NULL);
+    EQ(put("/t/g", "x", 1), 1);   /* with no clock: 2026-01-01 */
+    EQ(fs_stat("/t/g", &st), 0);
+    EQ(st.mtime, 1767225600u);
+}
+
+/* A block device that fails when told to. */
+typedef struct {
+    fs_blk_file_t *inner;
+    int init_fails, reads_until_fail, writes_until_fail;   /* < 0: never */
+} flaky_t;
+
+static int flaky_init(void *c) { return ((flaky_t *)c)->init_fails ? FS_EIO : 0; }
+static int flaky_read(void *c, void *b, uint32_t s, uint32_t n)
+{
+    flaky_t *f = c;
+    if (f->reads_until_fail == 0)
+        return FS_EIO;
+    if (f->reads_until_fail > 0)
+        f->reads_until_fail--;
+    return fs_blk_file_dev.read(f->inner, b, s, n);
+}
+static int flaky_write(void *c, const void *b, uint32_t s, uint32_t n)
+{
+    flaky_t *f = c;
+    if (f->writes_until_fail == 0)
+        return FS_EIO;
+    if (f->writes_until_fail > 0)
+        f->writes_until_fail--;
+    return fs_blk_file_dev.write(f->inner, b, s, n);
+}
+static uint32_t flaky_sectors(void *c) { return ((flaky_t *)c)->inner->sectors; }
+static const fs_blockdev_t flaky_dev = {flaky_init, flaky_read, flaky_write, NULL, flaky_sectors};
+
+static void test_fat_faults(void)
+{
+    static uint8_t buf[20000];
+    flaky_t fl = {&blk[0], 0, -1, -1};
+    fs_reset();
+    fat_down(0);
+    fat_up(0, FAT16, "t", 0);   /* a good image to start from */
+    EQ(put("/t/keep", "kept", 4), 4);
+    fat_release(0);
+    /* the device is missing, or does not start */
+    fl.init_fails = 1;
+    EQ(fs_fat_init(&fat[0], 0, &flaky_dev, &fl), FS_EIO);
+    fl.init_fails = 0;
+    EQ(fs_blk_file_open(&blk[0], img[0], 0), 0);
+    /* a read error while mounting */
+    fl.reads_until_fail = 0;
+    EQ(fs_fat_init(&fat[0], 0, &flaky_dev, &fl), FS_EIO);
+    /* an image with nothing on it */
+    fat_down(0);
+    snprintf(img[0], sizeof img[0], "%s/tilefs_img_blank_%d", getenv("TMPDIR") ? getenv("TMPDIR") : "/tmp", (int)getpid());
+    EQ(fs_blk_file_open(&blk[0], img[0], 4096), 0);
+    fat_is_up[0] = 1;
+    EQ(fs_fat_init(&fat[0], 0, &fs_blk_file_dev, &blk[0]), FS_ENODEV);
+    EQ(fs_fat_format(0, &fs_blk_file_dev, &blk[0], FS_FAT_FAT | FS_FAT_SFD), 0);   /* 2 MB: it can be formatted, as FAT12 or FAT16 */
+    EQ(fs_fat_init(&fat[0], 0, &fs_blk_file_dev, &blk[0]), 0);
+    EQ(fs_fat_done(&fat[0]), 0);
+    fat_down(0);
+    /* errors in the middle of work */
+    fat_up(0, FAT16, "t", 0);
+    EQ(put("/t/f", buf, sizeof buf), (int)sizeof buf);
+    fat_release(0);
+    fl.reads_until_fail = fl.writes_until_fail = -1;
+    EQ(fs_blk_file_open(&blk[0], img[0], 0), 0);
+    EQ(fs_fat_init(&fat[0], 0, &flaky_dev, &fl), 0);
+    EQ(fs_mount("t", &fs_fat_ops, &fat[0]), 0);
+    fl.reads_until_fail = 0;
+    {
+        const int fd = fs_open("/t/f", FS_RDONLY);
+        if (fd >= 0) {   /* the directory may be cached; the data is not */
+            EQ(fs_read(fd, buf, sizeof buf), FS_EIO);
+            EQ(fs_close(fd), 0);
+        } else {
+            EQ(fd, FS_EIO);
+        }
+    }
+    fl.reads_until_fail = -1;
+    EQ(slurp("/t/f", buf, sizeof buf), (int)sizeof buf);   /* and it recovers */
+    fl.writes_until_fail = 0;
+    {
+        const int fd = fs_open("/t/new", FS_WRONLY | FS_CREAT);
+        int e = fd;
+        if (fd >= 0) {
+            e = fs_write(fd, buf, sizeof buf);
+            const int c = fs_close(fd);
+            if (e >= 0)
+                e = c;   /* the error may only come when the data is flushed */
+        }
+        EQ(e, FS_EIO);
+    }
+    fl.writes_until_fail = -1;
+    EQ(fs_unlink("/t/new") <= 0, 1);   /* whatever state it was left in, the file system answers */
+    fat_release(0);
+    fat_down(0);
+}
+
+static void test_fat_full(int kind)
+{
+    static uint8_t chunk[65536];
+    uint64_t fr, total, fr0;
+    char name[64];
+    fat_up_ram(kind, "t");
+    memset(chunk, 0xA5, sizeof chunk);
+    EQ(fs_space("/t", &fr0, &total), 0);
+    CHECK(fr0 > 0 && fr0 <= total);
+    if (kind == FAT16)
+        EQ(fr0, total);   /* the FAT16 root directory is outside the data area: all of it is free */
+    int fd = fs_open("/t/big", FS_WRONLY | FS_CREAT);
+    uint64_t written = 0;
+    int w;
+    while ((w = fs_write(fd, chunk, sizeof chunk)) > 0)
+        written += (unsigned)w;
+    EQ(w, FS_ENOSPC);
+    EQ(written, fr0);   /* the file takes every free byte, to the cluster */
+    EQ(fs_close(fd), 0);
+    EQ(fs_space("/t", &fr, &total), 0);
+    EQ(fr, 0);
+    EQ(fs_mkdir("/t/nospace"), FS_ENOSPC);
+    fd = fs_open("/t/another", FS_WRONLY | FS_CREAT);
+    if (fd >= 0) {   /* the entry may fit, the data cannot */
+        EQ(fs_write(fd, chunk, 1), FS_ENOSPC);
+        EQ(fs_close(fd), 0);
+        EQ(fs_unlink("/t/another"), 0);
+    } else {
+        EQ(fd, FS_ENOSPC);
+    }
+    EQ(fs_unlink("/t/big"), 0);
+    EQ(fs_space("/t", &fr, &total), 0);
+    CHECK(fr >= fr0 - 4096);   /* what was free before is free again (the directory may have grown) */
+    /* the root directory of FAT12/16 holds a fixed number of entries */
+    int made = 0, e = 0;
+    for (; made < 700; made++) {
+        snprintf(name, sizeof name, "/t/file_with_a_long_name_%04d.txt", made);
+        fd = fs_open(name, FS_WRONLY | FS_CREAT);
+        if (fd < 0) {
+            e = fd;
+            break;
+        }
+        EQ(fs_close(fd), 0);
+    }
+    if (kind == FAT16) {
+        EQ(e, FS_ENOSPC);
+        CHECK(made > 100 && made < 512);
+    } else {
+        EQ(made, 700);   /* FAT32 and exFAT: the directory is a file that grows */
+    }
+    for (int i = 0; i < made; i++) {
+        snprintf(name, sizeof name, "/t/file_with_a_long_name_%04d.txt", i);
+        EQ(fs_unlink(name), 0);
+    }
+    LISTS("/t", "");
+}
+
+static void test_fat_names(int kind)
+{
+    char buf[16];
+    setup(kind);
+    /* bytes above 127 are the OEM code page 437: e-acute, a-umlaut, a box drawing character */
+    const char *names[] = {"/t/caf\x82", "/t/\x84\x84.txt", "/t/box\xC4line", "/t/MiXeD Case.Name"};
+    for (int i = 0; i < 4; i++) {
+        EQ(put(names[i], "v", 1), 1);
+        CHECK(slurp(names[i], buf, sizeof buf) == 1);
+    }
+    LISTS("/t", "MiXeD Case.Name box\xC4line caf\x82 \x84\x84.txt");
+    CHECK(slurp("/t/MIXED CASE.NAME", buf, sizeof buf) == 1);
+    CHECK(slurp("/t/CAF\x82", buf, sizeof buf) == 1);   /* case folding of the unaccented part */
+    /* FatFs gives "caf\x82" the short name CAFE (its table turns an accented capital into the plain letter), and a name that fits a short
+     * name is looked up by that alias: so on FAT the two spellings are one name. Portable programs keep to ASCII for names they make. */
+    EQ(fs_stat("/t/cafe", &(fs_stat_t){0}), kind == EXFAT ? FS_ENOENT : 0);   /* exFAT has no short names */
+    EQ(fs_rename("/t/caf\x82", "/t/cafe"), kind == EXFAT ? 0 : FS_EEXIST);
+    if (kind == EXFAT)
+        EQ(fs_rename("/t/cafe", "/t/caf\x82"), 0);
+    EQ(fs_rename("/t/caf\x82", "/t/cafx"), 0);
+    EQ(fs_unlink("/t/cafx"), 0);
+    /* long names are whole */
+    char longname[300];
+    memset(longname, 'q', 200);
+    longname[200] = '\0';
+    char path[400];
+    snprintf(path, sizeof path, "/t/%s", longname);
+    EQ(put(path, "long", 4), 4);
+    snprintf(path, sizeof path, "/t/%s", longname + 1);   /* one character shorter is a different file */
+    EQ(fs_stat(path, &(fs_stat_t){0}), FS_ENOENT);
+    /* names that need the long form: a dot first, several dots, spaces inside, a plus and other characters FAT short names lack */
+    const char *odd[] = {"/t/.dotfirst", "/t/a.b.c.d", "/t/two  spaces", "/t/a+b,c;d=e[f]", "/t/%percent", "/t/long extension.markdown"};
+    for (int i = 0; i < 6; i++) {
+        EQ(put(odd[i], "o", 1), 1);
+        CHECK(slurp(odd[i], buf, sizeof buf) == 1);
+    }
+    char want[1000];   /* in byte order: '%' '.' 'M' 'a' 'b' 'l' 'q' 't', then the bytes above 127 */
+    snprintf(want, sizeof want, "%%percent .dotfirst MiXeD Case.Name a+b,c;d=e[f] a.b.c.d box\xC4line long extension.markdown %s two  spaces \x84\x84.txt", longname);
+    {
+        char l[2000];
+        listing("/t", l, sizeof l);
+        EQ(strcmp(l, want), 0);
+    }
+}
+
+static void test_fat_open_sizes(int kind)
+{
+    fs_dirent_t e;
+    fs_stat_t st;
+    setup(kind);
+    const int fd = fs_open("/t/growing", FS_WRONLY | FS_CREAT);
+    CHECK(fd >= 0);
+    EQ(fs_write(fd, "0123456789", 10), 10);
+    EQ(fs_stat("/t/growing", &st), 0);   /* what an open file has written is what the directory says */
+    EQ(st.size, 10);
+    EQ(fs_write(fd, "0123456789", 10), 10);
+    const int dd = fs_opendir("/t");
+    EQ(fs_readdir(dd, &e), 1);
+    EQ(e.size, 20);
+    EQ(fs_closedir(dd), 0);
+    EQ(fs_close(fd), 0);
+}
+
+static void test_block_bounds(void)
+{
+    static uint8_t mem[8192], buf[1024];
+    fs_blk_ram_t r;
+    fs_blk_file_t f;
+    EQ(fs_blk_ram_init(&r, mem, sizeof mem), 0);
+    EQ(r.sectors, 16);
+    EQ(fs_blk_ram_dev.read(&r, buf, 15, 1), 0);
+    EQ(fs_blk_ram_dev.read(&r, buf, 15, 2), FS_EINVAL);
+    EQ(fs_blk_ram_dev.read(&r, buf, 16, 1), FS_EINVAL);
+    EQ(fs_blk_ram_dev.write(&r, buf, 16, 1), FS_EINVAL);
+    EQ(fs_blk_ram_dev.write(&r, buf, 0xFFFFFFFFu, 2), FS_EINVAL);
+    EQ(fs_blk_ram_dev.write(&r, buf, 14, 2), 0);
+    EQ(fs_blk_ram_init(&r, mem, 100), FS_EINVAL);   /* not even one sector */
+    char path[300];
+    snprintf(path, sizeof path, "%s/tilefs_bounds_%d", getenv("TMPDIR") ? getenv("TMPDIR") : "/tmp", (int)getpid());
+    unlink(path);
+    EQ(fs_blk_file_open(&f, path, 0), FS_ENOENT);   /* missing, and not to be made */
+    EQ(fs_blk_file_open(&f, path, 16), 0);
+    EQ(f.sectors, 16);
+    EQ(fs_blk_file_dev.read(&f, buf, 15, 1), 0);
+    EQ(fs_blk_file_dev.read(&f, buf, 15, 2), FS_EINVAL);
+    EQ(fs_blk_file_dev.read(&f, buf, 16, 1), FS_EINVAL);
+    EQ(fs_blk_file_dev.write(&f, buf, 16, 1), FS_EINVAL);
+    EQ(fs_blk_file_dev.write(&f, buf, 15, 1), 0);
+    EQ(fs_blk_file_dev.sync(&f), 0);
+    fs_blk_file_close(&f);
+    EQ(fs_blk_file_open(&f, path, 0), 0);   /* it was kept, and has its size */
+    EQ(f.sectors, 16);
+    fs_blk_file_close(&f);
+    unlink(path);
+}
+
+static void test_fat_two_drives(void)
+{
+    char buf[16];
+    setup(FAT16);
+    fat_up(1, EXFAT, "u", 0);
+    EQ(put("/t/f", "on drive 0", 10), 10);
+    EQ(put("/u/f", "on drive 1", 10), 10);
+    EQ(fs_mkdir("/u/d"), 0);
+    CHECK(slurp("/t/f", buf, sizeof buf) == 10 && !memcmp(buf, "on drive 0", 10));
+    CHECK(slurp("/u/f", buf, sizeof buf) == 10 && !memcmp(buf, "on drive 1", 10));
+    EQ(fs_stat("/t/d", &(fs_stat_t){0}), FS_ENOENT);
+    EQ(fs_rename("/t/f", "/u/g"), FS_EXDEV);
+    fs_reset();
+    fat_down(1);
+    fat_down(0);
+}
+
+#include <time.h>
+static void phase_time(const char *what)
+{
+    static struct timespec last;
+    struct timespec now;
+    clock_gettime(CLOCK_MONOTONIC, &now);
+    if (last.tv_sec || last.tv_nsec)
+        printf("  [%.1f s] %s\n", (double)(now.tv_sec - last.tv_sec) + (double)(now.tv_nsec - last.tv_nsec) / 1e9, what);
+    last = now;
+}
+
 int main(int argc, char **argv)
 {
-    for (int kind = RAM; kind <= POSIX; kind++) {
+    setvbuf(stdout, NULL, _IOLBF, 0);
+    for (int kind = RAM; kind < NKINDS; kind++) {
+        phase_time("previous");
+        printf("conformance: %s\n", kind_name[kind]);
         test_files(kind);
         test_seek(kind);
         test_blocks(kind);
@@ -1077,10 +1670,36 @@ int main(int argc, char **argv)
     test_backend_view();
     test_mounts();
     test_ram_limits();
+    test_fat_time();
+    test_fat_clock();
+    test_fat_faults();
+    test_fat_two_drives();
+    test_block_bounds();
+    for (int kind = FAT16; kind < NKINDS; kind++) {
+        phase_time("previous");
+        printf("FAT extras: %s\n", kind_name[kind]);
+        test_fat_full(kind);
+        test_fat_open_sizes(kind);
+        test_fat_names(kind);
+        phase_time("previous");
+        printf("other tools: %s\n", kind_name[kind]);
+        test_foreign_check(kind, 0);
+        test_foreign_check(kind, 1);
+        test_foreign_made(kind);
+    }
     if (argc > 2)
         rng_state ^= strtoul(argv[2], NULL, 10) * 0x9E3779B97F4A7C15ul;   /* another run of the random test */
-    test_differential(argc > 1 ? strtoul(argv[1], NULL, 10) : 300000);
+    const unsigned long ops = argc > 1 ? strtoul(argv[1], NULL, 10) : 30000;
+    for (int kind = RAM; kind < NKINDS; kind++)
+        if (kind != POSIX) {   /* the host against itself would prove nothing */
+            phase_time("previous");
+            printf("differential: %s against the host\n", kind_name[kind]);
+            test_differential(kind, ops);
+        }
+    phase_time("previous");
     fs_reset();
+    fat_down(0);
+    fat_down(1);
     host_clean();
     printf("test_tilefs: %lu checks passed\n", checks);
     return 0;

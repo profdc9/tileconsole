@@ -10,7 +10,9 @@
  *    in the text of the path, before any backend sees it. Repeated and trailing slashes are ignored.
  *  - Names are portable FAT-style names: at most FS_NAME_MAX bytes, no control characters, none of  " * : < > ? \ |  and no
  *    trailing dot or space; names are matched without regard to case on backends that cannot tell (RAM, FAT), so a program must
- *    not use two names that differ only in case.
+ *    not use two names that differ only in case. Bytes above 127 mean whatever the backend's character set says (code page 437 on
+ *    FAT), and on FAT an accented letter can be the same name as its plain letter (FatFs's short name alias), so programs keep to
+ *    ASCII for the names they make.
  *  - A file that is open cannot be unlinked, renamed, truncated or have its directory removed (FS_EBUSY), and a file open for
  *    writing cannot be opened a second time. This keeps FAT and POSIX alike.
  *  - Seeking outside 0..size is an error (FS_EINVAL): there are no holes. Writing at the end extends the file.
@@ -55,6 +57,8 @@ enum {
     FS_ENOTEMPTY = -14,
     FS_EBADNAME = -15,     /* a character a FAT name cannot have */
     FS_ENOMEM = -16,       /* the mount table is full, or a RAM disk's memory is too small */
+    FS_ENODEV = -17,       /* the device answers but holds no usable file system: it is not formatted */
+    FS_ENOMEDIA = -18,     /* nothing in the drive: no card in the socket */
 };
 
 /* Flags for fs_open: one of the access modes, plus any of the others. */
@@ -132,6 +136,38 @@ int fs_chdir(const char *path);
 const char *fs_getcwd(void);
 
 const char *fs_strerror(int code);
+
+/* ---- block devices ---- */
+
+/* What a disk file system (the FatFs backend) reads and writes: 512-byte sectors. Implementations: a host file holding a disk image
+ * (fs_blk_file.c, for debugging on a PC), a block of RAM (fs_blk_ram.c), and an SD card on SPI (on the board). Each call returns 0
+ * or a negative FS_E* code. */
+typedef struct {
+    int (*init)(void *ctx);   /* called when the device is first used; FS_ENOMEDIA if there is nothing there, FS_EIO if it fails */
+    int (*read)(void *ctx, void *buf, uint32_t sector, uint32_t count);
+    int (*write)(void *ctx, const void *buf, uint32_t sector, uint32_t count);
+    int (*sync)(void *ctx);   /* write out anything held back; may be NULL */
+    uint32_t (*sectors)(void *ctx);
+} fs_blockdev_t;
+
+typedef struct {
+    uint8_t *data;
+    uint32_t sectors;
+} fs_blk_ram_t;
+
+int fs_blk_ram_init(fs_blk_ram_t *b, void *mem, size_t bytes);   /* uses whole sectors; the memory is not cleared */
+extern const fs_blockdev_t fs_blk_ram_dev;
+
+/* A disk image in a host file. If the file is missing and create_sectors is not 0, it is made (zero filled, sparse where the host
+ * allows). Otherwise its size, rounded down to whole sectors, is the size of the device. */
+typedef struct {
+    int fd;
+    uint32_t sectors;
+} fs_blk_file_t;
+
+int fs_blk_file_open(fs_blk_file_t *b, const char *path, uint32_t create_sectors);
+void fs_blk_file_close(fs_blk_file_t *b);
+extern const fs_blockdev_t fs_blk_file_dev;
 
 /* ---- backends ---- */
 
