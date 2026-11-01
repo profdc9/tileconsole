@@ -13,6 +13,36 @@
 
 #include "tilefs.h"
 
+/* A program that takes over the C library's file functions with ld --wrap (the TDE port does) builds this file with -DTILEFS_WRAPPED_LIBC, so that
+ * the host backend reaches the real ones, not its own caller. */
+#ifdef TILEFS_WRAPPED_LIBC
+int __real_stat(const char *path, struct stat *st);
+int __real_unlink(const char *path);
+int __real_mkdir(const char *path, mode_t mode);
+int __real_rmdir(const char *path);
+int __real_rename(const char *from, const char *to);
+DIR *__real_opendir(const char *path);
+struct dirent *__real_readdir(DIR *dir);
+int __real_closedir(DIR *dir);
+#define H_STAT __real_stat
+#define H_UNLINK __real_unlink
+#define H_MKDIR __real_mkdir
+#define H_RMDIR __real_rmdir
+#define H_RENAME __real_rename
+#define H_OPENDIR __real_opendir
+#define H_READDIR __real_readdir
+#define H_CLOSEDIR __real_closedir
+#else
+#define H_STAT stat
+#define H_UNLINK unlink
+#define H_MKDIR mkdir
+#define H_RMDIR rmdir
+#define H_RENAME rename
+#define H_OPENDIR opendir
+#define H_READDIR readdir
+#define H_CLOSEDIR closedir
+#endif
+
 typedef struct {
     DIR *d;
     char path[FS_POSIX_ROOT_MAX + FS_PATH_MAX + 2];
@@ -41,7 +71,7 @@ int fs_posix_init(fs_posix_t *p, const char *root_dir)
     struct stat st;
     if (!root_dir || strlen(root_dir) > FS_POSIX_ROOT_MAX)
         return FS_ENAMETOOLONG;
-    if (stat(root_dir, &st) < 0)
+    if (H_STAT(root_dir, &st) < 0)
         return map_errno(errno);
     if (!S_ISDIR(st.st_mode))
         return FS_ENOTDIR;
@@ -145,7 +175,7 @@ static int posix_stat(void *ctx, const char *path, fs_stat_t *out)
     char host[FS_POSIX_ROOT_MAX + FS_PATH_MAX + 2];
     struct stat st;
     host_path(ctx, path, host, sizeof host);
-    if (stat(host, &st) < 0)
+    if (H_STAT(host, &st) < 0)
         return map_errno(errno);
     fill_stat(&st, out);
     return FS_OK;
@@ -160,21 +190,21 @@ static int posix_unlink(void *ctx, const char *path)
         return map_errno(errno);
     if (S_ISDIR(st.st_mode))
         return FS_EISDIR;
-    return unlink(host) < 0 ? map_errno(errno) : FS_OK;
+    return H_UNLINK(host) < 0 ? map_errno(errno) : FS_OK;
 }
 
 static int posix_mkdir(void *ctx, const char *path)
 {
     char host[FS_POSIX_ROOT_MAX + FS_PATH_MAX + 2];
     host_path(ctx, path, host, sizeof host);
-    return mkdir(host, 0777) < 0 ? map_errno(errno) : FS_OK;
+    return H_MKDIR(host, 0777) < 0 ? map_errno(errno) : FS_OK;
 }
 
 static int posix_rmdir(void *ctx, const char *path)
 {
     char host[FS_POSIX_ROOT_MAX + FS_PATH_MAX + 2];
     host_path(ctx, path, host, sizeof host);
-    if (rmdir(host) < 0)
+    if (H_RMDIR(host) < 0)
         return errno == EEXIST ? FS_ENOTEMPTY : map_errno(errno);
     return FS_OK;
 }
@@ -191,7 +221,7 @@ static int posix_rename(void *ctx, const char *from, const char *to)
         return FS_EEXIST;
     if (errno != ENOENT)
         return map_errno(errno);
-    return rename(hf, ht) < 0 ? map_errno(errno) : FS_OK;
+    return H_RENAME(hf, ht) < 0 ? map_errno(errno) : FS_OK;
 }
 
 static int posix_opendir(void *ctx, const char *path, void **h)
@@ -200,7 +230,7 @@ static int posix_opendir(void *ctx, const char *path, void **h)
     if (!d)
         return FS_ENOSPC;
     host_path(ctx, path, d->path, sizeof d->path);
-    d->d = opendir(d->path);
+    d->d = H_OPENDIR(d->path);
     if (!d->d) {
         const int e = map_errno(errno);
         free(d);
@@ -214,13 +244,13 @@ static int posix_readdir(void *h, fs_dirent_t *e)
 {
     posix_dir_t *d = h;
     struct dirent *de;
-    while ((de = readdir(d->d)) != NULL) {
+    while ((de = H_READDIR(d->d)) != NULL) {
         char full[sizeof d->path + FS_NAME_MAX + 2];
         struct stat st;
         if (!strcmp(de->d_name, ".") || !strcmp(de->d_name, ".."))
             continue;
         snprintf(full, sizeof full, "%s/%s", d->path, de->d_name);
-        if (strlen(de->d_name) > FS_NAME_MAX || stat(full, &st) < 0 || !(S_ISDIR(st.st_mode) || S_ISREG(st.st_mode)))
+        if (strlen(de->d_name) > FS_NAME_MAX || H_STAT(full, &st) < 0 || !(S_ISDIR(st.st_mode) || S_ISREG(st.st_mode)))
             continue;
         memset(e, 0, sizeof *e);
         strcpy(e->name, de->d_name);
@@ -234,7 +264,7 @@ static int posix_readdir(void *h, fs_dirent_t *e)
 static int posix_closedir(void *h)
 {
     posix_dir_t *d = h;
-    const int e = closedir(d->d) < 0 ? map_errno(errno) : FS_OK;
+    const int e = H_CLOSEDIR(d->d) < 0 ? map_errno(errno) : FS_OK;
     free(d);
     return e;
 }
