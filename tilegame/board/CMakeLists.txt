@@ -90,3 +90,11 @@ tilegame_board_app(sdtest ${DEMO_DIR}/sdtest.c ${DEMO_DIR}/sdtest_logic.c ${TILE
 tilefs_add(sdtest)
 target_include_directories(sdtest PRIVATE ${DEMO_DIR})
 target_compile_definitions(sdtest PRIVATE SDTEST_BOARD=1 PICO_STACK_SIZE=0x1000 PICO_CORE1_STACK_SIZE=0x800)
+
+# File editor demo: the editor on files of the SD card (tilefs), RAM disk if there is no card. A USB keyboard is needed.
+tilegame_board_app(editsd ${DEMO_DIR}/editsd.c ${DEMO_DIR}/editsd_logic.c ${EDITOR_DIR}/editor.c ${CMAKE_CURRENT_LIST_DIR}/../src/console_shim.c
+                   ${CMAKE_CURRENT_LIST_DIR}/../src/console_platform.c ${TILEGFX_DIR}/tg_console.c ${TILEGFX_DIR}/tg_text.c
+                   ${TILEGFX_DIR}/tg_text_cp437.c ${TILEGFX_DIR}/tg_font.c ${TILEGFX_DIR}/fonts/unscii16.c)
+tilefs_add(editsd)
+target_include_directories(editsd PRIVATE ${DEMO_DIR} ${EDITOR_DIR})
+target_compile_definitions(editsd PRIVATE EDITSD_BOARD=1 PICO_STACK_SIZE=0x1000 PICO_CORE1_STACK_SIZE=0x800)

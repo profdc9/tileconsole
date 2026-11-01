@@ -23,3 +23,6 @@ textdemo
 sdtest
 test_sdtest
 sdcard.img
+editsd
+test_editsd
+editsd_files/

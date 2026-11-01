@@ -6,7 +6,7 @@ CFLAGS ?= -std=c11 -Wall -Wextra -O2
 INC = -Iinclude -Isdl -I$(TILEGFX) -I$(TILESND)
 SDL = $(shell pkg-config --cflags --libs sdl2)
 
-all: sdtest test_sdtest game_demo padtest platformer textdemo consdemo editdemo test_editdemo test_consdemo test_consoleio test_platform_sdl test_hid_kbd test_keymap test_hid_pad test_game test_view
+all: editsd test_editsd sdtest test_sdtest game_demo padtest platformer textdemo consdemo editdemo test_editdemo test_consdemo test_consoleio test_platform_sdl test_hid_kbd test_keymap test_hid_pad test_game test_view
 
 test_platform_sdl: tests/test_platform_sdl.c sdl/plat_sdl.c src/mouse_acc.c sdl/plat_sdl.h include/platform.h $(TILEGFX)/tilegfx.c $(TILEGFX)/tg_text.c
 	$(CC) $(CFLAGS) -g -fsanitize=address,undefined $(INC) tests/test_platform_sdl.c sdl/plat_sdl.c src/mouse_acc.c $(TILEGFX)/tilegfx.c $(TILEGFX)/tg_text.c -o $@ $(SDL) -lm
@@ -101,11 +101,12 @@ test_view: tests/test_view.c $(GAMESRC) game/game.h game/level.h game/view.h $(T
 test_hid_pad: tests/test_hid_pad.c src/hid_pad.c src/hid_mouse.c src/mouse_acc.c src/xinput.c include/mouse_acc.h include/xinput.h include/hid_pad.h include/hid_mouse.h include/platform.h
 	$(CC) $(CFLAGS) -g -fsanitize=address,undefined $(INC) tests/test_hid_pad.c src/hid_pad.c src/hid_mouse.c src/mouse_acc.c src/xinput.c -o $@
 
-check: test_sdtest test_platform_sdl test_hid_kbd test_keymap test_consdemo test_consoleio test_editor test_editdemo test_hid_pad test_game test_view
+check: test_editsd test_sdtest test_platform_sdl test_hid_kbd test_keymap test_consdemo test_consoleio test_editor test_editdemo test_hid_pad test_game test_view
 	./test_platform_sdl
 	./test_hid_kbd
 	./test_keymap
 	./test_sdtest
+	./test_editsd
 	./test_consdemo
 	./test_consoleio
 	./test_editor
@@ -130,3 +131,12 @@ sdtest: demo/sdtest.c $(SDTESTSRC) sdl/plat_sdl.c src/mouse_acc.c include/platfo
 
 test_sdtest: tests/test_sdtest.c $(SDTESTSRC) demo/sdtest_logic.h $(TILEGFX)/tilegfx.c
 	$(CC) $(CFLAGS) -g -fsanitize=address,undefined $(INC) $(SDINC) tests/test_sdtest.c $(SDTESTSRC) $(TILEGFX)/tilegfx.c -o $@
+
+# The file editor demo: the editor on files, through tilefs.
+EDITSDSRC = demo/editsd_logic.c editor/editor.c $(CONSOLEIO_SRC) src/console_platform.c $(TILEFSSRC)
+
+editsd: demo/editsd.c $(EDITSDSRC) sdl/plat_sdl.c src/mouse_acc.c include/platform.h
+	$(CC) $(CFLAGS) -Wno-old-style-definition $(INC) $(SDINC) -Ieditor demo/editsd.c $(EDITSDSRC) sdl/plat_sdl.c src/mouse_acc.c -o $@ $(SDL) -lm
+
+test_editsd: tests/test_editsd.c demo/editsd_logic.c demo/editsd_logic.h editor/editor.c $(CONSOLEIO_SRC) $(TILEFSSRC)
+	$(CC) $(CFLAGS) -Wno-old-style-definition -g -fsanitize=address,undefined $(INC) $(SDINC) -Ieditor tests/test_editsd.c demo/editsd_logic.c editor/editor.c $(CONSOLEIO_SRC) $(TILEFSSRC) -o $@
