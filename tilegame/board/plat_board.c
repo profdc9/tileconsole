@@ -417,6 +417,16 @@ uint32_t plat_frame(void) { return frame_no; }
 
 plat_mouse_t plat_mouse(void) { return mouse_frame; }
 
+int plat_getkey(plat_key_event_t *event)
+{
+#if PLAT_USB_HID
+    return usb_hid_getkey(event);
+#else
+    (void)event;
+    return 0;
+#endif
+}
+
 int plat_getchar(void)
 {
 #if PLAT_USB_HID

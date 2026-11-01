@@ -20,7 +20,7 @@
 
 #define PLAT_KEY_REPEAT_DELAY_MS 500
 #define PLAT_KEY_REPEAT_MS 33
-#define KEYMAP_QUEUE 64   /* characters waiting to be read; further ones are dropped */
+#define KEYMAP_QUEUE 64   /* characters (and, separately, key events) waiting to be read; further ones are dropped */
 
 typedef struct {
     uint8_t modifiers, keys[6];    /* the last report */
@@ -44,6 +44,10 @@ void keymap_release_all(keymap_t *k);
 /* The characters typed, oldest first: -1 when there are none. keymap_flush throws away what is waiting. */
 int keymap_getchar(void);
 void keymap_flush(void);
+
+/* The same key presses as events (plat_key_event_t in platform.h): which key, the modifiers and lock keys at the time. Includes the lock keys themselves
+ * and the repeats of a held key; modifier keys alone do not make events. 1 and the event, or 0 when none is waiting. */
+int keymap_getevent(plat_key_event_t *event);
 
 /* What a key would type with these modifiers, or -1: the layout on its own, for tests. caps and num are the lock states (0 or 1). */
 int keymap_translate(uint8_t usage, uint8_t modifiers, int caps, int num);

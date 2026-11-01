@@ -11,6 +11,8 @@
 
 static int16_t queue[KEYMAP_QUEUE];
 static unsigned queue_head, queue_count;
+static plat_key_event_t events[KEYMAP_QUEUE];   /* the key presses as events: a second stream beside the characters */
+static unsigned event_head, event_count;
 
 static void push(int ch)
 {
@@ -33,6 +35,29 @@ int keymap_getchar(void)
 void keymap_flush(void)
 {
     queue_head = queue_count = 0;
+    event_head = event_count = 0;
+}
+
+static void push_event(uint8_t usage, uint8_t modifiers, const keymap_t *k)
+{
+    if (event_count < KEYMAP_QUEUE) {
+        plat_key_event_t *e = &events[(event_head + event_count) % KEYMAP_QUEUE];
+        e->usage = usage;
+        e->modifiers = modifiers;
+        e->caps_lock = k->caps_lock;
+        e->num_lock = k->num_lock;
+        event_count++;
+    }
+}
+
+int keymap_getevent(plat_key_event_t *event)
+{
+    if (!event_count)
+        return 0;
+    *event = events[event_head];
+    event_head = (event_head + 1) % KEYMAP_QUEUE;
+    event_count--;
+    return 1;
 }
 
 /* The keys from 1 (0x1E) to the slash (0x38), with what each types: the digits, Enter, Escape, Backspace, Tab, space and the punctuation. */
@@ -108,9 +133,12 @@ static void press(keymap_t *k, uint8_t usage, uint8_t modifiers, uint32_t now_ms
     k->repeat_key = 0;   /* the newest key is the one that repeats */
     if (usage == USAGE_CAPS_LOCK) {
         k->caps_lock ^= 1;
+        push_event(usage, modifiers, k);
     } else if (usage == USAGE_NUM_LOCK) {
         k->num_lock ^= 1;
+        push_event(usage, modifiers, k);
     } else {
+        push_event(usage, modifiers, k);
         const int ch = keymap_translate(usage, modifiers, k->caps_lock, k->num_lock);
         if (ch >= 0) {
             push(ch);
@@ -142,6 +170,7 @@ void keymap_tick(keymap_t *k, uint32_t now_ms)
     if (!k->repeat_key || (int32_t)(now_ms - k->next_repeat_ms) < 0)
         return;
     push(k->repeat_char);
+    push_event(k->repeat_key, k->modifiers, k);
     k->next_repeat_ms += PLAT_KEY_REPEAT_MS;
     if ((int32_t)(now_ms - k->next_repeat_ms) >= 0)   /* it has been a long while since the last tick: do not make up for it */
         k->next_repeat_ms = now_ms + PLAT_KEY_REPEAT_MS;

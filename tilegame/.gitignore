@@ -26,3 +26,7 @@ sdcard.img
 editsd
 test_editsd
 editsd_files/
+tde_ed
+tde_files/
+build/
+test_tde

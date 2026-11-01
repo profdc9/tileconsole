@@ -26,6 +26,8 @@ static plat_buttons_t key_state[PLAT_MAX_PLAYERS];   /* kept up to date by the k
 #define CHAR_QUEUE 64
 static int16_t char_queue[CHAR_QUEUE];                 /* typed characters, for plat_getchar */
 static unsigned char_head, char_count;
+static plat_key_event_t key_events[CHAR_QUEUE];        /* key presses with their modifiers, for plat_getkey */
+static unsigned event_head, event_count;
 static SDL_GameController *pad[PLAT_MAX_PLAYERS];     /* the first two controllers are players 0 and 1 */
 static mouse_acc_t mouse;
 
@@ -223,6 +225,31 @@ int plat_getchar(void)
     return ch;
 }
 
+int plat_getkey(plat_key_event_t *event)
+{
+    if (!event_count)
+        return 0;
+    *event = key_events[event_head];
+    event_head = (event_head + 1) % CHAR_QUEUE;
+    event_count--;
+    return 1;
+}
+
+/* SDL's scancodes are the USB HID usage codes up to 0xE7 (the modifier keys are 0xE0 and up and make no events). */
+static void key_event_push(SDL_Scancode scancode, Uint16 mod)
+{
+    if ((int)scancode < 4 || (int)scancode >= 0xE0 || event_count >= CHAR_QUEUE)
+        return;
+    plat_key_event_t *e = &key_events[(event_head + event_count++) % CHAR_QUEUE];
+    e->usage = (uint8_t)scancode;
+    e->modifiers = (uint8_t)(((mod & KMOD_LCTRL) ? PLAT_MOD_LCTRL : 0) | ((mod & KMOD_LSHIFT) ? PLAT_MOD_LSHIFT : 0) |
+                             ((mod & KMOD_LALT) ? PLAT_MOD_LALT : 0) | ((mod & KMOD_LGUI) ? PLAT_MOD_LGUI : 0) |
+                             ((mod & KMOD_RCTRL) ? PLAT_MOD_RCTRL : 0) | ((mod & KMOD_RSHIFT) ? PLAT_MOD_RSHIFT : 0) |
+                             ((mod & KMOD_RALT) ? PLAT_MOD_RALT : 0) | ((mod & KMOD_RGUI) ? PLAT_MOD_RGUI : 0));
+    e->caps_lock = (mod & KMOD_CAPS) != 0;
+    e->num_lock = (mod & KMOD_NUM) != 0;
+}
+
 int plat_sdl_char_for_key(SDL_Keycode key, Uint16 mod)
 {
     if (mod & KMOD_CTRL) {   /* Ctrl with a letter or @ [ \ ] ^ _ gives a control code; the window sends no text for these */
@@ -266,6 +293,7 @@ static void handle_events(void)
             const int ch = plat_sdl_char_for_key(e.key.keysym.sym, e.key.keysym.mod);
             if (ch >= 0)
                 char_push(ch);
+            key_event_push(e.key.keysym.scancode, e.key.keysym.mod);
         }
         if (e.type == SDL_QUIT)
             quit = true;

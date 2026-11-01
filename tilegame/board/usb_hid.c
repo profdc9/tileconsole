@@ -191,6 +191,7 @@ plat_buttons_t usb_hid_buttons(int player)
 }
 
 int usb_hid_getchar(void) { return keymap_getchar(); }
+int usb_hid_getkey(plat_key_event_t *event) { return keymap_getevent(event); }
 
 plat_mouse_t usb_hid_mouse_frame(void)
 {

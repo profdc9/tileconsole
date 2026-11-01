@@ -6,6 +6,7 @@
 
 void usb_hid_init(void);                          /* start the USB host */
 void usb_hid_task(void);                          /* call often (at least every few milliseconds) */
+int usb_hid_getkey(plat_key_event_t *event);                  /* the next key press with its modifiers (plat_getkey), or 0 */
 int usb_hid_getchar(void);                        /* the next typed character from the keyboards, or -1 (see keymap.h) */
 plat_buttons_t usb_hid_buttons(int player);       /* what the keyboards and gamepads for this player hold down */
 plat_mouse_t usb_hid_mouse_frame(void);           /* the mouse snapshot for this frame (call once a frame) */

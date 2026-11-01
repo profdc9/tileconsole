@@ -108,6 +108,28 @@ plat_buttons_t plat_buttons_released(int player);   /* went up since the previou
 
 int plat_getchar(void);
 
+/* The same keys as events, for programs that need to know which key and with which modifiers (an editor with Ctrl+arrows and Alt+letters): the key's USB
+ * HID usage code (a = 0x04 ... Enter 0x28, F1 0x3A, arrows 0x4F..0x52, keypad 0x54..0x63; the modifier keys themselves are not reported), the
+ * modifiers held when it went down (the HID modifier bits below), and the state of the lock keys. A held key repeats, as for plat_getchar. The two
+ * streams are separate: reading one does not take from the other. */
+typedef struct {
+    uint8_t usage;
+    uint8_t modifiers;
+    uint8_t caps_lock, num_lock;
+} plat_key_event_t;
+#define PLAT_MOD_LCTRL 0x01
+#define PLAT_MOD_LSHIFT 0x02
+#define PLAT_MOD_LALT 0x04
+#define PLAT_MOD_LGUI 0x08
+#define PLAT_MOD_RCTRL 0x10
+#define PLAT_MOD_RSHIFT 0x20
+#define PLAT_MOD_RALT 0x40
+#define PLAT_MOD_RGUI 0x80
+#define PLAT_MOD_CTRL (PLAT_MOD_LCTRL | PLAT_MOD_RCTRL)
+#define PLAT_MOD_SHIFT (PLAT_MOD_LSHIFT | PLAT_MOD_RSHIFT)
+#define PLAT_MOD_ALT (PLAT_MOD_LALT | PLAT_MOD_RALT)
+int plat_getkey(plat_key_event_t *event);   /* 1 and the next key press, or 0 if there is none */
+
 /* ---- mouse ---- */
 
 #define PLAT_MOUSE_LEFT   1

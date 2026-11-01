@@ -52,6 +52,110 @@ static void push_key(SDL_Keycode key, bool down, int repeat)
     SDL_PushEvent(&e);
 }
 
+static void push_scan(SDL_Scancode sc, Uint16 mod, bool down, int repeat)
+{
+    SDL_Event e;
+    memset(&e, 0, sizeof e);
+    e.type = down ? SDL_KEYDOWN : SDL_KEYUP;
+    e.key.keysym.scancode = sc;
+    e.key.keysym.mod = mod;
+    e.key.state = down ? SDL_PRESSED : SDL_RELEASED;
+    e.key.repeat = (Uint8)repeat;
+    SDL_PushEvent(&e);
+}
+
+static void test_key_events(void)
+{
+    plat_key_event_t ev;
+    plat_wait_frame();
+    while (plat_getkey(&ev))
+        ;
+    CHECK(!plat_getkey(&ev));
+    /* a key is its HID usage (SDL's scancodes are the same numbers) and the modifier bits */
+    push_scan(SDL_SCANCODE_A, 0, true, 0);
+    plat_wait_frame();
+    CHECK(plat_getkey(&ev) && ev.usage == 0x04 && ev.modifiers == 0 && ev.caps_lock == 0 && ev.num_lock == 0);
+    CHECK(!plat_getkey(&ev));
+    push_scan(SDL_SCANCODE_A, 0, false, 0);                  /* letting go is nothing */
+    plat_wait_frame();
+    CHECK(!plat_getkey(&ev));
+    static const struct { Uint16 kmod; int bit; } mods[] = {
+        {KMOD_LCTRL, PLAT_MOD_LCTRL}, {KMOD_LSHIFT, PLAT_MOD_LSHIFT}, {KMOD_LALT, PLAT_MOD_LALT}, {KMOD_LGUI, PLAT_MOD_LGUI},
+        {KMOD_RCTRL, PLAT_MOD_RCTRL}, {KMOD_RSHIFT, PLAT_MOD_RSHIFT}, {KMOD_RALT, PLAT_MOD_RALT}, {KMOD_RGUI, PLAT_MOD_RGUI},
+    };
+    for (size_t i = 0; i < sizeof mods / sizeof *mods; i++) {
+        push_scan(SDL_SCANCODE_UP, mods[i].kmod, true, 0);
+        plat_wait_frame();
+        CHECK(plat_getkey(&ev) && ev.usage == 0x52 && ev.modifiers == mods[i].bit);
+    }
+    push_scan(SDL_SCANCODE_F5, KMOD_LCTRL | KMOD_RSHIFT | KMOD_LALT, true, 0);
+    plat_wait_frame();
+    CHECK(plat_getkey(&ev) && ev.usage == 0x3E && ev.modifiers == (PLAT_MOD_LCTRL | PLAT_MOD_RSHIFT | PLAT_MOD_LALT));
+    CHECK((PLAT_MOD_CTRL | PLAT_MOD_SHIFT | PLAT_MOD_ALT) == 0x77);
+    /* the lock keys' state comes with the event */
+    push_scan(SDL_SCANCODE_B, KMOD_CAPS, true, 0);
+    push_scan(SDL_SCANCODE_B, KMOD_NUM, true, 0);
+    push_scan(SDL_SCANCODE_B, KMOD_CAPS | KMOD_NUM, true, 0);
+    plat_wait_frame();
+    CHECK(plat_getkey(&ev) && ev.caps_lock == 1 && ev.num_lock == 0);
+    CHECK(plat_getkey(&ev) && ev.caps_lock == 0 && ev.num_lock == 1);
+    CHECK(plat_getkey(&ev) && ev.caps_lock == 1 && ev.num_lock == 1);
+    /* an auto-repeat is an event; the modifier keys alone, and scancodes below the letters, are not */
+    push_scan(SDL_SCANCODE_X, 0, true, 0);
+    push_scan(SDL_SCANCODE_X, 0, true, 1);
+    push_scan(SDL_SCANCODE_X, 0, true, 1);
+    push_scan(SDL_SCANCODE_LSHIFT, KMOD_LSHIFT, true, 0);
+    push_scan(SDL_SCANCODE_RCTRL, KMOD_RCTRL, true, 0);
+    push_scan(SDL_SCANCODE_RGUI, KMOD_RGUI, true, 0);
+    push_scan(SDL_SCANCODE_UNKNOWN, 0, true, 0);
+    push_scan((SDL_Scancode)3, 0, true, 0);
+    push_scan((SDL_Scancode)0xE7, 0, true, 0);
+    push_scan(SDL_SCANCODE_Z, 0, true, 0);
+    plat_wait_frame();
+    for (int i = 0; i < 3; i++)
+        CHECK(plat_getkey(&ev) && ev.usage == 0x1B);
+    CHECK(plat_getkey(&ev) && ev.usage == 0x1D);
+    CHECK(!plat_getkey(&ev));
+    /* the keypad and the keys that make no character */
+    push_scan(SDL_SCANCODE_KP_5, KMOD_NUM, true, 0);
+    push_scan(SDL_SCANCODE_PRINTSCREEN, 0, true, 0);
+    push_scan(SDL_SCANCODE_APPLICATION, 0, true, 0);
+    plat_wait_frame();
+    CHECK(plat_getkey(&ev) && ev.usage == 0x5D);
+    CHECK(plat_getkey(&ev) && ev.usage == 0x46);
+    CHECK(plat_getkey(&ev) && ev.usage == 0x65);
+    /* the queue holds 64 and drops the rest, round the ring more than once */
+    for (int round = 0; round < 3; round++) {
+        for (int i = 0; i < 100; i++)
+            push_scan((SDL_Scancode)(4 + i % 26), 0, true, 0);
+        plat_wait_frame();
+        for (int i = 0; i < 64; i++)
+            CHECK(plat_getkey(&ev) && ev.usage == 4 + i % 26);
+        CHECK(!plat_getkey(&ev));
+    }
+    /* the characters and the key events are separate streams */
+    while (plat_getchar() >= 0)
+        ;
+    {
+        SDL_Event e;
+        memset(&e, 0, sizeof e);
+        e.type = SDL_KEYDOWN;
+        e.key.keysym.scancode = SDL_SCANCODE_LEFT;
+        e.key.keysym.sym = SDLK_LEFT;
+        e.key.state = SDL_PRESSED;
+        SDL_PushEvent(&e);
+    }
+    plat_wait_frame();
+    CHECK(plat_getchar() == PLAT_KEY_LEFT && plat_getchar() == -1);
+    CHECK(plat_getkey(&ev) && ev.usage == 0x50 && !plat_getkey(&ev));
+    push_key(SDLK_LEFT, false, 0);                           /* (the arrow is also a pad button: let go of it) */
+    push_scan(SDL_SCANCODE_Q, 0, true, 0);
+    push_text("q");
+    plat_wait_frame();
+    CHECK(plat_getchar() == 'q' && plat_getchar() == -1);
+    CHECK(plat_getkey(&ev) && ev.usage == 0x14);
+}
+
 static void test_timing(void)
 {
     const uint32_t f0 = plat_wait_frame();
@@ -583,6 +687,7 @@ int main(void)
     test_text_mode();
     test_cursor_blink();
     test_chars();
+    test_key_events();
     test_audio();
     test_mouse();
     test_controllers();

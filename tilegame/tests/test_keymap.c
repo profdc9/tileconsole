@@ -435,6 +435,115 @@ static void test_queue_and_release(void)
     CHECK(n == 2 && out[0] == 'a' && out[1] == 'b');   /* both repeat: a at 500 and b at 501 (their next ones are 533 and 534) */
 }
 
+static int next_event(plat_key_event_t *e)
+{
+    return keymap_getevent(e);
+}
+
+static void test_events(void)
+{
+    keymap_t k;
+    plat_key_event_t e;
+    keymap_init(&k);
+    keymap_flush();
+    CHECK(!next_event(&e));
+    /* a key press is an event with its usage, the modifiers at that moment and the lock keys (num lock is on to start with) */
+    report(&k, 0, 0x04, 0, 0, 0);
+    CHECK(next_event(&e) && e.usage == 0x04 && e.modifiers == 0 && e.caps_lock == 0 && e.num_lock == 1);
+    CHECK(!next_event(&e));
+    CHECK(keymap_getchar() == 'a' && keymap_getchar() == -1);   /* the characters are a separate stream: reading events did not take from it */
+    report(&k, 0, 0, 0, 0, 10);
+    CHECK(!next_event(&e));                              /* letting go is nothing */
+    /* the modifiers, each of the eight bits, and the keys that make no character */
+    for (int bit = 0; bit < 8; bit++) {
+        report(&k, (uint8_t)(1 << bit), 0, 0, 0, 100 + bit * 10);
+        CHECK(!next_event(&e));                          /* a modifier alone is no event */
+        report(&k, (uint8_t)(1 << bit), 0x52, 0, 0, 105 + bit * 10);   /* up arrow */
+        CHECK(next_event(&e) && e.usage == 0x52 && e.modifiers == (1 << bit));
+        report(&k, 0, 0, 0, 0, 108 + bit * 10);
+    }
+    keymap_flush();
+    report(&k, 0x05, 0x3A, 0, 0, 300);                   /* ctrl+alt+F1 */
+    CHECK(next_event(&e) && e.usage == 0x3A && e.modifiers == 0x05);
+    report(&k, 0x44, 0x07, 0, 0, 310);                   /* right alt + right... both shifts' bits as sent: right alt (0x40) and right shift (0x04 is left alt) */
+    CHECK(next_event(&e) && e.usage == 0x07 && e.modifiers == 0x44);
+    report(&k, 0, 0, 0, 0, 320);
+    /* the lock keys are events, and the state they leave shows in the next ones */
+    report(&k, 0, 0x39, 0, 0, 400);                      /* caps lock */
+    CHECK(next_event(&e) && e.usage == 0x39 && e.caps_lock == 1 && e.num_lock == 1);
+    report(&k, 0, 0, 0, 0, 410);
+    report(&k, 0, 0x53, 0, 0, 420);                      /* num lock */
+    CHECK(next_event(&e) && e.usage == 0x53 && e.caps_lock == 1 && e.num_lock == 0);
+    report(&k, 0, 0, 0, 0, 430);
+    report(&k, 0, 0x05, 0, 0, 440);
+    CHECK(next_event(&e) && e.usage == 0x05 && e.caps_lock == 1 && e.num_lock == 0);
+    report(&k, 0, 0, 0, 0, 450);
+    CHECK(!next_event(&e));
+    /* the repeat of a held key is events too, with the modifiers held at the time, as many as characters */
+    keymap_flush();
+    report(&k, 0x01, 0x07, 0, 0, 1000);                  /* ctrl+d */
+    CHECK(next_event(&e) && e.usage == 0x07 && e.modifiers == 0x01 && !next_event(&e));
+    int n = 0;
+    for (uint32_t t = 1000; t < 1700; t++) {
+        keymap_tick(&k, t);
+        while (next_event(&e)) {
+            CHECK(e.usage == 0x07 && e.modifiers == 0x01);
+            n++;
+        }
+    }
+    CHECK(n == 1 + (1700 - 1 - 1500) / 33);
+    report(&k, 0x02, 0x07, 0, 0, 1700);                  /* shift joins the held key: later repeats carry the shift too */
+    report(&k, 0x02, 0x07, 0, 0, 1710);
+    keymap_flush();
+    for (uint32_t t = 1710; t < 2400; t++)
+        keymap_tick(&k, t);
+    CHECK(next_event(&e) && e.usage == 0x07 && e.modifiers == 0x02);
+    report(&k, 0, 0, 0, 0, 2400);
+    /* a key that types nothing is an event once and does not repeat: the keypad 5 with num lock off, print screen */
+    keymap_flush();
+    report(&k, 0, 0x46, 0, 0, 3000);
+    CHECK(next_event(&e) && e.usage == 0x46);
+    for (uint32_t t = 3000; t < 4000; t++)
+        keymap_tick(&k, t);
+    CHECK(!next_event(&e));
+    report(&k, 0, 0, 0, 0, 4000);
+    /* a rollover error report makes nothing, as before; a short report neither */
+    keymap_flush();
+    { const uint8_t bad[8] = {0, 0, 1, 1, 1, 1, 1, 1}; keymap_report(&k, bad, 8, 5000); }
+    { const uint8_t shorty[4] = {0, 0, 4, 0}; keymap_report(&k, shorty, 4, 5010); }
+    CHECK(!next_event(&e));
+    /* the queue holds KEYMAP_QUEUE events and drops the rest; flush empties both streams */
+    for (int i = 0; i < KEYMAP_QUEUE + 10; i++) {
+        report(&k, 0, (uint8_t)(0x04 + i % 20), 0, 0, 6000 + i * 20);
+        report(&k, 0, 0, 0, 0, 6010 + i * 20);
+    }
+    n = 0;
+    while (next_event(&e)) {
+        CHECK(e.usage == 0x04 + n % 20);
+        n++;
+    }
+    CHECK(n == KEYMAP_QUEUE);
+    report(&k, 0, 0x04, 0, 0, 9000);
+    keymap_flush();
+    CHECK(!next_event(&e) && keymap_getchar() == -1);
+    /* the two streams drain independently: chars taken, events still there */
+    report(&k, 0, 0x05, 0, 0, 9100);
+    CHECK(keymap_getchar() == 'B');   /* (caps lock was turned on above) */
+    CHECK(next_event(&e) && e.usage == 0x05);
+    report(&k, 0, 0, 0, 0, 9200);
+    /* two keyboards share the queue, each with its own lock keys */
+    keymap_t k1, k2;
+    keymap_init(&k1);
+    keymap_init(&k2);
+    keymap_flush();
+    report(&k1, 0, 0x39, 0, 0, 9300);                    /* caps lock on the first */
+    report(&k2, 0, 0x04, 0, 0, 9310);
+    CHECK(next_event(&e) && e.usage == 0x39 && e.caps_lock == 1);
+    CHECK(next_event(&e) && e.usage == 0x04 && e.caps_lock == 0);   /* not on the second */
+    report(&k1, 0, 0, 0, 0, 9400);
+    report(&k2, 0, 0, 0, 0, 9400);
+}
+
 static void test_fuzz(void)
 {
     keymap_t k;
@@ -474,6 +583,7 @@ int main(void)
     test_slots();
     test_locks();
     test_repeat();
+    test_events();
     test_queue_and_release();
     test_fuzz();
     printf("all %d checks passed\n", checks);

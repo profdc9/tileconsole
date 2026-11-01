@@ -101,12 +101,13 @@ test_view: tests/test_view.c $(GAMESRC) game/game.h game/level.h game/view.h $(T
 test_hid_pad: tests/test_hid_pad.c src/hid_pad.c src/hid_mouse.c src/mouse_acc.c src/xinput.c include/mouse_acc.h include/xinput.h include/hid_pad.h include/hid_mouse.h include/platform.h
 	$(CC) $(CFLAGS) -g -fsanitize=address,undefined $(INC) tests/test_hid_pad.c src/hid_pad.c src/hid_mouse.c src/mouse_acc.c src/xinput.c -o $@
 
-check: test_editsd test_sdtest test_platform_sdl test_hid_kbd test_keymap test_consdemo test_consoleio test_editor test_editdemo test_hid_pad test_game test_view
+check: test_tde test_editsd test_sdtest test_platform_sdl test_hid_kbd test_keymap test_consdemo test_consoleio test_editor test_editdemo test_hid_pad test_game test_view
 	./test_platform_sdl
 	./test_hid_kbd
 	./test_keymap
 	./test_sdtest
 	./test_editsd
+	./test_tde
 	./test_consdemo
 	./test_consoleio
 	./test_editor
@@ -140,3 +141,35 @@ editsd: demo/editsd.c $(EDITSDSRC) sdl/plat_sdl.c src/mouse_acc.c include/platfo
 
 test_editsd: tests/test_editsd.c demo/editsd_logic.c demo/editsd_logic.h editor/editor.c $(CONSOLEIO_SRC) $(TILEFSSRC)
 	$(CC) $(CFLAGS) -Wno-old-style-definition -g -fsanitize=address,undefined $(INC) $(SDINC) -Ieditor tests/test_editsd.c demo/editsd_logic.c editor/editor.c $(CONSOLEIO_SRC) $(TILEFSSRC) -o $@
+
+# TDE, the Thomson-Davis Editor (public domain), built like its Unix version with the tilegame console and files (tde/os) instead of curses.
+TDESRC = $(filter-out tde/src/main.c tde/src/menucua.c,$(wildcard tde/src/*.c))   # (menucua.c is the alternative menu, included by menu.c when asked for)
+TDEOBJ = $(patsubst tde/src/%.c,build/tde/%.o,$(TDESRC)) build/tde/main.o build/tde/console.o build/tde/port.o build/tde/criterr.o build/tde/tde_libc.o
+TDECFLAGS = -std=gnu11 -O2 -w -U_FORTIFY_SOURCE -D__UNIX__ -D__TILEGAME__ -Itde/src -Itde/os -Iinclude -I$(TILEGFX) -I$(TILEFS) -I$(FATFS)
+include $(TILEFS)/../tilegame/tde/os/Makefile.frag
+
+build/tde/%.o: tde/src/%.c
+	@mkdir -p build/tde
+	$(CC) -c $(TDECFLAGS) $< -o $@
+build/tde/main.o: tde/src/main.c
+	@mkdir -p build/tde
+	$(CC) -c $(TDECFLAGS) -Dmain=tde_main $< -o $@
+build/tde/%.o: tde/os/%.c
+	@mkdir -p build/tde
+	$(CC) -c $(TDECFLAGS) -I$(TILEGFX) $< -o $@
+
+TDEFSSRC = $(filter-out $(TILEFS)/fs_posix.c,$(TILEFSSRC))   # (the host backend is built apart: it must reach the real C library, not the editor's)
+TDEPLAT = tde/tdeapp.c sdl/plat_sdl.c src/mouse_acc.c src/keymap.c $(TILEGFX)/tilegfx.c $(TILEGFX)/tg_text.c $(TILEGFX)/tg_text_cp437.c $(TILEGFX)/tg_font.c $(TILEGFX)/fonts/unscii16.c $(TDEFSSRC) build/tde/fs_posix.o
+
+build/tde/fs_posix.o: $(TILEFS)/fs_posix.c
+	@mkdir -p build/tde
+	$(CC) -c -std=gnu11 -O2 -w -DTILEFS_WRAPPED_LIBC -I$(TILEFS) $< -o $@
+
+tde_ed: $(TDEOBJ) $(TDEPLAT) include/platform.h
+	$(CC) $(CFLAGS) -w -U_FORTIFY_SOURCE $(INC) $(SDINC) -Itde/os $(TDEOBJ) $(TDEPLAT) $(TDE_WRAP) -o $@ $(SDL) -lm
+
+TDETESTSRC = tests/test_tde.c tests/test_tde_console.c src/keymap.c $(TILEGFX)/tg_text.c $(TILEGFX)/tg_text_cp437.c $(TILEGFX)/tg_font.c $(TILEGFX)/fonts/unscii16.c $(TILEGFX)/tilegfx.c $(TDEFSSRC) build/tde/fs_posix.o
+
+test_tde: $(TDEOBJ) $(TDETESTSRC)
+	$(CC) -c -w -g -U_FORTIFY_SOURCE -D__UNIX__ -D__TILEGAME__ -Itde/src -Itde/os $(INC) $(SDINC) tests/test_tde_console.c -o build/tde/test_tde_console.o
+	$(CC) $(CFLAGS) -w -g -U_FORTIFY_SOURCE -D__UNIX__ -D__TILEGAME__ $(INC) $(SDINC) -Itde/os $(TDEOBJ) build/tde/test_tde_console.o $(filter-out tests/test_tde_console.c,$(TDETESTSRC)) $(TDE_WRAP) -o $@ -lm
