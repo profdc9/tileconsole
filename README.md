@@ -2,7 +2,15 @@
 
 A retro-console style, self-contained development system for the RP2350 (HDMI on the HSTX, USB keyboard and gamepads, an SD card), and the libraries it is built from. The same code runs on the desktop (SDL2).
 
+## The board
+
+The development board for the project is the [Emu2350](https://github.com/profdc9/Emu2350): an RP2350B board with HDMI on the HSTX, USB host for keyboards and gamepads, and an SD card socket. It can be manufactured with JLCPCB PCBA (assembled boards). Pin assignments in the code (HDMI on GPIO12 to 19, the SD card on SPI0 GPIO4 to 7) are those of this board.
+
+## The development kit
+
 The development kit (`tilegame/demo/devkit.c`) is BASIC ([MY-BASIC](https://github.com/paladin-t/my_basic), unmodified) and the TDE editor in one program: type BASIC at the prompt, `EDIT` a program in TDE, come back and `RUN` it. Programs are free-form text files on the SD card.
+
+## Projects
 
 Six projects, each with its own history, in one repository (they sit next to each other, and the build files refer to each other as `../name`):
 
