@@ -1814,9 +1814,11 @@ TDE_WIN s_w, d_w;               /* a couple of temporary TDE_WINs */
          assert( bc <= MAX_LINE_LENGTH );
          assert( rcol >= 0 );
 
-         load_box_buff( g_status.line_buff+rcol, block_start, bc, lens-1, ' ',
-                        source_file->inflate_tabs, source_file->ptab_size );
-         g_status.line_buff_len = rcol + lens - bc;
+         /* tilegame port: a stream block that begins at or after the end of its first line has nothing of that line to copy (ec would be before bc) */
+         if (lens > bc)
+            load_box_buff( g_status.line_buff+rcol, block_start, bc, lens-1, ' ',
+                           source_file->inflate_tabs, source_file->ptab_size );
+         g_status.line_buff_len = rcol + (lens > bc ? lens - bc : 0);
          *rc = un_copy_line( dest, &d_w, TRUE, FALSE );
          dest->type |= DIRTY;
       }

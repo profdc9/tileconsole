@@ -165,8 +165,21 @@ build/tde/fs_posix.o: $(TILEFS)/fs_posix.c
 	@mkdir -p build/tde
 	$(CC) -c -std=gnu11 -O2 -w -DTILEFS_WRAPPED_LIBC -I$(TILEFS) $< -o $@
 
-tde_ed: $(TDEOBJ) $(TDEPLAT) include/platform.h
-	$(CC) $(CFLAGS) -w -U_FORTIFY_SOURCE $(INC) $(SDINC) -Itde/os $(TDEOBJ) $(TDEPLAT) $(TDE_WRAP) -o $@ $(SDL) -lm
+# The program is built as the editor's own makefile builds it, with -DNDEBUG (no assert checks: some of them are for the author's debugging and would end the editor
+# for a harmless reason); the tests use the same sources with the checks on, so that a violated assumption is found.
+TDERELOBJ = $(patsubst build/tde/%.o,build/tder/%.o,$(TDEOBJ))
+build/tder/%.o: tde/src/%.c
+	@mkdir -p build/tder
+	$(CC) -c $(TDECFLAGS) -DNDEBUG $< -o $@
+build/tder/main.o: tde/src/main.c
+	@mkdir -p build/tder
+	$(CC) -c $(TDECFLAGS) -DNDEBUG -Dmain=tde_main $< -o $@
+build/tder/%.o: tde/os/%.c
+	@mkdir -p build/tder
+	$(CC) -c $(TDECFLAGS) -DNDEBUG -I$(TILEGFX) $< -o $@
+
+tde_ed: $(TDERELOBJ) $(TDEPLAT) include/platform.h
+	$(CC) $(CFLAGS) -w -U_FORTIFY_SOURCE $(INC) $(SDINC) -Itde/os $(TDERELOBJ) $(TDEPLAT) $(TDE_WRAP) -o $@ $(SDL) -lm
 
 TDETESTSRC = tests/test_tde.c tests/test_tde_console.c src/keymap.c $(TILEGFX)/tg_text.c $(TILEGFX)/tg_text_cp437.c $(TILEGFX)/tg_font.c $(TILEGFX)/fonts/unscii16.c $(TILEGFX)/tilegfx.c $(TDEFSSRC) build/tde/fs_posix.o
 

@@ -604,6 +604,19 @@ static void test_line_endings_and_big(void)
     free(line);
 }
 
+/* Things that stopped the editor: a stream block that begins at the end of its first line, copied (an assertion in the copy code; the fix is in block.c), and what
+ * a prompt does with the cursor keys. The editor is built with its assertion checks on for the tests. */
+static void test_crashes(void)
+{
+    fresh_files();
+    put_file("a.txt", "one\ntwo\nthree\n", 14);
+    want("/sd/a.txt");
+    CHECK(run("{END}{A-x}{END}{A-l}{A-k}{A-c}{A-k}", "a.txt"));
+    CHECK(run("{END}{A-x}{DOWN}{END}{A-x}{A-c}{F2}", "a.txt"));      /* a block from the end of a line: its first line adds nothing, the break and the next line are copied */
+    CHECK(file_is("/sd/a.txt", "one\ntwo\ntwo\nthree\n"));
+    CHECK(run("{A-c}{A-m}{A-u}{A-k}{A-g}", "a.txt"));               /* block commands with no block marked */
+}
+
 static void test_keys(void)
 {
     fresh_files();
@@ -956,6 +969,7 @@ int main(int argc, char **argv)
     test_menus_and_help();
     test_line_endings_and_big();
     test_keys();
+    test_crashes();
     printf("all %d checks passed\n", checks);
     return 0;
 }

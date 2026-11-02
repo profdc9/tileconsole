@@ -777,7 +777,7 @@ MENU_LIST *ml;
       key = 256 | (k << 9);
       for (i = 0; i < MAX_KEYS; ++i) {
          j = key_func[k][i];
-         if (j != 0 && func_key[j] == 0) {
+         if (j != 0 && j < NUM_FUNCS && func_key[j] == 0) {   /* tilegame port: TwoCharKey is NUM_FUNCS, one past the end of func_key */
             if (!viewer( i | key ))
                func_key[j] = i | key;
          }
