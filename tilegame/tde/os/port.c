@@ -41,13 +41,29 @@
 /*
  * Name:    my_heapavail
  * Purpose: available free memory
- * Notes:   tilegame port: the editor only compares this with what it wants to allocate. Say there is plenty (the allocations themselves fail
- *            if there is not).
+ * Notes:   tilegame port: on the board, what malloc holds free plus the heap not yet taken from the top of RAM (every allocation, the editor's pool
+ *            chunks included, comes from there).  On the desktop the editor only compares this with what it wants to allocate: say there is plenty (the
+ *            allocations themselves fail if there is not).
  */
+#ifdef TDE_BOARD
+#include <malloc.h>
+#include <unistd.h>
+
+extern char __HeapLimit;
+
+long my_heapavail( void )
+{
+   struct mallinfo mi = mallinfo( );
+   char *top = sbrk( 0 );
+
+   return( (long)mi.fordblks + (long)(&__HeapLimit - top) );
+}
+#else
 long my_heapavail( void )
 {
    return( 16L * 1024 * 1024 );
 }
+#endif
 
 
 /*
