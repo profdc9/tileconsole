@@ -6,7 +6,7 @@ CFLAGS ?= -std=c11 -Wall -Wextra -O2
 INC = -Iinclude -Isdl -I$(TILEGFX) -I$(TILESND)
 SDL = $(shell pkg-config --cflags --libs sdl2)
 
-all: tgbasic test_basic editsd test_editsd sdtest test_sdtest game_demo padtest platformer textdemo consdemo editdemo test_editdemo test_consdemo test_consoleio test_platform_sdl test_hid_kbd test_keymap test_hid_pad test_game test_view
+all: devkit tgbasic test_basic editsd test_editsd sdtest test_sdtest game_demo padtest platformer textdemo consdemo editdemo test_editdemo test_consdemo test_consoleio test_platform_sdl test_hid_kbd test_keymap test_hid_pad test_game test_view
 
 test_platform_sdl: tests/test_platform_sdl.c sdl/plat_sdl.c src/mouse_acc.c sdl/plat_sdl.h include/platform.h $(TILEGFX)/tilegfx.c $(TILEGFX)/tg_text.c
 	$(CC) $(CFLAGS) -g -fsanitize=address,undefined $(INC) tests/test_platform_sdl.c sdl/plat_sdl.c src/mouse_acc.c $(TILEGFX)/tilegfx.c $(TILEGFX)/tg_text.c -o $@ $(SDL) -lm
@@ -101,13 +101,14 @@ test_view: tests/test_view.c $(GAMESRC) game/game.h game/level.h game/view.h $(T
 test_hid_pad: tests/test_hid_pad.c src/hid_pad.c src/hid_mouse.c src/mouse_acc.c src/xinput.c include/mouse_acc.h include/xinput.h include/hid_pad.h include/hid_mouse.h include/platform.h
 	$(CC) $(CFLAGS) -g -fsanitize=address,undefined $(INC) tests/test_hid_pad.c src/hid_pad.c src/hid_mouse.c src/mouse_acc.c src/xinput.c -o $@
 
-check: test_basic test_tde test_tde_san test_editsd test_sdtest test_platform_sdl test_hid_kbd test_keymap test_consdemo test_consoleio test_editor test_editdemo test_hid_pad test_game test_view
+check: test_devkit test_basic test_tde test_tde_san test_editsd test_sdtest test_platform_sdl test_hid_kbd test_keymap test_consdemo test_consoleio test_editor test_editdemo test_hid_pad test_game test_view
 	./test_platform_sdl
 	./test_hid_kbd
 	./test_keymap
 	./test_sdtest
 	./test_editsd
 	./test_basic
+	SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy ./test_devkit
 	./test_tde
 	ASAN_OPTIONS=detect_leaks=0 ./test_tde_san
 	./test_consdemo
@@ -182,6 +183,21 @@ build/tder/%.o: tde/os/%.c
 
 tde_ed: $(TDERELOBJ) $(TDEPLAT) include/platform.h
 	$(CC) $(CFLAGS) -w -U_FORTIFY_SOURCE $(INC) $(SDINC) -Itde/os $(TDERELOBJ) $(TDEPLAT) $(TDE_WRAP) -o $@ $(SDL) -lm
+
+# The development kit on the desktop: BASIC and the editor in one program (EDIT runs the editor in the same process).
+DEVKITBASIC = basic/basic_env.c basic/my_basic/my_basic.c $(TILEGFX)/tg_console.c
+devkit: demo/devkit.c $(TDERELOBJ) $(DEVKITBASIC) $(TDEPLAT) include/platform.h build/devkit_basic.o
+	$(CC) $(CFLAGS) -w -U_FORTIFY_SOURCE $(INC) $(SDINC) -Itde/os -Ibasic demo/devkit.c $(TDERELOBJ) build/devkit_basic.o $(filter-out tde/tdeapp.c,$(TDEPLAT)) $(TDE_WRAP) -o $@ $(SDL) -lm
+
+test_devkit: tests/test_devkit.c demo/devkit.c $(TDERELOBJ) $(DEVKITBASIC) $(TDEPLAT) include/platform.h build/devkit_basic.o
+	$(CC) $(CFLAGS) -w -U_FORTIFY_SOURCE $(INC) $(SDINC) -Itde/os -Ibasic tests/test_devkit.c $(TDERELOBJ) build/devkit_basic.o $(filter-out tde/tdeapp.c,$(TDEPLAT)) $(TDE_WRAP) -o $@ $(SDL) -lm -lpthread
+
+build/devkit_basic.o: $(DEVKITBASIC)
+	@mkdir -p build
+	$(CC) -c $(BASICFLAGS) -O2 $(INC) $(SDINC) -Ibasic basic/basic_env.c -o build/devkit_basic_env.o
+	$(CC) -c $(BASICFLAGS) -O2 $(INC) $(SDINC) -Ibasic basic/my_basic/my_basic.c -o build/devkit_my_basic.o
+	$(CC) -c $(BASICFLAGS) -O2 $(INC) $(SDINC) $(TILEGFX)/tg_console.c -o build/devkit_tg_console.o
+	ld -r build/devkit_basic_env.o build/devkit_my_basic.o build/devkit_tg_console.o -o $@
 
 TDETESTSRC = tests/test_tde.c tests/test_tde_console.c src/keymap.c $(TILEGFX)/tg_text.c $(TILEGFX)/tg_text_cp437.c $(TILEGFX)/tg_font.c $(TILEGFX)/fonts/unscii16.c $(TILEGFX)/tilegfx.c $(TDEFSSRC) build/tde/fs_posix.o
 

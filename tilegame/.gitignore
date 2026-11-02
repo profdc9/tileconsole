@@ -34,3 +34,6 @@ test_tde_san
 tgbasic
 test_basic
 basic_files/
+devkit
+test_devkit
+devkit_files/

@@ -119,4 +119,4 @@ set_source_files_properties(${DEMO_DIR}/devkit.c PROPERTIES COMPILE_OPTIONS "-I$
 # MY-BASIC: the allocation tag is a size_t, so that its blocks are aligned; the packed structs it uses are fine on this core.
 set_source_files_properties(${BASIC_DIR}/my_basic/my_basic.c ${BASIC_DIR}/basic_env.c PROPERTIES COMPILE_OPTIONS "-w;-Dmb_mem_tag_t=size_t")
 target_link_options(devkit PRIVATE -Wl,--wrap=fopen,--wrap=stat,--wrap=chmod,--wrap=access,--wrap=utime,--wrap=unlink,--wrap=remove,--wrap=rmdir,--wrap=rename,--wrap=mkdir,--wrap=getcwd,--wrap=chdir,--wrap=realpath,--wrap=opendir,--wrap=readdir,--wrap=closedir)
-target_compile_definitions(devkit PRIVATE PICO_STACK_SIZE=0x1000 PICO_CORE1_STACK_SIZE=0x800)
+target_compile_definitions(devkit PRIVATE DEVKIT_BOARD=1 PICO_STACK_SIZE=0x1000 PICO_CORE1_STACK_SIZE=0x800)
