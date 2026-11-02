@@ -167,6 +167,9 @@ long new_key;
       if (key == 0)
          continue;
       new_key = translate_key( key, shift_state, (text_t)ch );
+      if (getenv( "TDE_TRACE" ))   /* for finding out what the editor was given: usage code, modifier bits, the editor's key and what translate_key made of it */
+         fprintf( stderr, "key: usage 0x%02x modifiers 0x%02x caps %d num %d -> key %d shift %d char %d -> %ld\n", ev.usage, ev.modifiers, ev.caps_lock,
+                  ev.num_lock, key, shift_state, ch, new_key );
       if (new_key != ERROR)
          return( new_key );
    }
