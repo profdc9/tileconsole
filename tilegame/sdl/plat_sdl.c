@@ -293,6 +293,9 @@ static void handle_events(void)
             const int ch = plat_sdl_char_for_key(e.key.keysym.sym, e.key.keysym.mod);
             if (ch >= 0)
                 char_push(ch);
+            if (getenv("PLAT_TRACE"))   /* what SDL itself says about each key press, to compare with what a program makes of it */
+                fprintf(stderr, "sdl: scancode %d (%s) sym %d (%s) mod 0x%04x repeat %d\n", (int)e.key.keysym.scancode, SDL_GetScancodeName(e.key.keysym.scancode),
+                        (int)e.key.keysym.sym, SDL_GetKeyName(e.key.keysym.sym), (unsigned)e.key.keysym.mod, (int)e.key.repeat);
             key_event_push(e.key.keysym.scancode, e.key.keysym.mod);
         }
         if (e.type == SDL_QUIT)
