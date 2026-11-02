@@ -18,6 +18,7 @@
 #include "tg_text.h"
 #include "tilefs.h"
 
+FILE *__real_fopen(const char *name, const char *mode);
 static int checks;
 static void show_screen(void);
 #define CHECK(cond)                                                          \
@@ -70,6 +71,13 @@ static void finish(int code)
         if (write(out_fd, line, 81) != 81)
             _exit(3);
     }
+    {   /* the attribute of every cell, as a byte */
+        unsigned char attrs[25 * 80];
+        for (int i = 0; i < 25 * 80; i++)
+            attrs[i] = (unsigned char)(screen.cells[i] >> 8);
+        if (write(out_fd, attrs, sizeof attrs) != (ssize_t)sizeof attrs)
+            _exit(3);
+    }
  {
         char head[100];
         const int n = snprintf(head, sizeof head, "cursor %d %d %d %d %d\n", screen.cursor_col, screen.cursor_row, screen.cursor_start, screen.cursor_end,
@@ -98,8 +106,6 @@ static void finish(int code)
     }
     _exit(code);
 }
-
-FILE *__real_fopen(const char *name, const char *mode);
 
 static void nop(void) {}
 
@@ -154,8 +160,30 @@ static void add(int usage, int mod)
     script_len++;
 }
 
+static void parse_trace(const char *path)
+{
+    FILE *fp = __real_fopen(path, "r");
+    char line[300];
+    CHECK(fp != NULL);
+    script_len = script_pos = 0;
+    while (fgets(line, sizeof line, fp)) {
+        unsigned usage, mods;
+        int caps, num;
+        if (sscanf(line, "key: usage 0x%x modifiers 0x%x caps %d num %d", &usage, &mods, &caps, &num) == 4) {
+            cur_caps = caps;
+            cur_num = num;
+            add((int)usage, (int)mods);
+        }
+    }
+    fclose(fp);
+}
+
 static void parse_keys(const char *spec)
 {
+    if (spec[0] == '@') {
+        parse_trace(spec + 1);
+        return;
+    }
     script_len = script_pos = 0;
     cur_caps = 0;
     cur_num = 1;
@@ -279,6 +307,7 @@ static void child(const char *keys, const char *cmdline)
 }
 
 /* The files the child sent back. */
+static unsigned char attr_rows[25 * 80];   /* the attribute of every cell of the screen */
 static int cursor[5];   /* column, row, first and last scan line, visible */
 static struct { char name[64]; int len; char *data; } got_files[8];
 static int got_count;
@@ -288,7 +317,8 @@ static void parse_dump(const char *raw, size_t got)
     for (int i = 0; i < got_count; i++)
         free(got_files[i].data);
     got_count = 0;
-    size_t pos = 25 * 81;
+    memcpy(attr_rows, raw + 25 * 81, got >= 25 * 81 + 25 * 80 ? 25 * 80 : 0);
+    size_t pos = 25 * 81 + 25 * 80;
     const char *cl = memchr(raw + pos, '\n', got > pos ? got - pos : 0);
     if (cl) {
         if (sscanf(raw + pos, "cursor %d %d %d %d %d", &cursor[0], &cursor[1], &cursor[2], &cursor[3], &cursor[4]) != 5)
@@ -363,7 +393,7 @@ static int run(const char *keys, const char *cmdline)
     int status;
     waitpid(pid, &status, 0);
     memset(screen_text, 0, sizeof screen_text);
-    if (got >= 25 * 81) {
+    if (got >= 25 * 81 + 25 * 80) {
         for (int i = 0; i < 25; i++) {
             memcpy(screen_text[i], raw + i * 81, 80);
             int n = 80;
@@ -374,7 +404,7 @@ static int run(const char *keys, const char *cmdline)
     }
     if (getenv("TDE_DEBUG"))
         printf("[child: got %zu bytes, %s %d]\n", got, WIFSIGNALED(status) ? "signal" : "exit", WIFSIGNALED(status) ? WTERMSIG(status) : WEXITSTATUS(status));
-    return got >= 25 * 81 && WIFEXITED(status) && WEXITSTATUS(status) == 0;   /* (10: it ended) */
+    return got >= 25 * 81 + 25 * 80 && WIFEXITED(status) && WEXITSTATUS(status) == 0;   /* (10: it ended) */
 }
 
 static int screen_has(const char *text)
@@ -844,7 +874,15 @@ static void test_key_table(void)
 /* ./test_tde peek 'KEYS' [FILE...]: shows the screen after these keys, with a.txt (one, two, three) and b.txt (bee) in the folder: for finding out what the editor does. */
 static void peek_main(int argc, char **argv)
 {
-    put_file("a.txt", "one\ntwo\nthree\n", 14);
+    if (getenv("TDE_LONG")) {   /* a.txt of 20 lines of words, for replaying a trace of a real session */
+        static char words[2000];
+        size_t n = 0;
+        for (int i = 0; i < 20; i++)
+            n += (size_t)sprintf(words + n, "the quick brown fox %d jumps over the lazy dog\n", i);
+        put_file("a.txt", words, n);
+    } else {
+        put_file("a.txt", "one\ntwo\nthree\n", 14);
+    }
     put_file("b.txt", "bee\n", 4);
     put_file("dos.txt", "ab\r\ncd\r\n", 8);
     {
@@ -859,6 +897,21 @@ static void peek_main(int argc, char **argv)
     const int r = run(argc > 2 ? argv[2] : "", argc > 3 ? argv[3] : NULL);
     printf("run=%d cursor %d,%d visible %d\n", r, cursor[0], cursor[1], cursor[4]);
     show_screen();
+    if (getenv("TDE_ATTRS")) {   /* the attribute of each cell in hex, rows that are not all the same */
+        for (int r = 0; r < 25; r++) {
+            int same = 1;
+            for (int c = 1; c < 80; c++)
+                same &= attr_rows[r * 80 + c] == attr_rows[r * 80];
+            if (same)
+                printf("@%02d: all %02x\n", r, attr_rows[r * 80]);
+            else {
+                printf("@%02d:", r);
+                for (int c = 0; c < 80; c++)
+                    printf(" %02x", attr_rows[r * 80 + c]);
+                printf("\n");
+            }
+        }
+    }
     int len;
     const char *d = file_after("/sd/a.txt", &len);
     printf("a.txt (%d): %s\n", len, d ? d : "");
