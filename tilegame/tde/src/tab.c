@@ -883,7 +883,7 @@ text_ptr b, t;
       /*
        * use the line buffer to expand LINE blocks.
        */
-      t = memchr( p->line, '\t', p->len );
+      t = (p->len > 0) ? memchr( p->line, '\t', p->len ) : NULL;   /* tilegame port: an empty line has no text pointer (memchr may not be given NULL) */
       if (t != NULL) {
          g_status.line_buff_len = (int)(t - p->line);
          memcpy( g_status.line_buff, p->line, g_status.line_buff_len );

@@ -820,13 +820,18 @@ char *old_cp;
              * move cursor to beginning of word
              */
             if (pos > 0) {
-               p = cp--;
-               while (cp >= answer && myiswhitespc( *cp ))
-                  --cp;
-               if (func != WordDeleteBack || cp == p-1)
-                  while (cp >= answer && !myiswhitespc( *cp ))
-                     --cp;
-               ++cp;
+               /*
+                * tilegame port: counted with an index, because the pointer would go to answer[-1] (before the array, which the compiler may
+                * take to be impossible) when the word is the first thing in the line.
+                */
+               i = pos - 1;
+               p = cp;
+               while (i >= 0 && myiswhitespc( answer[i] ))
+                  --i;
+               if (func != WordDeleteBack || i == pos - 1)   /* (WordDeleteBack deletes the white space only, if there was some) */
+                  while (i >= 0 && !myiswhitespc( answer[i] ))
+                     --i;
+               cp = answer + i + 1;
                if (func == WordDeleteBack) {
                   i = (int)(p - cp);
                   disp = cp;
@@ -1052,8 +1057,7 @@ char *old_cp;
                      ++len;
                      *(answer + len) = '\0';
                   } else if (mode.insert) {
-                     for (p = answer+len; p >= cp; p--)
-                        *(p+1) = *p;
+                     memmove( cp+1, cp, (answer+len) - cp + 1 );   /* (tilegame port: not a loop down to cp-1, which is before answer when cp is at the start) */
                      ++len;
                      DLEN( len - pos );
                   }

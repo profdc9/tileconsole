@@ -969,7 +969,7 @@ int  tab_size;
           * remove the leading whitespace prior to joining
           */
          g_status.line_buff_len -= rcol;
-         memcpy( g_status.line_buff, g_status.line_buff + rcol,
+         memmove( g_status.line_buff, g_status.line_buff + rcol,   /* tilegame port: the ranges overlap */
                  g_status.line_buff_len );
          rcol = 0;
       }

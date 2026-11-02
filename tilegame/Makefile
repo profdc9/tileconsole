@@ -101,13 +101,14 @@ test_view: tests/test_view.c $(GAMESRC) game/game.h game/level.h game/view.h $(T
 test_hid_pad: tests/test_hid_pad.c src/hid_pad.c src/hid_mouse.c src/mouse_acc.c src/xinput.c include/mouse_acc.h include/xinput.h include/hid_pad.h include/hid_mouse.h include/platform.h
 	$(CC) $(CFLAGS) -g -fsanitize=address,undefined $(INC) tests/test_hid_pad.c src/hid_pad.c src/hid_mouse.c src/mouse_acc.c src/xinput.c -o $@
 
-check: test_tde test_editsd test_sdtest test_platform_sdl test_hid_kbd test_keymap test_consdemo test_consoleio test_editor test_editdemo test_hid_pad test_game test_view
+check: test_tde test_tde_san test_editsd test_sdtest test_platform_sdl test_hid_kbd test_keymap test_consdemo test_consoleio test_editor test_editdemo test_hid_pad test_game test_view
 	./test_platform_sdl
 	./test_hid_kbd
 	./test_keymap
 	./test_sdtest
 	./test_editsd
 	./test_tde
+	ASAN_OPTIONS=detect_leaks=0 ./test_tde_san
 	./test_consdemo
 	./test_consoleio
 	./test_editor
@@ -186,3 +187,26 @@ TDETESTSRC = tests/test_tde.c tests/test_tde_console.c src/keymap.c $(TILEGFX)/t
 test_tde: $(TDEOBJ) $(TDETESTSRC)
 	$(CC) -c -w -g -U_FORTIFY_SOURCE -D__UNIX__ -D__TILEGAME__ -Itde/src -Itde/os $(INC) $(SDINC) tests/test_tde_console.c -o build/tde/test_tde_console.o
 	$(CC) $(CFLAGS) -w -g -U_FORTIFY_SOURCE -D__UNIX__ -D__TILEGAME__ $(INC) $(SDINC) -Itde/os $(TDEOBJ) build/tde/test_tde_console.o $(filter-out tests/test_tde_console.c,$(TDETESTSRC)) $(TDE_WRAP) -o $@ -lm
+
+# The same tests with the editor built with the compiler's checks (AddressSanitizer, UBSan; not the alignment check, as the editor's allocator makes 16-bit
+# values at odd addresses on purpose): for finding what the normal build gets away with.
+TDESANFLAGS = -std=gnu11 -O1 -g -w -U_FORTIFY_SOURCE -fsanitize=address,undefined -fno-sanitize=alignment -D__UNIX__ -D__TILEGAME__ -Itde/src -Itde/os -Iinclude -I$(TILEGFX) -I$(TILEFS) -I$(FATFS)
+TDESANOBJ = $(patsubst build/tde/%.o,build/tdes/%.o,$(TDEOBJ)) build/tdes/test_tde_console.o
+build/tdes/%.o: tde/src/%.c
+	@mkdir -p build/tdes
+	$(CC) -c $(TDESANFLAGS) $< -o $@
+build/tdes/main.o: tde/src/main.c
+	@mkdir -p build/tdes
+	$(CC) -c $(TDESANFLAGS) -Dmain=tde_main $< -o $@
+build/tdes/%.o: tde/os/%.c
+	@mkdir -p build/tdes
+	$(CC) -c $(TDESANFLAGS) $< -o $@
+build/tdes/test_tde_console.o: tests/test_tde_console.c
+	@mkdir -p build/tdes
+	$(CC) -c $(TDESANFLAGS) $< -o $@
+
+test_tde_san: $(TDESANOBJ) tests/test_tde.c $(filter-out tests/test_tde.c tests/test_tde_console.c,$(TDETESTSRC))
+	$(CC) $(TDESANFLAGS) -fsanitize=address,undefined $(SDINC) $(TDESANOBJ) $(filter-out tests/test_tde_console.c,$(TDETESTSRC)) $(TDE_WRAP) -o $@ -lm
+
+check-san: test_tde_san
+	ASAN_OPTIONS=detect_leaks=0 ./test_tde_san

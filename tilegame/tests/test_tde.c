@@ -615,6 +615,19 @@ static void test_crashes(void)
     CHECK(run("{END}{A-x}{DOWN}{END}{A-x}{A-c}{F2}", "a.txt"));      /* a block from the end of a line: its first line adds nothing, the break and the next line are copied */
     CHECK(file_is("/sd/a.txt", "one\ntwo\ntwo\nthree\n"));
     CHECK(run("{A-c}{A-m}{A-u}{A-k}{A-g}", "a.txt"));               /* block commands with no block marked */
+    /* the cursor keys in a prompt, from the first word: they once looked at the character before the start of the text (found by running the editor with the
+     * compiler's checks on: `make test_tde_san`) */
+    CHECK(run("{S-F5}ab cd{C-LEFT}X", "a.txt") && ROW_HAS(23, "String to find: ab Xcd"));
+    CHECK(run("{S-F5}ab{C-LEFT}X", "a.txt") && ROW_HAS(23, "String to find: Xab"));
+    CHECK(run("{S-F5}ab cd{C-LEFT}{C-LEFT}X", "a.txt") && ROW_HAS(23, "String to find: Xab cd"));
+    CHECK(run("{S-F5}ab cd{C-BS}", "a.txt") && ROW_HAS(23, "String to find: ab"));
+    CHECK(run("{S-F5}ab  cd{LEFT}{LEFT}{LEFT}{LEFT}{C-BS}Z", "a.txt") && ROW_HAS(23, "String to find: Z  cd"));
+    CHECK(run("{S-F5}ab{HOME}X{HOME}Y", "a.txt") && ROW_HAS(23, "String to find: YXab"));          /* typing at the start inserts */
+    /* three that the compiler's checks flagged: an overlapping copy in Ctrl+Backspace, and an empty line given to memchr and to fwrite */
+    CHECK(run("{ENTER}{TAB}{C-BS}", "a.txt"));
+    CHECK(run("{A-l}{ENTER}{A-e}", "a.txt"));
+    /* empty lines are saved */
+    CHECK(run("{ENTER}{ENTER}{F2}", "a.txt") && file_is("/sd/a.txt", "\n\none\ntwo\nthree\n"));
 }
 
 static void test_keys(void)

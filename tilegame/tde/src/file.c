@@ -194,7 +194,7 @@ int  tab_size;
          p = g_status.line_buff;
          for (; start <= end  &&  rc == OK; start++) {
             load_box_buff( p, ll, bc, ec, ' ', tabs, tab_size );
-            if (fwrite( p, sizeof( char ), len, fp ) < (unsigned)len ||
+            if ((len > 0 && fwrite( p, sizeof( char ), len, fp ) < (unsigned)len) ||   /* (tilegame port: an empty line has no text pointer to give fwrite) */
                        CEH_ERROR)
                rc = ERROR;
             if ((rc != ERROR  &&
@@ -226,7 +226,7 @@ int  tab_size;
                }
             }
 
-            if (fwrite( p, sizeof( char ), len, fp ) < (unsigned)len ||
+            if ((len > 0 && fwrite( p, sizeof( char ), len, fp ) < (unsigned)len) ||   /* (tilegame port: an empty line has no text pointer to give fwrite) */
                     CEH_ERROR)
                rc = ERROR;
 
