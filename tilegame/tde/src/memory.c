@@ -70,7 +70,8 @@ static unsigned long ptoul( void * );
 #define MAX_SPACE (1 + MAX_SIZE + 1)
 
 #define WORD( p )  *(unsigned short*)(p)
-#define DWORD( p ) *(uint32_t*)(p)      /* tilegame port: four bytes (the NEXT and PREV words), as on the 32-bit systems this was written for, not the 8 of a 64-bit long */
+struct dword { unsigned short lo, hi; };   /* (two halves: the address is not a multiple of four, which a word access on the board's core may not make) */
+#define DWORD( p ) (*(struct dword *)(p))      /* tilegame port: four bytes (the NEXT and PREV words), as on the 32-bit systems this was written for, not the 8 of a 64-bit long */
 
 #define FREE( p )  (*(p) & (MAX_CHAR + 1))
 #define SIZE(p)  (*(p) == -1 ? WORD((p)+1+2*SUS) : ((*(p)&MAX_CHAR)+MIN_SPACE))
@@ -127,6 +128,62 @@ char *mem;
    return( mem );
 }
 
+
+
+/*
+ * tilegame: allocation for what must be aligned.  The blocks of the pool above start at any address, which is fine for text but not for a structure whose
+ *  members are accessed as words: the ARM core of the board faults on a word-pair access to an address that is not a multiple of four.  These blocks are
+ *  malloc'd, with 8 bytes in front: the size, and at the last of them -2, which my_free and my_realloc know them by.  Use them for structures and
+ *  arrays of words or pointers (not text).
+ */
+void *my_malloc_a( size_t size, int *rc )
+{
+unsigned char *mem;
+
+   if (size == 0)
+      return( NULL );
+   mem = malloc( size + 8 );
+   if (mem == NULL) {
+      *rc = ERROR;
+      return( NULL );
+   }
+   memcpy( mem, &size, sizeof(unsigned) > sizeof(size) ? sizeof(size) : sizeof(unsigned) );
+   mem[7] = (unsigned char)-2;
+   return( mem + 8 );
+}
+
+void *my_calloc_a( size_t size )
+{
+void *mem;
+int  rc;
+
+   mem = my_malloc_a( size, &rc );
+   if (mem != NULL)
+      memset( mem, 0, size );
+   return( mem );
+}
+
+void *my_realloc_a( void *mem, size_t size, int *rc )
+{
+unsigned char *old;
+void *new_mem;
+unsigned old_size = 0;
+
+   if (mem == NULL)
+      return( my_malloc_a( size, rc ) );
+   if (size == 0) {
+      my_free( mem );
+      return( NULL );
+   }
+   old = (unsigned char *)mem - 8;
+   memcpy( &old_size, old, sizeof(unsigned) );
+   new_mem = my_malloc_a( size, rc );
+   if (new_mem != NULL) {
+      memcpy( new_mem, mem, old_size < size ? old_size : size );
+      my_free( mem );
+   }
+   return( new_mem );
+}
 
 /*
  * Name:    my_calloc
@@ -189,7 +246,10 @@ unsigned len;
 
    p = (char *)mem - 1;
 
-   if (*p == -1)
+   if (*(unsigned char *)p == (unsigned char)-2)
+      free( (char *)mem - 8 );
+
+   else if (*p == -1)
       free( p );
 
    else {
@@ -455,7 +515,7 @@ mem_info *block;
    block->base[0] = block->base[MEM_CHUNK-1] = -1;
    WORD( block->base + 1 + 2*SUS )         =
    WORD( block->base + MEM_CHUNK-1 - SUS ) = MEM_CHUNK;
-   DWORD( block->base + 1 ) = 0;
+   WORD( block->base + 1 ) = WORD( block->base + 3 ) = 0;
    block->free = block->base;
 
    return( OK );
@@ -540,7 +600,7 @@ int  si;
          g_status.memory[si].base = g_status.memory[si].free = mem;
          g_status.memory[si].size = g_status.memory[si].space = len;
          SPACE( mem, len );
-         DWORD( mem+1 ) = 0;
+         WORD( mem+1 ) = WORD( mem+3 ) = 0;
          g_status.mem_size[g_status.mem_num] = si;
          si = g_status.mem_num++;
       }

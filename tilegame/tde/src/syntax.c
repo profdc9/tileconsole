@@ -939,7 +939,7 @@ int  rc = OK;
              * Find the number of words already allocated.
              */
             for (i = 0; syntax->keyword[hash][i]; ++i) ;
-            hashed = (text_ptr *)my_malloc( (i+2) * sizeof(text_ptr), &rc );
+            hashed = (text_ptr *)my_malloc_a( (i+2) * sizeof(text_ptr), &rc );
             if (rc == OK) {
                for (; i >= 0; --i)
                   hashed[i+1] = syntax->keyword[hash][i];
@@ -949,7 +949,7 @@ int  rc = OK;
             /*
              * Start a new list.
              */
-            hashed = (text_ptr *)my_malloc( 2 * sizeof(text_ptr), &rc );
+            hashed = (text_ptr *)my_malloc_a( 2 * sizeof(text_ptr), &rc );
             if (rc == OK)
                hashed[1] = NULL;
          }
@@ -2234,7 +2234,7 @@ LTYPE *item;
       len1 = strlen( lang ) + 1;
       len2 = strlen( parent ) + 1;
       len3 = strlen( pat ) + 1;
-      item = my_malloc( sizeof(LTYPE) + len1 + len2 + len3, &rc );
+      item = my_malloc_a( sizeof(LTYPE) + len1 + len2 + len3, &rc );
       if (rc == ERROR)
          break;
       (*list)[*size].name  = (char*)item + sizeof(LTYPE);

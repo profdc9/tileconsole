@@ -141,7 +141,7 @@ line_list_ptr temp_ll;
       file->undo_bot->prev = temp_ll->prev;
       my_free( temp_ll->line );
    } else
-      temp_ll = (line_list_ptr)my_malloc( sizeof(line_list_struc), &rc );
+      temp_ll = (line_list_ptr)my_malloc_a( sizeof(line_list_struc), &rc );
 
    assert( len >= 0 );
    assert( len < MAX_LINE_LENGTH );
@@ -189,7 +189,7 @@ UNDO *undo;
       --file->undo_count;
    }
 
-   undo = my_calloc( sizeof(UNDO) );
+   undo = my_calloc_a( sizeof(UNDO) );
    if (undo != NULL) {
       if (file->undo != NULL) {
          undo->prev = file->undo;

@@ -56,9 +56,9 @@ int len;
 int rc = OK;
 
    len = mac_->len * sizeof(long);
-   mac_->key.keys = my_malloc( len, &rc );
+   mac_->key.keys = my_malloc_a( len, &rc );
    memcpy( mac_->key.keys, keys, len );
-   new_mac = my_malloc( sizeof(MACRO), &rc );
+   new_mac = my_malloc_a( sizeof(MACRO), &rc );
    memcpy( new_mac, mac_, sizeof(MACRO) );
 
    return( new_mac );

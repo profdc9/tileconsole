@@ -313,7 +313,7 @@ line_list_ptr new_line( long type, int *rc )
 {
 line_list_ptr ll;
 
-   ll = (line_list_ptr)my_malloc( sizeof(line_list_struc), rc );
+   ll = (line_list_ptr)my_malloc_a( sizeof(line_list_struc), rc );
    if (*rc == OK) {
       ll->line = NULL;
       ll->len  = 0;
@@ -340,7 +340,7 @@ line_list_ptr ll;
 text_ptr t;
 
    t  = (text_ptr)my_malloc( len, rc );
-   ll = (line_list_ptr)my_malloc( sizeof(line_list_struc), rc );
+   ll = (line_list_ptr)my_malloc_a( sizeof(line_list_struc), rc );
    if (*rc == OK) {
       my_memcpy( t, text, len );
       ll->line = t;

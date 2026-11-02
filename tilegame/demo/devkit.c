@@ -47,6 +47,56 @@ static fs_posix_t host;
 static const char *host_dir = "devkit_files";
 #endif
 
+#ifdef DEVKIT_BOARD
+#include "hardware/structs/watchdog.h"
+#include "hardware/watchdog.h"
+
+/* What the previous run left in the watchdog scratch registers (they survive the reset): a hard fault (where) or the crumb of how far the editor got (a hang is
+ * caught by the platform layer's monitor, which resets the board). Scratch 0 to 3 are the hang monitor's and the fault's, 5 is the crumb. */
+#define FAULT_MAGIC 0x464C5421u   /* "FLT!" */
+#define CRUMB_MAGIC 0xC4000000u
+
+void tde_crumb(unsigned id)
+{
+    watchdog_hw->scratch[5] = CRUMB_MAGIC | id;
+}
+
+void devkit_fault(uint32_t *frame)
+{
+    watchdog_hw->scratch[0] = FAULT_MAGIC;
+    watchdog_hw->scratch[1] = frame[6];                              /* the instruction */
+    watchdog_hw->scratch[2] = frame[5];                              /* the caller */
+    watchdog_hw->scratch[3] = *(volatile uint32_t *)0xE000ED28u;     /* the fault status (CFSR) */
+    watchdog_hw->scratch[6] = *(volatile uint32_t *)0xE000ED38u;     /* the bus fault address (BFAR) */
+    watchdog_hw->scratch[7] = frame[0];
+    watchdog_reboot(0, 0, 0);
+    for (;;) {}
+}
+
+void __attribute__((naked)) isr_hardfault(void)
+{
+    __asm volatile("tst lr, #4\n\tite eq\n\tmrseq r0, msp\n\tmrsne r0, psp\n\tb devkit_fault\n");
+}
+
+/* A line for the first screen about how the previous run ended, if it did not end by itself; clears what it read. */
+static const char *last_run_note(void)
+{
+    static char text[200];
+    const uint32_t magic = watchdog_hw->scratch[0], crumb = watchdog_hw->scratch[5];
+    text[0] = 0;
+    if (magic == FAULT_MAGIC)
+        snprintf(text, sizeof text, "Last run: HARD FAULT at %08lX from %08lX, CFSR %08lX BFAR %08lX R0 %08lX, after step %lu.\n", (unsigned long)watchdog_hw->scratch[1],
+                 (unsigned long)watchdog_hw->scratch[2], (unsigned long)watchdog_hw->scratch[3], (unsigned long)watchdog_hw->scratch[6], (unsigned long)watchdog_hw->scratch[7],
+                 (unsigned long)(crumb & 0xFFFF));
+    else if ((crumb & 0xFF000000u) == CRUMB_MAGIC && (magic == 0x48414E47u || magic == 0x50414E49u))
+        snprintf(text, sizeof text, "Last run: %s, after step %lu.\n", magic == 0x48414E47u ? "HUNG" : "PANIC", (unsigned long)(crumb & 0xFFFF));
+    watchdog_hw->scratch[5] = 0;
+    if (magic == FAULT_MAGIC)
+        watchdog_hw->scratch[0] = 0;
+    return text[0] ? text : NULL;
+}
+#endif
+
 static void show(void)
 {
     plat_present(&g);
@@ -156,6 +206,10 @@ static void drain_keys(void)
     while (plat_getchar() >= 0) {}
 }
 
+#ifndef DEVKIT_BOARD
+void tde_crumb(unsigned id) { (void)id; }
+#endif
+
 static void run_editor(const char *name)
 {
     static char program[] = "/sd/tde/tde";
@@ -169,13 +223,21 @@ static void run_editor(const char *name)
     tde_console_set_idle(idle);
     setenv("TDEHOME", "/sd/tde", 1);
     drain_keys();
+    tde_crumb(10);
     tde_main(n, args);
+    tde_crumb(11);
     drain_keys();
 }
 
 static void devkit(void)
 {
     static const basic_hooks_t hooks = {get_char, frame, plat_millis};
+#ifdef DEVKIT_BOARD
+    static char note_copy[200];
+    const char *last = last_run_note();   /* (before plat_init, which clears the hang report) */
+    if (last)
+        snprintf(note_copy, sizeof note_copy, "%s", last);
+#endif
     if (!plat_init()) {
 #ifdef DEVKIT_BOARD
         for (;;) {}
@@ -194,6 +256,10 @@ static void devkit(void)
     basic_env_init(&env, &screen, &hooks);
     if (note)
         tg_console_puts(&env.con, note);
+#ifdef DEVKIT_BOARD
+    if (note_copy[0])
+        tg_console_puts(&env.con, note_copy);
+#endif
     for (;;) {
         const int r = basic_env_run(&env);
         if (r == BASIC_EXIT_EDIT) {

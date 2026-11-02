@@ -35,6 +35,9 @@ void tde_console_set_flush(int enabled);
 /* The editor's key number, shift state and character for a key press (see console.c); 0 if the editor has no use for the key. Exposed for tests. */
 int tde_event_key(const plat_key_event_t *event, int *shift_state, int *ch);
 
+/* A marker of how far the editor got, for the board's diagnosis of a hang (the program around the editor may define it: devkit.c does; the default does nothing). */
+void tde_crumb(unsigned id);
+
 void refresh(void);   /* show the screen as it is now (curses' name for it, which the editor's Unix code uses) */
 
 /* The editor's main(), renamed (-Dmain=tde_main for main.c). */

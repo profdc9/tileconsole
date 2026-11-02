@@ -1297,7 +1297,7 @@ int  rc;
    if (key >= 0x2121) {
       branch = search_tree( key, cfg_key_tree );
       if (branch == NULL) {
-         branch = my_calloc( sizeof(TREE) );
+         branch = my_calloc_a( sizeof(TREE) );
          if (branch == NULL)
             return( NULL );
          branch->key = key;
@@ -1313,7 +1313,7 @@ int  rc;
       branch->func = PlayBack;  /* required for the two-keys */
    }
    if (mac == NULL) {
-      mac = my_calloc( sizeof(MACRO) );
+      mac = my_calloc_a( sizeof(MACRO) );
       if (mac == NULL) {
          if (!existing_macro)
             my_free( branch );
@@ -1328,7 +1328,7 @@ int  rc;
     * it each time and try again.
     */
    stroke_count = STROKE_LIMIT;
-   while ((mac->key.keys = my_malloc( stroke_count * sizeof(long), &rc ))
+   while ((mac->key.keys = my_malloc_a( stroke_count * sizeof(long), &rc ))
                          == NULL  &&  stroke_count > 1)
       stroke_count /= 2;
 
@@ -1377,7 +1377,7 @@ int  rc;
          mac_->key.key = key;
 
       } else {
-         keys = my_realloc( mac_->key.keys, mac_->len * sizeof(long), &rc );
+         keys = my_realloc_a( mac_->key.keys, mac_->len * sizeof(long), &rc );
          if (keys != NULL)
             mac_->key.keys = keys;
       }
@@ -1481,7 +1481,7 @@ int  rc = OK;
 
    twokey = search_tree( key, cfg_key_tree->right );
    if (twokey == NULL) {
-      twokey = my_calloc( sizeof(TREE) );
+      twokey = my_calloc_a( sizeof(TREE) );
       if (twokey == NULL)
          rc = ERROR;
       else {
@@ -2021,7 +2021,7 @@ int  i;
             const char *errmsg = new_menu_item( (CONFIG_S->process_menu_cmenu), NULL, token );
             if (errmsg != NULL)
                return( errmsg );
-            (CONFIG_S->process_menu_popout) = my_calloc( sizeof(MENU_LIST) );
+            (CONFIG_S->process_menu_popout) = my_calloc_a( sizeof(MENU_LIST) );
             if ((CONFIG_S->process_menu_popout) == NULL)
                return( main4 );
             (CONFIG_S->process_menu_popout)->next = popout_menu;

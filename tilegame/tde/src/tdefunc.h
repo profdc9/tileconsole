@@ -348,6 +348,9 @@ void show_credits( void );
 int  init_memory( void );
 void *my_malloc( size_t, int * );
 void *my_calloc( size_t );
+void *my_malloc_a( size_t, int * );   /* tilegame: aligned, for structures (see memory.c) */
+void *my_calloc_a( size_t );
+void *my_realloc_a( void *, size_t, int * );
 char *my_strdup( const char * );
 void my_free( void * );
 void my_free_group( int );

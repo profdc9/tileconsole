@@ -28,6 +28,8 @@ static void (*idle)(void);
 static int last_caps, last_num = 1;
 static int flush_enabled = 1;
 
+__attribute__((weak)) void tde_crumb(unsigned id) { (void)id; }
+
 void tde_console_attach(tg_text_t *screen, void (*present_fn)(void))
 {
    scr = screen;
@@ -60,6 +62,7 @@ static uint16_t *cell( int row, int col )
  */
 void console_init( struct vcfg *cfg )
 {
+   tde_crumb( 2 );
    video_config( cfg );
 }
 
@@ -76,6 +79,7 @@ void console_resume( int pause )
 
 void console_exit( void )
 {
+   tde_crumb( 3 );
    if (scr != NULL)
       tg_text_show_cursor( scr, false );
    refresh( );
@@ -147,6 +151,7 @@ int  key;
 
 long getkey( void )
 {
+   tde_crumb( 4 );
 plat_key_event_t ev;
 int  key, ch, shift_state;
 long new_key;

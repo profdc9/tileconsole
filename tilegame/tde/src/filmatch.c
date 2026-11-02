@@ -599,7 +599,7 @@ int  cnt = 0;
    ft = my_findfirst( pathbuf, &ff, NO_DIRS );
    while (ft != NULL) {
       len2 = strlen( ft->fname );
-      f = my_malloc( sizeof(*f) + len1 + len2, &rc );
+      f = my_malloc_a( sizeof(*f) + len1 + len2, &rc );
       if (f != NULL) {
          f->next = NULL;
          memcpy( f->name, pathbuf, len1 );
@@ -654,7 +654,7 @@ char *p;
    while (ft != NULL) {
       len = strlen( ft->fname );
       if (ft->fname[len-1] == '/') {
-         f = my_malloc( sizeof(*f) + len, &len );
+         f = my_malloc_a( sizeof(*f) + len, &len );
          if (f != NULL) {
             f->next = NULL;
             memcpy( f->name, ft->fname, len + 1 );
@@ -680,7 +680,7 @@ char *p;
                                      || *p == ':'
 #endif
                                                  ) {
-            f = my_malloc( sizeof(*f) + len + 1, &len );
+            f = my_malloc_a( sizeof(*f) + len + 1, &len );
             if (f != NULL) {
                f->next = NULL;
                memset( f->name, '.', len );

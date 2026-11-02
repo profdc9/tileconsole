@@ -183,13 +183,13 @@ int  rc;
             mac_->len = 0;
          } else {
             if ((func == PseudoMacro || PARENT_KEY( key )) && !existing) {
-               if ((branch = my_calloc( sizeof(TREE) )) == NULL) {
+               if ((branch = my_calloc_a( sizeof(TREE) )) == NULL) {
                   mode.record = FALSE;
                   no_memory   = TRUE;
                }
             }
             if (mode.record == TRUE) {
-               if ((mac_ = my_calloc( sizeof(MACRO) )) == NULL) {
+               if ((mac_ = my_calloc_a( sizeof(MACRO) )) == NULL) {
                   mode.record = FALSE;
                   no_memory   = TRUE;
                }
@@ -202,7 +202,7 @@ int  rc;
           * it each time and try again.
           */
          g_status.stroke_count = STROKE_LIMIT;
-         while ((mac_->key.keys = my_malloc( g_status.stroke_count *
+         while ((mac_->key.keys = my_malloc_a( g_status.stroke_count *
                                               sizeof(long), &rc )) == NULL  &&
                  g_status.stroke_count > 1)
             g_status.stroke_count /= 2;
@@ -278,7 +278,7 @@ int  rc;
          my_free( mac_->key.keys );
          mac_->key.key = key;
       } else {
-         keys = my_realloc( mac_->key.keys, mac_->len * sizeof(long), &rc );
+         keys = my_realloc_a( mac_->key.keys, mac_->len * sizeof(long), &rc );
          if (keys != NULL)
             mac_->key.keys = keys;
          /*

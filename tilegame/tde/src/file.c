@@ -641,7 +641,7 @@ int  grep;
    if (file == NULL)
       rc = ERROR;
    else {
-      ll = (line_list_ptr)my_malloc( sizeof(line_list_struc), &rc );
+      ll = (line_list_ptr)my_malloc_a( sizeof(line_list_struc), &rc );
       if (rc == OK) {
          ll->line = NULL;
          ll->next = ll->prev = NULL;
@@ -649,8 +649,8 @@ int  grep;
          ll->len  = EOF;
          file->undo_top = file->undo_bot = ll;
 
-         ll = (line_list_ptr)my_malloc( sizeof(line_list_struc), &rc );
-         temp_ll = (line_list_ptr)my_malloc( sizeof(line_list_struc), &rc );
+         ll = (line_list_ptr)my_malloc_a( sizeof(line_list_struc), &rc );
+         temp_ll = (line_list_ptr)my_malloc_a( sizeof(line_list_struc), &rc );
          if (rc == OK) {
             ll->type = temp_ll->type = 0;
             ll->len  = temp_ll->len  = EOF;
@@ -2690,7 +2690,7 @@ int  rc = OK;
       fprintf( fp, "%s\n", WORKSPACE_SIG );
 
       get_full_path( answer, wksp_file );
-      files = my_calloc( g_status.file_count * sizeof(int) );
+      files = my_calloc_a( g_status.file_count * sizeof(int) );
       fprintf( fp, "%d\n", g_status.file_count );
       for (wp = g_status.window_list; wp != NULL; wp = wp->next) {
          file = wp->file_info;
@@ -2814,7 +2814,7 @@ int  scratch;
 
    read_line( fp );
    sscanf( line_in, "%d", &len );
-   files = my_malloc( len * sizeof(file_infos), &j );
+   files = my_malloc_a( len * sizeof(file_infos), &j );
 
    g_status.screen_display = FALSE;
    update = GLOBAL | CMDLINE;

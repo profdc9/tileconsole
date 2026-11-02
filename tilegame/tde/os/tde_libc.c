@@ -93,8 +93,11 @@ static int cookie_close(void *c)
 
 static const cookie_io_functions_t cookie_io = {cookie_read, cookie_write, cookie_seek, cookie_close};
 
+void tde_crumb(unsigned id);
+
 FILE *__wrap_fopen(const char *name, const char *mode)
 {
+    tde_crumb(100);
     int flags;
     const int plus = strchr(mode, '+') != NULL;
     switch (mode[0]) {

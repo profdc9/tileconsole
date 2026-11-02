@@ -1456,7 +1456,7 @@ int rc = OK;
          break;
    }
    if (h == hist) {
-      h = my_malloc( sizeof(HISTORY) + len, &rc );
+      h = my_malloc_a( sizeof(HISTORY) + len, &rc );
       if (rc == ERROR)
          return;
       strcpy( h->str, str );
