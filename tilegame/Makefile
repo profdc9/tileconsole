@@ -6,7 +6,7 @@ CFLAGS ?= -std=c11 -Wall -Wextra -O2
 INC = -Iinclude -Isdl -I$(TILEGFX) -I$(TILESND)
 SDL = $(shell pkg-config --cflags --libs sdl2)
 
-all: editsd test_editsd sdtest test_sdtest game_demo padtest platformer textdemo consdemo editdemo test_editdemo test_consdemo test_consoleio test_platform_sdl test_hid_kbd test_keymap test_hid_pad test_game test_view
+all: tgbasic test_basic editsd test_editsd sdtest test_sdtest game_demo padtest platformer textdemo consdemo editdemo test_editdemo test_consdemo test_consoleio test_platform_sdl test_hid_kbd test_keymap test_hid_pad test_game test_view
 
 test_platform_sdl: tests/test_platform_sdl.c sdl/plat_sdl.c src/mouse_acc.c sdl/plat_sdl.h include/platform.h $(TILEGFX)/tilegfx.c $(TILEGFX)/tg_text.c
 	$(CC) $(CFLAGS) -g -fsanitize=address,undefined $(INC) tests/test_platform_sdl.c sdl/plat_sdl.c src/mouse_acc.c $(TILEGFX)/tilegfx.c $(TILEGFX)/tg_text.c -o $@ $(SDL) -lm
@@ -101,12 +101,13 @@ test_view: tests/test_view.c $(GAMESRC) game/game.h game/level.h game/view.h $(T
 test_hid_pad: tests/test_hid_pad.c src/hid_pad.c src/hid_mouse.c src/mouse_acc.c src/xinput.c include/mouse_acc.h include/xinput.h include/hid_pad.h include/hid_mouse.h include/platform.h
 	$(CC) $(CFLAGS) -g -fsanitize=address,undefined $(INC) tests/test_hid_pad.c src/hid_pad.c src/hid_mouse.c src/mouse_acc.c src/xinput.c -o $@
 
-check: test_tde test_tde_san test_editsd test_sdtest test_platform_sdl test_hid_kbd test_keymap test_consdemo test_consoleio test_editor test_editdemo test_hid_pad test_game test_view
+check: test_basic test_tde test_tde_san test_editsd test_sdtest test_platform_sdl test_hid_kbd test_keymap test_consdemo test_consoleio test_editor test_editdemo test_hid_pad test_game test_view
 	./test_platform_sdl
 	./test_hid_kbd
 	./test_keymap
 	./test_sdtest
 	./test_editsd
+	./test_basic
 	./test_tde
 	ASAN_OPTIONS=detect_leaks=0 ./test_tde_san
 	./test_consdemo
@@ -210,3 +211,16 @@ test_tde_san: $(TDESANOBJ) tests/test_tde.c $(filter-out tests/test_tde.c tests/
 
 check-san: test_tde_san
 	ASAN_OPTIONS=detect_leaks=0 ./test_tde_san
+
+# The BASIC environment: MY-BASIC (basic/my_basic, MIT, unmodified) behind a command prompt on the text screen, programs as text files on tilefs.
+# MY-BASIC puts a size tag in front of every block it allocates; its type is a setting (mb_mem_tag_t), and the default 16 bits would leave every block
+# misaligned, which is undefined and on the board's CPU can fault: a word, as large as a pointer, keeps them aligned.
+# (MY-BASIC's own default is the compact mode, which packs its structures: members at odd addresses, which GCC handles; the alignment check of the sanitizer is off for that.)
+BASICFLAGS = -std=gnu11 -Wall -Wno-unused-function -Wno-unused-result -Wno-address-of-packed-member -Dmb_mem_tag_t=size_t
+BASICSRC = basic/basic_env.c basic/my_basic/my_basic.c $(TILEGFX)/tg_console.c $(TILEGFX)/tg_text.c $(TILEGFX)/tg_text_cp437.c $(TILEGFX)/tg_font.c $(TILEGFX)/fonts/unscii16.c $(TILEFSSRC)
+
+tgbasic: basic/basic.c $(BASICSRC) sdl/plat_sdl.c src/mouse_acc.c include/platform.h $(TILEGFX)/tilegfx.c
+	$(CC) $(BASICFLAGS) -O2 $(INC) $(SDINC) -Ibasic basic/basic.c $(BASICSRC) sdl/plat_sdl.c src/mouse_acc.c $(TILEGFX)/tilegfx.c -o $@ $(SDL) -lm
+
+test_basic: tests/test_basic.c $(BASICSRC) basic/basic_env.h $(TILEGFX)/tilegfx.c
+	$(CC) $(BASICFLAGS) -O1 -g -fsanitize=address,undefined -fno-sanitize=alignment $(INC) $(SDINC) -Ibasic tests/test_basic.c $(BASICSRC) $(TILEGFX)/tilegfx.c -o $@ -lm
