@@ -85,6 +85,7 @@ int main(int argc, char **argv)
     g.text = &screen;
     tde_console_attach(&screen, show);
     tde_console_set_idle(idle);
+    setenv("TDEHOME", "/sd/tde", 1);   /* where the editor looks for its configuration (it would use $HOME, which is not on /sd) */
     args[n++] = program;
     for (int i = 2; i < argc && n < 15; i++)
         args[n++] = argv[i];

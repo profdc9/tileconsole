@@ -3,7 +3,8 @@
 TDE, the Thomson-Davis Editor 5.1v (Frank Davis, Jason Hood; **public domain**), running on the 80 x 25 text mode of tilegfx with its files from tilefs.
 The editor's own sources are in `src/`, from <https://github.com/johnsonjh/tde>, built like its Unix version (`-D__UNIX__`) plus `-D__TILEGAME__`, which
 takes the place of curses. `config/` holds its configuration files (`tde.cfg`, help, syntax highlighting, menus, the WordStar and CUA variants); they are looked
-for in `/sd/tde/` (the folder of the program name given to `tde_main`).
+for in `/sd/tde/`: the program sets `TDEHOME=/sd/tde` before `tde_main` (without it the editor looks in `$HOME`, finds nothing, and runs on its built-in
+defaults, whose help screen says Ctrl where the configuration uses Alt).
 
 ## What was written for the port (`os/`)
 

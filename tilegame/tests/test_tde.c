@@ -268,6 +268,7 @@ static void child(const char *keys, const char *cmdline)
     tde_console_attach(&screen, nop);
     tde_console_set_idle(idle);
     tde_console_set_flush(0);   /* the script's keys are not type-ahead */
+    setenv("TDEHOME", "/sd/tde", 1);   /* the editor's configuration is looked for here, not in $HOME */
     args[n++] = program;
     snprintf(buf, sizeof buf, "%s", cmdline ? cmdline : "");
     for (char *p = strtok(buf, " "); p && n < 7; p = strtok(NULL, " "))
@@ -521,6 +522,8 @@ static void test_menus_and_help(void)
     fresh_files();
     put_file("a.txt", "one\ntwo\nthree\n", 14);
     CHECK(run("{F1}", "a.txt") && ROW_HAS(0, "HELP") && ROW_HAS(2, "Shift") && cursor[4] == 0);
+    /* the help is the one in tde.hlp, which the editor reads next to tde.cfg (the built-in one says ^B ^L ^X, where the configuration has Alt: @B @L @X) */
+    CHECK(run("{F1}", "a.txt") && ROW_HAS(17, "box") && ROW_HAS(17, "@B") && ROW_HAS(18, "line") && ROW_HAS(18, "@L") && ROW_HAS(19, "stream") && ROW_HAS(19, "@X"));
     CHECK(run("{F1}{ESC}", "a.txt") && ROW_HAS(0, "1a"));                                  /* Esc leaves the help */
     /* the menu (Ctrl+\) with its entries, and a letter picks one */
     CHECK(run("{C-\\}", "a.txt") && ROW_HAS(0, "File   Search   Block   Toggles   Other") && ROW_HAS(2, "a) Directory") && ROW_HAS(2, "Alt+F1"));
