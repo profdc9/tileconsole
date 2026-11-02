@@ -276,7 +276,7 @@
 #define   Head_color           0   /* file header color */
 #define   Mode_color           1   /* mode line color - footer */
 #define   Diag_color           2   /* color for diagnostics in mode line */
-#define   Special_color        3   /* color of special mode (rec. macro, etc) */
+#define   Special_color        3   /* color of special mode (rec. macro_ptr, etc) */
 #define   CWD_color            4   /* color of the current directory */
 #define   Message_color        5   /* color of editor messages */
 #define   Text_color           6   /* text area color - normal text */

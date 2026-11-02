@@ -371,7 +371,7 @@ int  user_idx = MAJOR - 2;
 /*
  * popup menu for selecting the new window in the make window functions.
  */
-Begin( make_window )
+Begin( make_window_items )
    SepLabel( " Make window with..." )
    Separator
    Item( "Next file",           EditNextFile        )
@@ -385,7 +385,7 @@ Begin( make_window )
    Item( "Next grep",           RepeatGrep          )
 End
 
-MENU_STR make_window_menu = Popout( make_window );
+MENU_STR make_window_menu = Popout( make_window_items );
 
 
 char *key_word[MAX_KEYS] = {
@@ -402,3 +402,54 @@ char *key_word[MAX_KEYS] = {
    "End", "Down", "PgDn", "Insert", "Delete",
    "PrtSc", "" /* fake F11 */,  "Left\\", "F11", "F12",
 };
+
+
+/*
+ * tilegame: the menus are static tables that the configuration file changes (items added, menus cleared and
+ * renamed).  They are kept as they are, but a copy of them as they were is kept too, and put back when a
+ * new state is made, so that a second run of the editor starts from the menus the first one did.
+ */
+void menu_state_init( void )
+{
+static const struct { void *table; size_t size; } tables[] = {
+   { &block_border, sizeof(block_border) },
+   { &block_comment, sizeof(block_comment) },
+   { &block_conversion, sizeof(block_conversion) },
+   { &block_fill, sizeof(block_fill) },
+   { &block_opts, sizeof(block_opts) },
+   { &file_opts, sizeof(file_opts) },
+   { &file_special, sizeof(file_special) },
+   { &help_opts, sizeof(help_opts) },
+   { &key_word, sizeof(key_word) },
+   { &macro_file, sizeof(macro_file) },
+   { &make_window_items, sizeof(make_window_items) },
+   { &make_window_menu, sizeof(make_window_menu) },
+   { &menu, sizeof(menu) },
+   { &menu_cnt, sizeof(menu_cnt) },
+   { &move_opts, sizeof(move_opts) },
+   { &other_opts, sizeof(other_opts) },
+   { &popout_default, sizeof(popout_default) },
+   { &popout_last, sizeof(popout_last) },
+   { &popout_menu, sizeof(popout_menu) },
+   { &search_opts, sizeof(search_opts) },
+   { &toggle_opts, sizeof(toggle_opts) },
+   { &user_idx, sizeof(user_idx) },
+   { &window_opts, sizeof(window_opts) },
+   { &word_indent, sizeof(word_indent) },
+   { &word_opts, sizeof(word_opts) },
+   { &word_tabs, sizeof(word_tabs) },
+};
+static unsigned char saved[
+sizeof(block_border) + sizeof(block_comment) + sizeof(block_conversion) + sizeof(block_fill) + sizeof(block_opts) + sizeof(file_opts) + sizeof(file_special) + sizeof(help_opts) + sizeof(key_word) + sizeof(macro_file) + sizeof(make_window_items) + sizeof(make_window_menu) + sizeof(menu) + sizeof(menu_cnt) + sizeof(move_opts) + sizeof(other_opts) + sizeof(popout_default) + sizeof(popout_last) + sizeof(popout_menu) + sizeof(search_opts) + sizeof(toggle_opts) + sizeof(user_idx) + sizeof(window_opts) + sizeof(word_indent) + sizeof(word_opts) + sizeof(word_tabs)];
+static int  have = FALSE;
+size_t i, off;
+
+   for (off = 0, i = 0; i < sizeof(tables) / sizeof(*tables); ++i) {
+      if (have)
+         memcpy( tables[i].table, saved + off, tables[i].size );
+      else
+         memcpy( saved + off, tables[i].table, tables[i].size );
+      off += tables[i].size;
+   }
+   have = TRUE;
+}

@@ -77,10 +77,8 @@ TDE can also be used as a filter (eg: dir | tde >dir.lst).\
 #if STAT_COUNT > STATS_COUNT
 char *stat_screen[STAT_COUNT+1];  /* used for both status and statistics */
 #else
-char *stat_screen[STATS_COUNT+1];
 #endif
 
-int  help_dim[2][2] = { { 25, 80 }, { 25, 80 } };
 
 
 #if !defined( __UNIX__ ) || defined( PC_CHARS )
@@ -572,3 +570,5 @@ NULL
 };
 
 #endif
+
+

@@ -32,26 +32,53 @@
 #include "config.h"
 #include "syntax.h"
 #include <stdarg.h>
+/* tilegame: the variables of this file are in the editor state (tdestate.h) */
+struct query_state {
+   int prompt_line;
+   const char *prompt_text;
+   int prompt_len;
+   int prompt_col;
+   int dlg_active;
+   int dlg_tab;
+   int dlg_move;
+   int first_edit;
+   int last_edit;
+   int first_cbox;
+   int num_cbox;
+   DIALOG *current_dlg;
+   int dlg_col;
+   int dlg_row;
+   int dlg_id;
+   DLG_PROC dlg_proc;
+   int dlg_drawn;
+   unsigned char *sid;
+   int translate_key_two_key;
+};
+#define QUERY_S ((struct query_state *)tde->mod[TDE_MOD_QUERY])
+#define prompt_line (QUERY_S->prompt_line)
+#define prompt_text (QUERY_S->prompt_text)
+#define prompt_len (QUERY_S->prompt_len)
+#define prompt_col (QUERY_S->prompt_col)
+#define dlg_active (QUERY_S->dlg_active)
+#define dlg_tab (QUERY_S->dlg_tab)
+#define dlg_move (QUERY_S->dlg_move)
+#define first_edit (QUERY_S->first_edit)
+#define last_edit (QUERY_S->last_edit)
+#define first_cbox (QUERY_S->first_cbox)
+#define num_cbox (QUERY_S->num_cbox)
+#define current_dlg (QUERY_S->current_dlg)
+#define dlg_col (QUERY_S->dlg_col)
+#define dlg_row (QUERY_S->dlg_row)
+#define dlg_id (QUERY_S->dlg_id)
+#define dlg_proc (QUERY_S->dlg_proc)
+#define dlg_drawn (QUERY_S->dlg_drawn)
+#define sid (QUERY_S->sid)
 
 
 #define CopyWord    NextLine
 #define CopyString  BegNextLine
 
-static int  prompt_line;
-static const char *prompt_text;
-static int  prompt_len = ERROR;
-static int  prompt_col;
 
-static int  dlg_active = FALSE;
-static int  dlg_tab  = FALSE;
-static int  dlg_move = 0;
-static int  first_edit, last_edit;
-static int  first_cbox, num_cbox;
-static DIALOG* current_dlg;
-static int  dlg_col, dlg_row;
-static int  dlg_id;
-static DLG_PROC dlg_proc;
-static int  dlg_drawn;
 
 static HISTORY *search_history( char *, int, HISTORY *, HISTORY *, int );
 
@@ -89,7 +116,7 @@ int  scan, shift;
          if (win->syntax) {
             language = win->file_info->syntax;
             do {
-               two_key = search_tree( c, language->key_tree.right );
+               two_key = search_tree( c, language->lang_tree.right );
                language = language->parent;
             } while ((two_key == NULL || two_key->func == 0) &&
                      language != NULL);
@@ -98,7 +125,7 @@ int  scan, shift;
             two_key = search_tree( c, key_tree.right );
          if (two_key != NULL) {
             func = two_key->func;
-            g_status.key_macro = two_key->macro;
+            g_status.key_macro = two_key->macro_ptr;
          }
       } else if ((int)c & _FUNCTION)
          func = (int)c & ~_FUNCTION;
@@ -150,7 +177,6 @@ long translate_key( int key, int mod, text_t ch )
 {
 long new_key;
 int  func = 0;
-static int two_key = 0;
 int  viewer = FALSE;
 
    /*
@@ -165,7 +191,7 @@ int  viewer = FALSE;
          viewer = TRUE;
       g_status.viewer_key = FALSE;
    }
-   if (two_key)
+   if ((QUERY_S->translate_key_two_key))
       viewer = TRUE;
 
    key = scancode_map[KEY( key )];
@@ -203,10 +229,10 @@ int  viewer = FALSE;
    } else
       key |= mod & ~_FUNCTION;
 
-   if (two_key) {
+   if ((QUERY_S->translate_key_two_key)) {
       show_search_message( CLR_SEARCH );
-      new_key = CREATE_TWOKEY( two_key, key );
-      two_key = 0;
+      new_key = CREATE_TWOKEY( (QUERY_S->translate_key_two_key), key );
+      (QUERY_S->translate_key_two_key) = 0;
       func    = getfunc( new_key );
 
    } else {
@@ -216,7 +242,7 @@ int  viewer = FALSE;
           * Next key..
           */
          show_search_message( NEXTKEY );
-         two_key = key;
+         (QUERY_S->translate_key_two_key) = key;
          return( ERROR );
       } else
          new_key = key;
@@ -1083,7 +1109,6 @@ char *old_cp;
 }
 
 
-static unsigned char *sid;      /* syntax identifier */
 static int  isnotid( int c )
 {
   return( !(sid[(unsigned char)c] & ID_INWORD) );
@@ -1338,12 +1363,12 @@ DISPLAY_BUFF;
  * Author:  Jason Hood
  * Date:    September 22, 2005
  * Passed:  prompt:      the prompt to display
- *          prompt_line: the line to display it
+ *          prompt_line_: the line to display it
  * Returns: the key
  * Notes:   works with macros, but will ignore the currently recording key.
  *          doesn't display the prompt when reading from a macro.
  */
-long prompt_key( const char *prompt, int prompt_line )
+long prompt_key( const char *prompt, int prompt_line_ )
 {
 DISPLAY_BUFF;
 int  display;
@@ -1355,8 +1380,8 @@ long key;
                   == Pause));
 
    if (display) {
-      SAVE_LINE( prompt_line );
-      set_prompt( prompt, prompt_line );
+      SAVE_LINE( prompt_line_ );
+      set_prompt( prompt, prompt_line_ );
    }
    for (;;) {
       key = getkey_macro( );
@@ -1366,7 +1391,7 @@ long key;
          break;
    }
    if (display)
-      RESTORE_LINE( prompt_line );
+      RESTORE_LINE( prompt_line_ );
 
    return( key );
 }
@@ -1615,22 +1640,22 @@ DIALOG *cb;
  * Author:  Jason Hood
  * Date:    November 15, 2003
  * Passed:  dlg: dialog to initialise
- * Notes:   in a macro, reset all check boxes and set focus to the first edit
+ * Notes:   in a macro_, reset all check boxes and set focus to the first edit
  *           field, to ensure consistency, unless UsesDialog flag is used.
  */
 static void init_dialog( DIALOG *dlg )
 {
-int  macro;
+int  macro_;
 int  j;
 
    current_dlg = dlg;
 
-   macro = (mode.record  ||
+   macro_ = (mode.record  ||
             (g_status.macro_executing  &&
              (!(g_status.current_macro->flag & USESDIALOG)  &&
               g_status.current_macro->len != 1)));
 
-   if (macro)
+   if (macro_)
       dlg->n = 0;
 
    first_edit = last_edit = 0;
@@ -1643,7 +1668,7 @@ int  j;
       if (dlg[j].n == FALSE || dlg[j].n == TRUE) {
          if (++num_cbox == 1)
             first_cbox = j;
-         if (macro)
+         if (macro_)
             dlg[j].n = FALSE;
 
       /*
@@ -1818,4 +1843,17 @@ char str[12];
 long get_dlg_num( DIALOG *edit )
 {
    return( (edit->text == NULL) ? 0 : atol( edit->text ) );
+}
+
+
+/* tilegame: sets up this file's part of the editor state */
+void query_state_init( void )
+{
+   tde->mod[TDE_MOD_QUERY] = tde_calloc( 1, sizeof(struct query_state) );
+   QUERY_S->translate_key_two_key = 0;
+
+   prompt_len = ERROR;
+   dlg_active = FALSE;
+   dlg_tab = FALSE;
+   dlg_move = 0;
 }

@@ -852,7 +852,7 @@ typedef struct {
  * structure for recording and playing back keystrokes.
  */
 typedef struct {
-  int mode[3];                  /* insert, tab and indent modes */
+  int modes[3];                  /* insert, tab and indent modes */
   int flag;                     /* wrap, warning, block and dialog flags */
   int len;                      /* number of keys in the macro */
   union {
@@ -869,7 +869,7 @@ typedef struct {
 typedef struct s_tree {
    long key;                    /* combination or two-key code */
                                 /* > 0x10000 is a two-key */
-   MACRO *macro;                /* pointer to the macro */
+   MACRO *macro_ptr;                /* pointer to the macro */
    int   func;                  /* function assigned to two-key */
    struct s_tree *left;         /* pointer to the one less than this */
    struct s_tree *right;        /* pointer to the one greater than this */
@@ -893,10 +893,10 @@ typedef struct {
  * structure for the local macro stack in macro processor.
  */
 typedef struct s_macro_stack {
-   MACRO *macro;                /* macro we were executing */
+   MACRO *macro_ptr;                /* macro we were executing */
    int    pos;                  /* position to begin execution in macro */
    MARKER mark;                 /* macro marker */
-   BLOCK  block;                /* block prior to macro */
+   BLOCK  saved_block;                /* block prior to macro */
    struct s_macro_stack *prev;  /* previous macro on the stack */
 } MACRO_STACK;
 
@@ -938,7 +938,7 @@ typedef struct {
    int  tab_size;               /* size of tabs - jmh 010528 */
    int  file_mode;              /* mode to open files, TEXT or BINARY */
    int  file_chunk;             /* if opened BINARY, bytes per line */
-   int  macro;                  /* key to use for the startup macro */
+   int  macro_ptr;                  /* key to use for the startup macro */
    int  all;                    /* load all files immediately - jmh 040715 */
 } option_infos;
 
@@ -1075,7 +1075,7 @@ typedef struct s_file_infos {
  */
 typedef struct s_language {
    text_ptr *keyword[128];      /* hash table of keywords/identifiers */
-   TREE     key_tree;           /* pseudo-macros and two-keys */
+   TREE     lang_tree;           /* pseudo-macros and two-keys */
    MENU_STR menu;               /* User > Language pop-out menu */
    int    inflate_tabs;         /* language-specific tab settings */
    int    ptab_size;
@@ -1248,3 +1248,6 @@ typedef struct {
 } DIALOG;
 
 typedef int (*DLG_PROC)( int, char * );
+
+/* tilegame: the state of the editor (needs the types above) */
+#include "tdestate.h"

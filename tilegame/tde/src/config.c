@@ -49,31 +49,42 @@
 #include "define.h"
 #include "tdefunc.h"
 #include "config.h"
+/* tilegame: the variables of this file are in the editor state (tdestate.h) */
+struct config_state {
+   int line_in_len;
+   int stroke_count;
+   long macro_key;
+   TREE *branch;
+   int existing_macro;
+   int key_num;
+   int need_a_redraw;
+   int need_mode_line;
+   int need_rulers;
+   int need_line_numbers;
+   int need_cwd;
+   int new_user_menu_exists;
+   MENU_STR *process_menu_cmenu;
+   MENU_LIST *process_menu_popout;
+   int process_menu_erred;
+};
+#define CONFIG_S ((struct config_state *)tde->mod[TDE_MOD_CONFIG])
+#define line_in_len (CONFIG_S->line_in_len)
+#define stroke_count (CONFIG_S->stroke_count)
+#define macro_key (CONFIG_S->macro_key)
+#define branch (CONFIG_S->branch)
+#define existing_macro (CONFIG_S->existing_macro)
+#define key_num (CONFIG_S->key_num)
+#define need_a_redraw (CONFIG_S->need_a_redraw)
+#define need_mode_line (CONFIG_S->need_mode_line)
+#define need_rulers (CONFIG_S->need_rulers)
+#define need_line_numbers (CONFIG_S->need_line_numbers)
+#define need_cwd (CONFIG_S->need_cwd)
 
 
-       char *line_in = NULL;    /* input line buffer */
-static int  line_in_len = 0;    /* length of above */
-       int  line_no;            /* global variable for line count */
-       int  process_macro;      /* multi-line macro definition */
-static int  stroke_count;       /* global variable for macro strokes */
-static long macro_key;
-       MACRO *mac;
-static TREE *branch;
-       TREE *cfg_key_tree;
-static int  existing_macro;
-static int  key_num;            /* current menu key (jmh 020831) */
 
-static int  need_a_redraw;      /* if we redefined colors, then redraw screen */
-static int  need_mode_line;     /* if we redefined modes,  then redraw line */
-static int  need_rulers;        /* if we redefined rulers, then redraw ruler */
-static int  need_line_numbers;  /* redefining line numbers? */
-static int  need_cwd;           /* redefining the cwd display? */
 
-       int  background;         /* default background color (jmh 990420) */
 
-       char *cmd_config = NULL; /* config file from command line (jmh 010605) */
 
-       MENU_STR *user_menu;     /* User menu or Language sub-menu (jmh 031129)*/
 extern MENU_LIST popout_default[];
 extern MENU_LIST *popout_last;
 
@@ -157,7 +168,7 @@ int  i, j;
          prompt = main21;
          strcpy( fname, "*.tdm" );
          cfg_key_tree = (window->syntax) ?
-                        &window->file_info->syntax->key_tree :
+                        &window->file_info->syntax->lang_tree :
                         &key_tree;
       } else {
          /*
@@ -1078,19 +1089,19 @@ int  rc;
  * Name:    clear_previous_macro
  * Purpose: clear any macro previously assigned to a key
  * Date:    June 5, 1994
- * Passed:  macro_key:  key that we are a assigning a macro to
+ * Passed:  macro_key_:  key that we are a assigning a macro to
  * Notes:   rewritten by Jason Hood, July 19, 1998.
  */
-void clear_previous_macro( int macro_key )
+void clear_previous_macro( int macro_key_ )
 {
-MACRO **mac;
+MACRO **mac_;
 
-   mac = &macro[KEY_IDX( macro_key )];
-   if (*mac != NULL) {
-      if ((*mac)->len > 1)
-         my_free( (*mac)->key.keys );
-      my_free( *mac );
-      *mac = NULL;
+   mac_ = &macro[KEY_IDX( macro_key_ )];
+   if (*mac_ != NULL) {
+      if ((*mac_)->len > 1)
+         my_free( (*mac_)->key.keys );
+      my_free( *mac_ );
+      *mac_ = NULL;
    }
 }
 
@@ -1212,7 +1223,7 @@ int  exit_code = OK;
                   if ((int)key_no & 0x8000)
                      mac->flag |= (int)key_no & ~0x8000;
                   else
-                     mac->mode[(int)key_no / 2] = (int)key_no & 1;
+                     mac->modes[(int)key_no / 2] = (int)key_no & 1;
                   continue;
                }
             } else {
@@ -1292,8 +1303,8 @@ int  rc;
          branch->key = key;
       } else {
          existing_macro = TRUE;
-         if (branch->macro != NULL) {
-            mac = branch->macro;
+         if (branch->macro_ptr != NULL) {
+            mac = branch->macro_ptr;
             if (mac->len > 1)
                my_free( mac->key.keys );
             mac->len = 0;
@@ -1309,7 +1320,7 @@ int  rc;
          return( NULL );
       }
       if (branch != NULL)
-         branch->macro = mac;
+         branch->macro_ptr = mac;
    }
 
    /*
@@ -1328,9 +1339,9 @@ int  rc;
       if (!existing_macro)
          my_free( branch );
    } else                       /* set default modes to: */
-      mac->mode[0] =            /* insert                */
-      mac->mode[1] =            /* smart tabs            */
-      mac->mode[2] = TRUE;      /* indent                */
+      mac->modes[0] =            /* insert                */
+      mac->modes[1] =            /* smart tabs            */
+      mac->modes[2] = TRUE;      /* indent                */
 
    return( mac );
 }
@@ -1340,39 +1351,39 @@ int  rc;
  * Name:    check_macro
  * Purpose: see if macro def has any valid key.  if not, clear macro
  * Date:    June 5, 1994
- * Passed:  mac:  macro that we are checking
+ * Passed:  mac_:  macro that we are checking
  * Notes:   Rewritten by Jason Hood, July 19, 1998.
- * jmh 990429: test for mac == NULL.
+ * jmh 990429: test for mac_ == NULL.
  */
-void check_macro( MACRO *mac )
+void check_macro( MACRO *mac_ )
 {
 long key;
 long *keys;
 int  rc;
 
-   if (mac == NULL)
+   if (mac_ == NULL)
       return;
 
-   if (mac->len == 0) {
-      my_free( mac->key.keys );
-      my_free( mac );
+   if (mac_->len == 0) {
+      my_free( mac_->key.keys );
+      my_free( mac_ );
       if (!existing_macro)
          my_free( branch );
 
    } else {
-      if (mac->len == 1) {
-         key = *mac->key.keys;
-         my_free( mac->key.keys );
-         mac->key.key = key;
+      if (mac_->len == 1) {
+         key = *mac_->key.keys;
+         my_free( mac_->key.keys );
+         mac_->key.key = key;
 
       } else {
-         keys = my_realloc( mac->key.keys, mac->len * sizeof(long), &rc );
+         keys = my_realloc( mac_->key.keys, mac_->len * sizeof(long), &rc );
          if (keys != NULL)
-            mac->key.keys = keys;
+            mac_->key.keys = keys;
       }
 
       if (branch == NULL)
-         macro[KEY_IDX( macro_key )] = mac;
+         macro[KEY_IDX( macro_key )] = mac_;
       else if (!existing_macro)
          add_branch( branch, cfg_key_tree );
    }
@@ -1388,7 +1399,7 @@ int  rc;
  *
  * jmh 980826: when possible, store the function rather than the key.
  */
-int  cfg_record_keys( MACRO *mac, long key, int func, int prompt_line )
+int  cfg_record_keys( MACRO *mac_, long key, int func, int prompt_line )
 {
 int  rc;
 char temp[42];
@@ -1397,7 +1408,7 @@ char temp[42];
    if (stroke_count-- > 0) {
       if (func != RecordMacro    && func != SaveMacro  &&
           func != ClearAllMacros && func != LoadMacro) {
-         mac->key.keys[mac->len++] = (func == 0 || func == PlayBack)
+         mac_->key.keys[mac_->len++] = (func == 0 || func == PlayBack)
                                      ? key : (func | _FUNCTION);
       }
    } else {
@@ -1441,17 +1452,17 @@ long key = ERROR;
 
 /*
  * Name:    new_sort_order
- * Purpose: change the sort order
+ * Purpose: change the sort_ order
  * Date:    October 31, 1992
- * Notes:   New sort order starts from ! (ie. skips space and control chars)
+ * Notes:   New sort_ order starts from ! (ie. skips space and control chars)
  */
-void new_sort_order( text_ptr residue, text_ptr sort )
+void new_sort_order( text_ptr residue, text_ptr sort_ )
 {
 int  i;
 
-   sort += 33;
+   sort_ += 33;
    for (i = 33; *residue != '\0'  &&  i <= 255; i++)
-      *sort++ = *residue++;
+      *sort_++ = *residue++;
 }
 
 
@@ -1479,11 +1490,11 @@ int  rc = OK;
          add_branch( twokey, cfg_key_tree );
       }
    } else {
-      if (twokey->macro != NULL) {
-         if (twokey->macro->len > 1)
-            my_free( twokey->macro->key.keys );
-         my_free( twokey->macro );
-         twokey->macro = NULL;
+      if (twokey->macro_ptr != NULL) {
+         if (twokey->macro_ptr->len > 1)
+            my_free( twokey->macro_ptr->key.keys );
+         my_free( twokey->macro_ptr );
+         twokey->macro_ptr = NULL;
       }
       twokey->func = func;
    }
@@ -1744,7 +1755,7 @@ void parse_cmdline_macro( char *line, int prompt_line )
 {
 FILE *fp;
 
-   macro_key = g_option.macro;
+   macro_key = g_option.macro_ptr;
    line_no = 0;
 
    if (file_exists( line ) == ERROR) {
@@ -1790,7 +1801,7 @@ FILE *fp;
  *          shl:    TRUE if creating Language sub-menu
  * Returns: NULL if okay, pointer to error message if not.
  * Notes:   requires user_menu to point to the appropriate menu.
- *          if the name already exists, overwrite the current.
+ *          if the name already (CONFIG_S->new_user_menu_exists), overwrite the current.
  */
 const char *new_user_menu( char *line, char *token, int shl )
 {
@@ -1802,13 +1813,12 @@ long key;
 int  twokey;
 int  len;
 int  i;
-static int exists = FALSE;
 
    if (token == NULL || *token == '\0' || (*token == '-' && token[1] == '\0')) {
-      if (exists == TRUE) {
+      if ((CONFIG_S->new_user_menu_exists) == TRUE) {
          /*
-          * The previous item already exists, so assume
-          * this separator also already exists after it.
+          * The previous item already (CONFIG_S->new_user_menu_exists), so assume
+          * this separator also already (CONFIG_S->new_user_menu_exists) after it.
           */
          return( NULL );
       }
@@ -1819,7 +1829,7 @@ static int exists = FALSE;
       if (cnt == 1 && !shl &&
           strcmp( user_menu->minor[1].minor_name, config32 ) == 0) {
          i = 1;
-         exists = ERROR;
+         (CONFIG_S->new_user_menu_exists) = ERROR;
       } else {
          for (i = cnt; i >= 1; --i) {
             name = user_menu->minor[i].minor_name;
@@ -1827,11 +1837,11 @@ static int exists = FALSE;
                if (memcmp( name, token, len ) == 0)
                   break;
          }
-         exists = (i > 0);
+         (CONFIG_S->new_user_menu_exists) = (i > 0);
       }
    }
 
-   if (!exists) {
+   if (!(CONFIG_S->new_user_menu_exists)) {
       if (user_menu->minor_cnt == 0) {
          i   = TRUE;
          cnt = (shl) ? 3 : 5;
@@ -1866,7 +1876,7 @@ static int exists = FALSE;
       }
    }
    if (i) {
-      if (exists != TRUE) {
+      if ((CONFIG_S->new_user_menu_exists) != TRUE) {
          user_menu->minor[i].minor_name = my_malloc( len, &rc );
          if (rc == ERROR)
             return( main4 );
@@ -1919,9 +1929,6 @@ static const char *process_menu( char *line, char *token )
 int  opt;
 char *hdr;
 int  i;
-static MENU_STR *cmenu = NULL;
-static MENU_LIST *popout = NULL;
-static int  erred = FALSE;
 
    opt = search( token, valid_menu, VALID_MENU_DEFS );
    /*
@@ -1934,8 +1941,8 @@ static int  erred = FALSE;
 
    switch (opt) {
       case MENU_CLEAR :
-         cmenu = NULL;
-         popout = NULL;
+         (CONFIG_S->process_menu_cmenu) = NULL;
+         (CONFIG_S->process_menu_popout) = NULL;
          if (*token == '\0') {
             for (i = 0; i < menu_cnt; ++i) {
                free_menu( &menu[i].menu );
@@ -1952,17 +1959,17 @@ static int  erred = FALSE;
       case MENU_HEADER :
          if (*token == '\0')
             return( config1 );
-         cmenu = NULL;
-         popout = NULL;
-         erred = FALSE;
+         (CONFIG_S->process_menu_cmenu) = NULL;
+         (CONFIG_S->process_menu_popout) = NULL;
+         (CONFIG_S->process_menu_erred) = FALSE;
          for (i = 0; i < menu_cnt; ++i) {
             hdr = menu[i].major_name;
             if (*hdr == '\0')
                ++hdr;
             if (strcmp( hdr, token ) == 0) {
-               cmenu = &menu[i].menu;
+               (CONFIG_S->process_menu_cmenu) = &menu[i].menu;
                if (opt == MENU_CLEAR) {
-                  free_menu( cmenu );
+                  free_menu( (CONFIG_S->process_menu_cmenu) );
                   if (i == user_idx) {
                      user_idx = -1;
                      user_menu = NULL;
@@ -1971,7 +1978,7 @@ static int  erred = FALSE;
                break;
             }
          }
-         if (cmenu == NULL) {
+         if ((CONFIG_S->process_menu_cmenu) == NULL) {
             /*
              * find an empty menu, assuming it was just cleared to be renamed
              */
@@ -1984,7 +1991,7 @@ static int  erred = FALSE;
             menu[i].major_name = my_strdup( token );
             if (menu[i].major_name == NULL)
                return( main4 );
-            cmenu = &menu[i].menu;
+            (CONFIG_S->process_menu_cmenu) = &menu[i].menu;
             if (token == "User" ||
                 (parse_token( line, token ), stricmp( token, "User" )) == 0) {
                user_idx = i;
@@ -1996,44 +2003,44 @@ static int  erred = FALSE;
          break;
 
       case MENU_ITEM :
-         if (popout)
-            popout = NULL;
-         if (cmenu)
-            return( new_menu_item( cmenu, line, token ) );
+         if ((CONFIG_S->process_menu_popout))
+            (CONFIG_S->process_menu_popout) = NULL;
+         if ((CONFIG_S->process_menu_cmenu))
+            return( new_menu_item( (CONFIG_S->process_menu_cmenu), line, token ) );
          /*
           * menu item not in a menu
           */
-         if (!erred) {
-            erred = TRUE;
+         if (!(CONFIG_S->process_menu_erred)) {
+            (CONFIG_S->process_menu_erred) = TRUE;
             return( config35 );
          }
          break;
 
       case MENU_POPOUT :
-         if (cmenu) {
-            const char *errmsg = new_menu_item( cmenu, NULL, token );
+         if ((CONFIG_S->process_menu_cmenu)) {
+            const char *errmsg = new_menu_item( (CONFIG_S->process_menu_cmenu), NULL, token );
             if (errmsg != NULL)
                return( errmsg );
-            popout = my_calloc( sizeof(MENU_LIST) );
-            if (popout == NULL)
+            (CONFIG_S->process_menu_popout) = my_calloc( sizeof(MENU_LIST) );
+            if ((CONFIG_S->process_menu_popout) == NULL)
                return( main4 );
-            popout->next = popout_menu;
-            popout_menu = popout;
-            cmenu->minor[cmenu->minor_cnt-2].pop_out = &popout->popout;
-            cmenu->minor[cmenu->minor_cnt-2].minor_func = 0;
+            (CONFIG_S->process_menu_popout)->next = popout_menu;
+            popout_menu = (CONFIG_S->process_menu_popout);
+            (CONFIG_S->process_menu_cmenu)->minor[(CONFIG_S->process_menu_cmenu)->minor_cnt-2].pop_out = &(CONFIG_S->process_menu_popout)->popout;
+            (CONFIG_S->process_menu_cmenu)->minor[(CONFIG_S->process_menu_cmenu)->minor_cnt-2].minor_func = 0;
             break;
          }
-         if (!erred) {
-            erred = TRUE;
+         if (!(CONFIG_S->process_menu_erred)) {
+            (CONFIG_S->process_menu_erred) = TRUE;
             return( config35 );
          }
          break;
 
       case MENU_POPITEM :
-         if (popout)
-            return( new_menu_item( &popout->popout, line, token ) );
-         if (!erred) {
-            erred = TRUE;
+         if ((CONFIG_S->process_menu_popout))
+            return( new_menu_item( &(CONFIG_S->process_menu_popout)->popout, line, token ) );
+         if (!(CONFIG_S->process_menu_erred)) {
+            (CONFIG_S->process_menu_erred) = TRUE;
             return( config35 );
          }
          break;
@@ -2262,4 +2269,19 @@ int  i;
    }
 
    return( viewer == TRUE );
+}
+
+
+/* tilegame: sets up this file's part of the editor state */
+void config_state_init( void )
+{
+   tde->mod[TDE_MOD_CONFIG] = tde_calloc( 1, sizeof(struct config_state) );
+   CONFIG_S->new_user_menu_exists = FALSE;
+   CONFIG_S->process_menu_cmenu = NULL;
+   CONFIG_S->process_menu_popout = NULL;
+   CONFIG_S->process_menu_erred = FALSE;
+
+   line_in = NULL;
+   line_in_len = 0;
+   cmd_config = NULL;
 }

@@ -156,35 +156,32 @@
 #include "common.h"
 #include "tdefunc.h"
 #include "define.h"
+/* tilegame: the variables of this file are in the editor state (tdestate.h) */
+struct findrep_state {
+   file_infos *first_file;
+   TDE_WIN *first_win;
+   text_ptr subst_text;
+   int subst_len;
+   int subst_max;
+   int find_proc_begin;
+};
+#define FINDREP_S ((struct findrep_state *)tde->mod[TDE_MOD_FINDREP])
+#define first_file (FINDREP_S->first_file)
+#define first_win (FINDREP_S->first_win)
+#define subst_text (FINDREP_S->subst_text)
+#define subst_len (FINDREP_S->subst_len)
+#define subst_max (FINDREP_S->subst_max)
 
 
 /*
  * jmh 991009: when text is replaced in a forward BOX replace, need to
  *             adjust the end of the block to reflect the change.
  */
-       int  block_replace_offset = 0;
-       long last_replace_line = 0;
 
-extern int  nfa_status;                 /* regx.c */
 
-       int  search_type = ERROR;        /* the search being repeated */
-static file_infos *first_file;          /* first file when searching all */
-static TDE_WIN    *first_win;           /* first win when searching all */
 
-       TDE_WIN    *results_window = NULL;/* search results window,   */
-       file_infos *results_file;         /*  file                    */
-       file_infos *search_file;          /*  and file being searched */
 
-       long found_rline;                /* for highlighting */
-       int  found_rcol;
-       int  found_len;
-       int  found_vlen;                 /* virtual length, for tabs */
 
-static text_ptr subst_text;             /* for regx substitution */
-static int  subst_len;
-static int  subst_max;
-extern int  subs_pos[10];
-extern int  subs_len[10];
 
 
 #define CopyWord   NextLine
@@ -598,7 +595,6 @@ char *answer;
  */
 int  find_proc( int id, char* text )
 {
-static int  begin = ERROR;      /* remember the old Beginning state */
 int  other;
 int  rc = OK;
 
@@ -620,16 +616,16 @@ int  rc = OK;
          other = IDC_S_RESULTS + IDC_S_ALL - id;
          if (find_dialog[id].n) {
             if (find_dialog[other].n) {
-               begin = CB_S_Begin;
-               if (!begin)
+               (FINDREP_S->find_proc_begin) = CB_S_Begin;
+               if (!(FINDREP_S->find_proc_begin))
                   check_box( IDC_S_BEGIN );
                check_box_enabled( IDC_S_BEGIN, FALSE );
             }
-         } else if (find_dialog[other].n && begin != ERROR) {
+         } else if (find_dialog[other].n && (FINDREP_S->find_proc_begin) != ERROR) {
             check_box_enabled( IDC_S_BEGIN, TRUE );
-            if (!begin)
+            if (!(FINDREP_S->find_proc_begin))
                check_box( IDC_S_BEGIN );
-            begin = ERROR;
+            (FINDREP_S->find_proc_begin) = ERROR;
          }
       }
    }
@@ -2733,4 +2729,17 @@ TDE_WIN w;
    }
 
    return( rc == OK );
+}
+
+
+/* tilegame: sets up this file's part of the editor state */
+void findrep_state_init( void )
+{
+   tde->mod[TDE_MOD_FINDREP] = tde_calloc( 1, sizeof(struct findrep_state) );
+   FINDREP_S->find_proc_begin = ERROR;
+
+   block_replace_offset = 0;
+   last_replace_line = 0;
+   search_type = ERROR;
+   results_window = NULL;
 }

@@ -59,15 +59,22 @@
 #include "define.h"
 #include "tdefunc.h"
 #include <time.h>
+/* tilegame: the variables of this file are in the editor state (tdestate.h) */
+struct dirlist_state {
+   int row_ofs;
+   int fofs;
+   int name_ofs;
+};
+#define DIRLIST_S ((struct dirlist_state *)tde->mod[TDE_MOD_DIRLIST])
+#define row_ofs (DIRLIST_S->row_ofs)
+#define fofs (DIRLIST_S->fofs)
+#define name_ofs (DIRLIST_S->name_ofs)
 
 
-static int  row_ofs;                    /* row of first name (jmh 060830) */
-static int  fofs;                       /* offset in the file list for the */
                                         /*  first file (jmh 980523)        */
 
 static int  win_cmp( char *, char * );  /* GotoWindow sort function */
 static int  shl_cmp( char *, char * );  /* SyntaxSelect sort function */
-static int  name_ofs;                   /* GotoWindow offset to window name */
 
 
 /*
@@ -1388,4 +1395,12 @@ char *n1, *n2;
 static int  shl_cmp( char *name1, char *name2 )
 {
    return my_strcmp( (text_ptr)name1, (text_ptr)name2 );
+}
+
+
+/* tilegame: sets up this file's part of the editor state */
+void dirlist_state_init( void )
+{
+
+   tde->mod[TDE_MOD_DIRLIST] = tde_calloc( 1, sizeof(struct dirlist_state) );
 }

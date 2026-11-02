@@ -26,57 +26,31 @@
 #include "define.h"
 
 
-displays g_display;
 
-status_infos g_status;
 
-boyer_moore_type bm;
 
-boyer_moore_type sas_bm;
 
-MACRO *macro[MODIFIERS][MAX_KEYS];
-TREE  key_tree = { 0x10000L, NULL, 0, NULL, NULL };
 
 #if defined( __DOS16__ )
 CEH ceh;
 #endif
 
-SORT sort;
 
-DIFF diff;
 
-REGX_INFO regx;
 
-REGX_INFO sas_regx;
 
-NFA_TYPE nfa;
 
-NFA_TYPE sas_nfa;
 
-char line_out[MAX_COLS+2];
 
 #if defined( __UNIX__ )
-chtype tde_color_table[256];
 #endif
 
-char ruler_line[MAX_LINE_LENGTH+MAX_COLS+2];
-TDE_WIN ruler_win;
 
 
 /*
  * Scancode mapping. This translates keyboard hardware scancodes to TDE
  * keycodes. Added by jmh 020903.
  */
-int  scancode_map[MAX_KEYS] = {
-   _ESC, _1, _2, _3, _4, _5, _6, _7, _8, _9, _0, _MINUS, _EQUALS, _BACKSPACE,
-   _TAB, _Q, _W, _E, _R, _T, _Y, _U, _I, _O, _P, _LBRACKET, _RBRACKET, _ENTER,
-   _CONTROLKEY, _A, _S, _D, _F, _G, _H, _J, _K, _L, _SEMICOLON, _APOSTROPHE,
-   _BACKQUOTE, _SHIFTKEY, _BACKSLASH, _Z, _X, _C, _V, _B, _N, _M, _COMMA,
-   _PERIOD, _SLASH, _CONTROL_BREAK, _GREY_STAR, _ALTKEY, _SPACEBAR, _CAPSLOCK,
-   _F1, _F2, _F3, _F4, _F5, _F6, _F7, _F8, _F9, _F10, _GREY_ENTER, _GREY_SLASH,
-   _HOME, _UP, _PGUP, _GREY_MINUS, _LEFT, _CENTER, _RIGHT, _GREY_PLUS, _END,
-   _DOWN, _PGDN, _INS, _DEL, _PRTSC, _FAKE_F11, _LEFT_BACKSLASH, _F11, _F12,
-};
 
 
 /*
@@ -108,84 +82,13 @@ const char graphic_char[GRAPHIC_SETS][11] = {
 };
 
 
-option_infos g_option_all = {
-   NULL,                /* auto-detect syntax highlighting language */
-   FALSE,               /* auto-detect read-only status */
-   0,                   /* file is not scratch */
-   -1,                  /* use global tab size */
-   TEXT,                /* auto-detect file type */
-   DEFAULT_BIN_LENGTH,  /* line length if binary */
-   0,                   /* no startup macro */
-   FALSE                /* load each file individually */
-};
-option_infos g_option;
 
 
-mode_infos mode = {
-   0,                   /* initial color scheme */
-   FALSE,               /* sync mode? */
-   TRUE,                /* sync semaphore must be TRUE - DO NOT CHANGE */
-   FALSE,               /* macro recording mode must be FALSE - DO NOT CHANGE */
-   TRUE,                /* insert mode */
-   TRUE,                /* indent mode */
-   8,                   /* tab size */
-   8,                   /* tab size */
-   TRUE,                /* default smart tab mode */
-   FALSE,               /* inflate tabs? */
-   IGNORE,              /* sort case */
-   FALSE,               /* enhanced keyboard flag - set in console.c */
-   SMALL_CURSOR | (MEDIUM_CURSOR << 2), /* jmh 990404 */
-                        /* default cursor size == small insert, medium overw */
-   FALSE,               /* default FALSE = do not write ^Z at end of file */
-   NATIVE,              /* default write <cr><lf> at eol */
-   TRUE,                /* default remove trailing space on edited lines */
-   FALSE,               /* default show eol character is off */
-   NO_WRAP,             /* default word wrap mode is off */
-   0,                   /* default left margin - add 1 to margins for display */
-   2,                   /* default paragraph begin */
-   71,                  /* default right margin */
-   FALSE,               /* default justify right margin */
-   FALSE,               /* format paragraph/text semaphore - DO NOT CHANGE */
-   UNDO_STACK_LEN,      /* number of undo lines to keep */
-   MAX_UNDOS,           /* number of undos to keep */
-   TRUE,                /* default undo group */
-   FALSE,               /* default undo move */
-   FALSE,               /* default backup mode */
-   TRUE,                /* default ruler mode */
-   "%H:%0n  %D, %d %M, %Y",     /* default time-stamp format */
-                                /* eg: "17:18  Sunday, 31 May, 1998" */
-   FALSE,               /* default cursor cross is off */
-   SORT_NAME,           /* default filename sort for directory list */
-#if defined( __UNIX__ ) && !defined( PC_CHARS )
-   -1,                  /* default disabled ASCII graphic characters */
-#else
-   -2,                  /* default disabled single-line graphic characters */
-#endif
-   CUR_RIGHT,           /* cursor direction - DO NOT CHANGE */
-   FALSE,               /* draw mode - DO NOT CHANGE */
-   FALSE,               /* default line number display */
-   TRUE,                /* default auto save workspace */
-   FALSE,               /* default don't track path */
-   FALSE,               /* default don't display cwd */
-   "tde.txt",           /* default help file */
-   "^<~>",              /* default help topic */
-};
 
 
 /*
  * Initialise the histories. jmh 990424.
  */
-HISTORY h_file   = { 0, &h_file,   &h_file,   "" };
-HISTORY h_find   = { 0, &h_find,   &h_find,   "" };
-HISTORY h_border = { 0, &h_border, &h_border, "" };
-HISTORY h_fill   = { 0, &h_fill,   &h_fill,   "" };
-HISTORY h_stamp  = { 0, &h_stamp,  &h_stamp,  "" };
-HISTORY h_line   = { 0, &h_line,   &h_line,   "" };
-HISTORY h_lang   = { 0, &h_lang,   &h_lang,   "" };
-HISTORY h_grep   = { 0, &h_grep,   &h_grep,   "" };
-HISTORY h_win    = { 0, &h_win,    &h_win,    "" };
-HISTORY h_exec   = { 0, &h_exec,   &h_exec,   "" };
-HISTORY h_parm   = { 0, &h_parm,   &h_parm,   "" };
 
 
 /*
@@ -270,45 +173,11 @@ HISTORY h_parm   = { 0, &h_parm,   &h_parm,   "" };
 #define COLOR_OVRS      0x01    /*                  Blue    */
 #endif
 
-TDE_COLORS colour = {
-   { MONO_REVERSE,  MONO_REVERSE,   MONO_NORMAL,     MONO_BOLD,
-     MONO_NORMAL,   MONO_UNDER,     MONO_NORMAL,     MONO_BOLD,
-     MONO_BOLD,     MONO_UNDER,     MONO_REVERSE,    MONO_STANDOUT,
-     MONO_REVERSE,  MONO_REVERSE,   MONO_STANDOUT,   MONO_STANDOUT,
-     MONO_NORMAL,   MONO_NORMAL,    MONO_BOLD,       MONO_UNDER,
-     MONO_REVERSE,  MONO_REVERSE,   MONO_NORMAL,     MONO_NORMAL,
-     MONO_UNDER,    MONO_REVERSE,   MONO_REVERSE,    0
-   },
-   { COLOR_HEAD,    COLOR_MODE,     COLOR_DIAG,      COLOR_SPECIAL,
-     COLOR_CWD,     COLOR_MESSAGE,  COLOR_TEXT,      COLOR_DIRTY,
-     COLOR_CURL,    COLOR_EOF,      COLOR_BLOCK,     COLOR_SWAP,
-     COLOR_CROSS,   COLOR_RULER,    COLOR_POINTER,   COLOR_BP,
-     COLOR_HELP,    COLOR_DIALOG,   COLOR_EDIT,      COLOR_DISABLED,
-     COLOR_HILITE,  COLOR_MENUHEAD, COLOR_MENUSEL,   COLOR_POPUP,
-     COLOR_MENUDIS, COLOR_MENUITEM, COLOR_MENUNITEM, COLOR_OVRS
-   }
-};
 
 
 /*
  * Default syntax highlighting colors.
  */
-int syntax_color[SHL_NUM_COLORS] = {
-   30,          /* Normal       -        yellow on blue */
-   28,          /* Bad          - bright red    on blue */
-   31,          /* Keyword      -        white  on blue */
-   23,          /* Comment      -        grey   on blue */
-   26,          /* Function     - bright green  on blue */
-   27,          /* String       - bright cyan   on blue */
-   27,          /* Character    - bright cyan   on blue */
-   27,          /* Integer      - bright cyan   on blue */
-   27,          /* Binary       - bright cyan   on blue */
-   27,          /* Octal        - bright cyan   on blue */
-   27,          /* Hex          - bright cyan   on blue */
-   27,          /* Real         - bright cyan   on blue */
-   19,          /* Preprocessor -        cyan   on blue */
-   31           /* Symbol       -        white  on blue */
-};
 
 
 /*
@@ -807,3 +676,76 @@ const char func_flag[NUM_FUNCS] = {
    0,                               /*   CloseWindow              237  */
    0,                               /*   ToggleQuickEdit          238  */
 };
+
+
+/* tilegame: sets up this file's part of the editor state */
+void global_state_init( void )
+{
+
+   { static const TREE tmpl_key_tree = { 0x10000L, NULL, 0, NULL, NULL }; memcpy( &key_tree, &tmpl_key_tree, sizeof key_tree ); }
+   { static const int tmpl_scancode_map[MAX_KEYS] = { _ESC, _1, _2, _3, _4, _5, _6, _7, _8, _9, _0, _MINUS, _EQUALS, _BACKSPACE, _TAB, _Q, _W, _E, _R, _T, _Y, _U, _I, _O, _P, _LBRACKET, _RBRACKET, _ENTER, _CONTROLKEY, _A, _S, _D, _F, _G, _H, _J, _K, _L, _SEMICOLON, _APOSTROPHE, _BACKQUOTE, _SHIFTKEY, _BACKSLASH, _Z, _X, _C, _V, _B, _N, _M, _COMMA, _PERIOD, _SLASH, _CONTROL_BREAK, _GREY_STAR, _ALTKEY, _SPACEBAR, _CAPSLOCK, _F1, _F2, _F3, _F4, _F5, _F6, _F7, _F8, _F9, _F10, _GREY_ENTER, _GREY_SLASH, _HOME, _UP, _PGUP, _GREY_MINUS, _LEFT, _CENTER, _RIGHT, _GREY_PLUS, _END, _DOWN, _PGDN, _INS, _DEL, _PRTSC, _FAKE_F11, _LEFT_BACKSLASH, _F11, _F12, }; memcpy( &scancode_map, &tmpl_scancode_map, sizeof scancode_map ); }
+   { static const option_infos tmpl_g_option_all = { NULL, FALSE, 0, -1, TEXT, DEFAULT_BIN_LENGTH, 0, FALSE }; memcpy( &g_option_all, &tmpl_g_option_all, sizeof g_option_all ); }
+   { static const mode_infos tmpl_mode = {
+   0,                   /* initial color scheme */
+   FALSE,               /* sync mode? */
+   TRUE,                /* sync semaphore must be TRUE - DO NOT CHANGE */
+   FALSE,               /* macro recording mode must be FALSE - DO NOT CHANGE */
+   TRUE,                /* insert mode */
+   TRUE,                /* indent mode */
+   8,                   /* tab size */
+   8,                   /* tab size */
+   TRUE,                /* default smart tab mode */
+   FALSE,               /* inflate tabs? */
+   IGNORE,              /* sort case */
+   FALSE,               /* enhanced keyboard flag - set in console.c */
+   SMALL_CURSOR | (MEDIUM_CURSOR << 2), /* jmh 990404 */
+                        /* default cursor size == small insert, medium overw */
+   FALSE,               /* default FALSE = do not write ^Z at end of file */
+   NATIVE,              /* default write <cr><lf> at eol */
+   TRUE,                /* default remove trailing space on edited lines */
+   FALSE,               /* default show eol character is off */
+   NO_WRAP,             /* default word wrap mode is off */
+   0,                   /* default left margin - add 1 to margins for display */
+   2,                   /* default paragraph begin */
+   71,                  /* default right margin */
+   FALSE,               /* default justify right margin */
+   FALSE,               /* format paragraph/text semaphore - DO NOT CHANGE */
+   UNDO_STACK_LEN,      /* number of undo lines to keep */
+   MAX_UNDOS,           /* number of undos to keep */
+   TRUE,                /* default undo group */
+   FALSE,               /* default undo move */
+   FALSE,               /* default backup mode */
+   TRUE,                /* default ruler mode */
+   "%H:%0n  %D, %d %M, %Y",     /* default time-stamp format */
+                                /* eg: "17:18  Sunday, 31 May, 1998" */
+   FALSE,               /* default cursor cross is off */
+   SORT_NAME,           /* default filename sort for directory list */
+#if defined( __UNIX__ ) && !defined( PC_CHARS )
+   -1,                  /* default disabled ASCII graphic characters */
+#else
+   -2,                  /* default disabled single-line graphic characters */
+#endif
+   CUR_RIGHT,           /* cursor direction - DO NOT CHANGE */
+   FALSE,               /* draw mode - DO NOT CHANGE */
+   FALSE,               /* default line number display */
+   TRUE,                /* default auto save workspace */
+   FALSE,               /* default don't track path */
+   FALSE,               /* default don't display cwd */
+   "tde.txt",           /* default help file */
+   "^<~>",              /* default help topic */
+};
+   memcpy( &mode, &tmpl_mode, sizeof mode ); }
+   { HISTORY  tmpl_h_file = { 0, &h_file, &h_file, "" }; memcpy( &h_file, &tmpl_h_file, sizeof h_file ); }
+   { HISTORY  tmpl_h_find = { 0, &h_find, &h_find, "" }; memcpy( &h_find, &tmpl_h_find, sizeof h_find ); }
+   { HISTORY  tmpl_h_border = { 0, &h_border, &h_border, "" }; memcpy( &h_border, &tmpl_h_border, sizeof h_border ); }
+   { HISTORY  tmpl_h_fill = { 0, &h_fill, &h_fill, "" }; memcpy( &h_fill, &tmpl_h_fill, sizeof h_fill ); }
+   { HISTORY  tmpl_h_stamp = { 0, &h_stamp, &h_stamp, "" }; memcpy( &h_stamp, &tmpl_h_stamp, sizeof h_stamp ); }
+   { HISTORY  tmpl_h_line = { 0, &h_line, &h_line, "" }; memcpy( &h_line, &tmpl_h_line, sizeof h_line ); }
+   { HISTORY  tmpl_h_lang = { 0, &h_lang, &h_lang, "" }; memcpy( &h_lang, &tmpl_h_lang, sizeof h_lang ); }
+   { HISTORY  tmpl_h_grep = { 0, &h_grep, &h_grep, "" }; memcpy( &h_grep, &tmpl_h_grep, sizeof h_grep ); }
+   { HISTORY  tmpl_h_win = { 0, &h_win, &h_win, "" }; memcpy( &h_win, &tmpl_h_win, sizeof h_win ); }
+   { HISTORY  tmpl_h_exec = { 0, &h_exec, &h_exec, "" }; memcpy( &h_exec, &tmpl_h_exec, sizeof h_exec ); }
+   { HISTORY  tmpl_h_parm = { 0, &h_parm, &h_parm, "" }; memcpy( &h_parm, &tmpl_h_parm, sizeof h_parm ); }
+   { static const TDE_COLORS tmpl_colour = { { MONO_REVERSE, MONO_REVERSE, MONO_NORMAL, MONO_BOLD, MONO_NORMAL, MONO_UNDER, MONO_NORMAL, MONO_BOLD, MONO_BOLD, MONO_UNDER, MONO_REVERSE, MONO_STANDOUT, MONO_REVERSE, MONO_REVERSE, MONO_STANDOUT, MONO_STANDOUT, MONO_NORMAL, MONO_NORMAL, MONO_BOLD, MONO_UNDER, MONO_REVERSE, MONO_REVERSE, MONO_NORMAL, MONO_NORMAL, MONO_UNDER, MONO_REVERSE, MONO_REVERSE, 0 }, { COLOR_HEAD, COLOR_MODE, COLOR_DIAG, COLOR_SPECIAL, COLOR_CWD, COLOR_MESSAGE, COLOR_TEXT, COLOR_DIRTY, COLOR_CURL, COLOR_EOF, COLOR_BLOCK, COLOR_SWAP, COLOR_CROSS, COLOR_RULER, COLOR_POINTER, COLOR_BP, COLOR_HELP, COLOR_DIALOG, COLOR_EDIT, COLOR_DISABLED, COLOR_HILITE, COLOR_MENUHEAD, COLOR_MENUSEL, COLOR_POPUP, COLOR_MENUDIS, COLOR_MENUITEM, COLOR_MENUNITEM, COLOR_OVRS } }; memcpy( &colour, &tmpl_colour, sizeof colour ); }
+   { static const int tmpl_syntax_color[SHL_NUM_COLORS] = { 30, 28, 31, 23, 26, 27, 27, 27, 27, 27, 27, 27, 19, 31 }; memcpy( &syntax_color, &tmpl_syntax_color, sizeof syntax_color ); }
+}

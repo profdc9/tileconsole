@@ -65,6 +65,19 @@
 #include "common.h"
 #include "tdefunc.h"
 #include "define.h"
+/* tilegame: the variables of this file are in the editor state (tdestate.h) */
+struct block_state {
+   int tabbed_bc;
+   int tabbed_ec;
+   int tabbed_bc_ofs;
+   int tabbed_ec_ofs;
+   long block_indent_level;
+};
+#define BLOCK_S ((struct block_state *)tde->mod[TDE_MOD_BLOCK])
+#define tabbed_bc (BLOCK_S->tabbed_bc)
+#define tabbed_ec (BLOCK_S->tabbed_ec)
+#define tabbed_bc_ofs (BLOCK_S->tabbed_bc_ofs)
+#define tabbed_ec_ofs (BLOCK_S->tabbed_ec_ofs)
 
 
 static void do_multi_box_mark( TDE_WIN * );
@@ -75,11 +88,7 @@ static int  find_comment( text_ptr, text_ptr, int );
 static int  find_comment_close( text_ptr, text_ptr, int );
 static void border_block_buff( text_ptr, int, long,long,long, text_ptr, int * );
 
-static int  tabbed_bc = -1, tabbed_ec;
-static int  tabbed_bc_ofs, tabbed_ec_ofs;
 
-long swap_br, swap_er = -1;
-int  swap_bc, swap_ec;
 
 static int find_swap_lines( TDE_WIN *, line_list_ptr *, line_list_ptr *,
                             long, long, int );
@@ -1486,7 +1495,7 @@ line_list_ptr temp2;            /* temporary list pointer */
 line_list_ptr dest_end;
 int  lens;                      /* length of source line */
 long li;                        /* temporary line variables */
-long diff;
+long diff_;
 long diff_dest = 1;
 TDE_WIN d_w;                    /* a couple of temporary TDE_WINs */
 
@@ -1627,39 +1636,39 @@ TDE_WIN d_w;                    /* a couple of temporary TDE_WINs */
       syntax_check_block( br, er, dest, dest_file->syntax );
    }
 
-   diff =  er + 1L - br;
+   diff_ =  er + 1L - br;
    if (action == COPY || action == KOPY || action == MOVE) {
       if (action == MOVE)
-         dest_file->length += diff;
-      adjust_windows_cursor( window, diff );
+         dest_file->length += diff_;
+      adjust_windows_cursor( window, diff_ );
    }
    if (action == DELETE || action == MOVE) {
-      source_file->length -= diff;
-      adjust_windows_cursor( source_window, -diff );
+      source_file->length -= diff_;
+      adjust_windows_cursor( source_window, -diff_ );
    }
    if (action == SWAP) {
       diff_dest = swap_er + 1L - swap_br;
-      source_file->length += diff_dest - diff;
-      dest_file->length   += diff - diff_dest;
-      adjust_windows_cursor( source_window, diff_dest - diff );
-      adjust_windows_cursor( window,        diff - diff_dest );
+      source_file->length += diff_dest - diff_;
+      dest_file->length   += diff_ - diff_dest;
+      adjust_windows_cursor( source_window, diff_dest - diff_ );
+      adjust_windows_cursor( window,        diff_ - diff_dest );
       if (!same) {
          source_file->block_er = br + diff_dest - 1;
          dest_file->block_type = -LINE;
          if (source_window->rline > er)
-            source_window->rline += diff_dest - diff;
+            source_window->rline += diff_dest - diff_;
          else if (source_window->rline > br + diff_dest - 1)
             source_window->rline = br + diff_dest - 1;
       } else if (swap_br > er)
-         swap_br += diff_dest - diff;
+         swap_br += diff_dest - diff_;
       dest_file->block_br = swap_br;
-      dest_file->block_er = swap_br + diff - 1;
+      dest_file->block_er = swap_br + diff_ - 1;
    }
    /*
     * do the syntax highlighting check
     */
    if (action == DELETE && source_window->rline >= br) {
-      source_window->rline -= diff;
+      source_window->rline -= diff_;
       if (source_window->rline < br)
          source_window->rline = br;
    }
@@ -1720,7 +1729,7 @@ line_list_ptr temp_ll;          /* temporary list pointer */
 int  lens;                      /* length of source line */
 int  lend;                      /* length of destination line */
 long li;                        /* temporary line variables */
-long diff;
+long diff_;
 TDE_WIN s_w, d_w;               /* a couple of temporary TDE_WINs */
 
    dup_window_info( &s_w, source_window );
@@ -2102,20 +2111,20 @@ TDE_WIN s_w, d_w;               /* a couple of temporary TDE_WINs */
    }
 
    if (*rc == OK) {
-      diff = er - br;
+      diff_ = er - br;
       if (action == COPY || action == KOPY || action == MOVE) {
          if (action == MOVE)
-            dest_file->length += diff;
-         else if (diff || ec == -1)
+            dest_file->length += diff_;
+         else if (diff_ || ec == -1)
             ++dest_file->length;
-         adjust_windows_cursor( window, diff + (ec == -1) );
+         adjust_windows_cursor( window, diff_ + (ec == -1) );
       }
       if (action == DELETE || action == MOVE) {
-         source_file->length -= diff;
-         adjust_windows_cursor( source_window, -diff );
+         source_file->length -= diff_;
+         adjust_windows_cursor( source_window, -diff_ );
       }
       if (action == DELETE && source_window->rline >= br) {
-         source_window->rline -= diff;
+         source_window->rline -= diff_;
          if (source_window->rline < br)
             source_window->rline = br;
       }
@@ -2192,7 +2201,7 @@ int  source_tab_size, dest_tab_size;
 int  swap_len;
 int  dbc, dec;
 int  sover, dover, ssame;
-int  diff;
+int  diff_;
 
    if (action == SWAP)
       swap_buff = malloc( BUFF_SIZE + 2 );
@@ -2204,7 +2213,7 @@ int  diff;
       *rc = ERROR;
       return;
    }
-   swap_len = diff = 0;
+   swap_len = diff_ = 0;
    sover = dover = ssame = FALSE;
 
    /*
@@ -2226,7 +2235,7 @@ int  diff;
       *rc = find_swap_box( window, br, er, bc, ec, same );
       if (*rc == OK) {
          swap_len = swap_ec - swap_bc + 1;
-         diff = block_len - swap_len;
+         diff_ = block_len - swap_len;
          while (rline > swap_br) {
             dest = dest->prev;
             --rline;
@@ -2444,8 +2453,8 @@ int  diff;
                   g_status.copied = FALSE;
 
                } else if (g_status.command == FillBlockPattern)
-                  diff = block_pattern( block_buff, block_len, fill_char,
-                                        style, diff );
+                  diff_ = block_pattern( block_buff, block_len, fill_char,
+                                        style, diff_ );
 
                *rc = copy_buff_2file( &s_w, block_buff, source, rcol,
                                       block_len, action );
@@ -2472,16 +2481,16 @@ int  diff;
                   sbc = bc;
                   sec = ec;
                   if (sover && li >= rline) {
-                     sbc += diff;
-                     sec += diff;
+                     sbc += diff_;
+                     sec += diff_;
                   }
                   load_box_buff( block_buff, source, sbc, sec, ' ',
                                  source_tabs, source_tab_size );
                   dbc = swap_bc;
                   dec = swap_ec;
                   if (dover && d_w.rline >= br) {
-                     dbc -= diff;
-                     dec -= diff;
+                     dbc -= diff_;
+                     dec -= diff_;
                   }
                   load_box_buff( swap_buff, dest, dbc, dec, ' ',
                                  dest_tabs, dest_tab_size );
@@ -2489,7 +2498,7 @@ int  diff;
                   *rc = copy_buff_2file( &d_w, block_buff, dest, dbc,
                                          block_len, -swap_len );
                   if (ssame)
-                     sbc += diff;
+                     sbc += diff_;
                   *rc = copy_buff_2file( &s_w, swap_buff, source, sbc,
                                          swap_len, -block_len );
                   source->type |= DIRTY;
@@ -2520,11 +2529,11 @@ int  diff;
             dest_file->block_er = swap_er;
             dest_file->block_bc = swap_bc;
             if (same && rline == br && bc < swap_bc)
-               dest_file->block_bc -= diff;
+               dest_file->block_bc -= diff_;
             dest_file->block_ec = dest_file->block_bc + block_len - 1;
             if (!same) {
                dest_file->block_type = -BOX;
-               source_file->block_ec -= diff;
+               source_file->block_ec -= diff_;
             }
          } else if (action == OVERLAY) {
             --d_w.rline;
@@ -4134,7 +4143,6 @@ line_list_ptr temp_ll;
 text_ptr t;
 text_ptr s;
 int  col;
-static long level = 2;          /* remember previous indentation level */
 int  add = 0;
 int  rem;
 int  bc;
@@ -4214,7 +4222,7 @@ int  ptab_size;
    s_w.visible = FALSE;
 
    /*
-    * Determine the level of indentation.
+    * Determine the (BLOCK_S->block_indent_level) of indentation.
     */
    for (col = bc; g_status.line_buff[col] == ' '; ++col) ;
 
@@ -4250,12 +4258,12 @@ int  ptab_size;
       }
    } else {
       /*
-       * indentation level:
+       * indentation (BLOCK_S->block_indent_level):
        */
-      rc = get_number( block31, window->bottom_line, &level, NULL );
+      rc = get_number( block31, window->bottom_line, &(BLOCK_S->block_indent_level), NULL );
       if (rc == ERROR)
          return( ERROR );
-      add = abs( (int)level );
+      add = abs( (int)(BLOCK_S->block_indent_level) );
    }
    if (!indent) {
       if (add > col - bc)
@@ -4413,7 +4421,7 @@ int  wid;
 TDE_WIN win;
 int  redraw;
 long last;
-long diff;
+long diff_;
 int  rc;
 DISPLAY_BUFF;
 
@@ -4436,13 +4444,13 @@ DISPLAY_BUFF;
     */
    s_output( block32, g_display.mode_line, rc, Color( Help ) );
 
-   diff = 0;
+   diff_ = 0;
    redraw = 2;
 
    for (;;) {
       if (redraw) {
-         win.rline += diff;
-         if (check_cline( &win, win.cline + (int)diff ))
+         win.rline += diff_;
+         if (check_cline( &win, win.cline + (int)diff_ ))
             redraw = 1;
          if (redraw == 1)
             display_current_window( &win );
@@ -4462,13 +4470,13 @@ DISPLAY_BUFF;
       else switch (func) {
          case BegOfLine:
             win.ll = *dest;
-            diff   = swap_br;
+            diff_   = swap_br;
             goto Home_or_End;
          case EndOfLine:
             win.ll = *dest_end;
-            diff   = swap_er;
+            diff_   = swap_er;
          Home_or_End:
-            diff  -= win.rline;
+            diff_  -= win.rline;
             redraw = 3;
          break;
 
@@ -4479,14 +4487,14 @@ DISPLAY_BUFF;
                   --swap_er;
                else {
                   win.ll = *dest_end = (*dest_end)->next;
-                  diff   = 1;
+                  diff_   = 1;
                   redraw = 2;
                }
             } else {
                ++swap_br;
                update_line( &win );
                win.ll = *dest = (*dest)->next;
-               diff   = 1;
+               diff_   = 1;
                redraw = 3;
             }
          break;
@@ -4498,14 +4506,14 @@ DISPLAY_BUFF;
                   ++swap_br;
                else {
                   win.ll = *dest = (*dest)->prev;
-                  diff   = -1;
+                  diff_   = -1;
                   redraw = 2;
                }
             } else {
                --swap_er;
                update_line( &win );
                win.ll = *dest_end = (*dest_end)->prev;
-               diff   = -1;
+               diff_   = -1;
                redraw = 3;
             }
          break;
@@ -4517,10 +4525,10 @@ DISPLAY_BUFF;
                   swap_br = er + 1;
                if (swap_br < 1)
                   swap_br = 1;
-               for (diff = swap_er - swap_br; diff > 0; --diff)
+               for (diff_ = swap_er - swap_br; diff_ > 0; --diff_)
                   win.ll = win.ll->prev;
                *dest  = win.ll;
-               diff   = swap_br - swap_er;
+               diff_   = swap_br - swap_er;
                redraw = 1;
             }
          break;
@@ -4532,10 +4540,10 @@ DISPLAY_BUFF;
                   swap_er = br - 1;
                if (swap_er > last)
                   swap_er = last;
-               for (diff = swap_er - swap_br; diff > 0; --diff)
+               for (diff_ = swap_er - swap_br; diff_ > 0; --diff_)
                   win.ll = win.ll->next;
                *dest_end = win.ll;
-               diff   = swap_er - swap_br;
+               diff_   = swap_er - swap_br;
                redraw = 1;
             }
          break;
@@ -4608,7 +4616,7 @@ TDE_WIN u_w;
 int  line_only;
 int  len;
 int  col = 0;
-int  diff;
+int  diff_;
 long ldiff;
 int  redraw;
 int  i;
@@ -4660,14 +4668,14 @@ const char *help;
     */
    s_output( help, g_display.mode_line, i, Color( Help ) );
 
-   diff   = 0;
+   diff_   = 0;
    ldiff  = 0;
    redraw = 1;
    for (;;) {
       if (redraw) {
-         if (diff) {
-            win.rcol += diff;
-            win.ccol += diff;
+         if (diff_) {
+            win.rcol += diff_;
+            win.ccol += diff_;
             if (win.ccol < win.start_col) {
                win.ccol = win.start_col;
                win.bcol = win.rcol;
@@ -4694,13 +4702,13 @@ const char *help;
          if (redraw == 1)
             display_current_window( &win );
          else if (redraw == 2) {
-            if (diff) {
+            if (diff_) {
                for (i = len; i >= 0; --i)
                   hlight_line( win.ccol, win.cline + i, 1, Color( Swap ) );
             } else
                hlight_line( col, win.cline, len, Color( Swap ) );
 
-         } else if (redraw == 3 && diff) {
+         } else if (redraw == 3 && diff_) {
             dup_window_info( &u_w, &win );
             for (i = len; i >= 0; --i) {
                update_line( &u_w );
@@ -4713,7 +4721,7 @@ const char *help;
          xygoto( win.ccol, win.cline );
          refresh( );
          redraw = 0;
-         diff   = 0;
+         diff_   = 0;
          ldiff  = 0;
       }
       key  = getkey_macro( );
@@ -4724,8 +4732,8 @@ const char *help;
          break;
 
       else if (!line_only) switch (func) {
-         case BegOfLine: diff = swap_bc - win.rcol; redraw = 4; break;
-         case EndOfLine: diff = swap_ec - win.rcol; redraw = 4; break;
+         case BegOfLine: diff_ = swap_bc - win.rcol; redraw = 4; break;
+         case EndOfLine: diff_ = swap_ec - win.rcol; redraw = 4; break;
 
          case CharRight:
          case StreamCharRight:
@@ -4734,12 +4742,12 @@ const char *help;
                if (swap_ec >= MAX_LINE_LENGTH || (same && swap_ec == bc))
                   --swap_ec;
                else {
-                  diff   = 1;
+                  diff_   = 1;
                   redraw = 2;
                }
             } else {
                ++swap_bc;
-               diff   = 1;
+               diff_   = 1;
                redraw = 3;
             }
          break;
@@ -4751,12 +4759,12 @@ const char *help;
                if (swap_bc < 0 || (same && swap_bc == ec))
                   ++swap_bc;
                else {
-                  diff   = -1;
+                  diff_   = -1;
                   redraw = 2;
                }
             } else {
                --swap_ec;
-               diff   = -1;
+               diff_   = -1;
                redraw = 3;
             }
          break;
@@ -4768,7 +4776,7 @@ const char *help;
                   swap_bc = ec + 1;
                if (swap_bc < 0)
                   swap_bc = 0;
-               diff   = swap_bc - win.rcol;
+               diff_   = swap_bc - win.rcol;
                redraw = 1;
             }
          break;
@@ -4780,7 +4788,7 @@ const char *help;
                   swap_ec = bc - 1;
                if (swap_ec > MAX_LINE_LENGTH - 1)
                   swap_ec = MAX_LINE_LENGTH - 1;
-               diff   = swap_ec - win.rcol;
+               diff_   = swap_ec - win.rcol;
                redraw = 1;
             }
          break;
@@ -5254,7 +5262,7 @@ const char *errmsg = NULL;
  * Notes:   the comments should be part of the block.
  *          the first line should have a comment, but it is not necessary
  *           for subsequent lines to be commented.
- *          it will only uncomment one style (ie. block or line), but it can
+ *          it will only uncomment one style (ie. saved_block or line), but it can
  *           uncomment both types of that style.
  */
 int  uncomment_block( TDE_WIN *window )
@@ -5636,4 +5644,15 @@ text_ptr com = (text_ptr)strchr( (char*)comment, '\0' ) - 1;
       ec = -1;
 
    return( ec );
+}
+
+
+/* tilegame: sets up this file's part of the editor state */
+void block_state_init( void )
+{
+   tde->mod[TDE_MOD_BLOCK] = tde_calloc( 1, sizeof(struct block_state) );
+   BLOCK_S->block_indent_level = 2;
+
+   tabbed_bc = -1;
+   swap_er = -1;
 }

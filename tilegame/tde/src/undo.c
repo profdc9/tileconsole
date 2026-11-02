@@ -20,9 +20,6 @@
 #include "common.h"
 
 
-int  copied_rcol;               /* original rcol position for RestoreLine */
-int  copied_mod;                /* original modified flag for RestoreLine */
-int  copied_dirty;
 
 
 /*

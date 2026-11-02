@@ -33,6 +33,19 @@
 #include "tdestr.h"
 #include "tdefunc.h"
 #include "common.h"
+/* tilegame: the variables of this file are in the editor state (tdestate.h) */
+struct filmatch_state {
+   FileList *list;
+   FileList *last;
+   char pathbuf[PATH_MAX+2];
+   FileList *merge_sort_p;
+   FileList merge_sort_h;
+   int merge_sort_i;
+};
+#define FILMATCH_S ((struct filmatch_state *)tde->mod[TDE_MOD_FILMATCH])
+#define list (FILMATCH_S->list)
+#define last (FILMATCH_S->last)
+#define pathbuf (FILMATCH_S->pathbuf)
 
 
 /*
@@ -489,74 +502,70 @@ int  rc;
  */
 
 
-static FileList *list, *last;
-static char pathbuf[PATH_MAX+2];
 
 static int  find_files2( char *, char * );
 
 
 /*
  * Name:    merge_sort
- * Purpose: sort a list of files
+ * Purpose: sort a list_ of files
  * Author:  Jason Hood
  * Date:    August 10, 2005
- * Passed:  list:  list of files to be sorted
+ * Passed:  list_:  list_ of files to be sorted
  *          cnt:   number of files
- * Returns: pointer to new head of list
- * Notes:   use the current directory list sort order.
+ * Returns: pointer to new head of list_
+ * Notes:   use the current directory list_ sort order.
  */
-static FileList *merge_sort( FileList *list, int cnt )
+static FileList *merge_sort( FileList *list_, int cnt )
 {
 FileList *half;
-static FileList *p, h;          /* none of these are     */
-static int  i;                  /*  needed for recursion */
 
    if (cnt <= 1)
-      return( list );
+      return( list_ );
 
    if (cnt == 2) {
-      half = list->next;
-      if (dir_cmp( list->name, half->name ) > 0) {
-         list->next = NULL;
-         half->next = list;
-         last = list;
+      half = list_->next;
+      if (dir_cmp( list_->name, half->name ) > 0) {
+         list_->next = NULL;
+         half->next = list_;
+         last = list_;
          return( half );
       }
       last = half;
-      return( list );
+      return( list_ );
    }
 
-   i = cnt >> 1;
-   p = list;
-   while (--i > 0)
-      p = p->next;
-   half = p->next;
-   p->next = NULL;
+   (FILMATCH_S->merge_sort_i) = cnt >> 1;
+   (FILMATCH_S->merge_sort_p) = list_;
+   while (--(FILMATCH_S->merge_sort_i) > 0)
+      (FILMATCH_S->merge_sort_p) = (FILMATCH_S->merge_sort_p)->next;
+   half = (FILMATCH_S->merge_sort_p)->next;
+   (FILMATCH_S->merge_sort_p)->next = NULL;
 
-   list = merge_sort( list, cnt >> 1 );
+   list_ = merge_sort( list_, cnt >> 1 );
    half = merge_sort( half, (cnt >> 1) + (cnt & 1) );
 
-   p = &h;
+   (FILMATCH_S->merge_sort_p) = &(FILMATCH_S->merge_sort_h);
    for (;;) {
-      if (dir_cmp( list->name, half->name ) <= 0) {
-         p = p->next = list;
-         list = list->next;
-         if (list == NULL) {
-            p->next = half;
+      if (dir_cmp( list_->name, half->name ) <= 0) {
+         (FILMATCH_S->merge_sort_p) = (FILMATCH_S->merge_sort_p)->next = list_;
+         list_ = list_->next;
+         if (list_ == NULL) {
+            (FILMATCH_S->merge_sort_p)->next = half;
             break;
          }
       } else {
-         p = p->next = half;
+         (FILMATCH_S->merge_sort_p) = (FILMATCH_S->merge_sort_p)->next = half;
          half = half->next;
          if (half == NULL) {
-            p->next = list;
+            (FILMATCH_S->merge_sort_p)->next = list_;
             break;
          }
       }
    }
 
-   last = p;
-   return( h.next );
+   last = (FILMATCH_S->merge_sort_p);
+   return( (FILMATCH_S->merge_sort_h).next );
 }
 
 
@@ -615,24 +624,24 @@ int  cnt = 0;
 
 /*
  * Name:    add_dirs
- * Purpose: create a list of directories
+ * Purpose: create a list_ of directories
  * Author:  Jason Hood
  * Date:    August 10, 2005
  * Passed:  dirs:  how to match directories
- * Returns: pointer to list or NULL if none
+ * Returns: pointer to list_ or NULL if none
  * Notes:   pathbuf contains the pattern.
- *          the list is the directory name only, not the path.
+ *          the list_ is the directory name only, not the path.
  */
 static FileList *add_dirs( int dirs )
 {
 FTYPE *ft;
 FFIND ff;
 int  len, cnt;
-FileList head, *list, *f;
+FileList head, *list_, *f;
 char *p;
 
    head.next = NULL;
-   list = &head;
+   list_ = &head;
    cnt = 0;
 
    ft = my_findfirst( pathbuf, &ff, dirs );
@@ -649,7 +658,7 @@ char *p;
          if (f != NULL) {
             f->next = NULL;
             memcpy( f->name, ft->fname, len + 1 );
-            list = list->next = f;
+            list_ = list_->next = f;
             ++cnt;
          }
       }
@@ -677,7 +686,7 @@ char *p;
                memset( f->name, '.', len );
                f->name[len] = '/';
                f->name[len+1] = '\0';
-               list = list->next = f;
+               list_ = list_->next = f;
                ++cnt;
             }
          }
@@ -869,16 +878,16 @@ int  rc;
  * Purpose: select the next file found by find_files
  * Author:  Jason Hood
  * Date:    August 3, 2005
- * Passed:  list:  current file
+ * Passed:  list_:  current file
  * Returns: next file, or NULL if finished
  * Notes:   free the memory used by the current file.
  */
-FileList *next_file( FileList *list )
+FileList *next_file( FileList *list_ )
 {
 FileList *next;
 
-   next = list->next;
-   my_free( list );
+   next = list_->next;
+   my_free( list_ );
    return( next );
 }
 
@@ -912,4 +921,12 @@ char *p;
          rc = TRUE;
    }
    return( rc );
+}
+
+
+/* tilegame: sets up this file's part of the editor state */
+void filmatch_state_init( void )
+{
+
+   tde->mod[TDE_MOD_FILMATCH] = tde_calloc( 1, sizeof(struct filmatch_state) );
 }

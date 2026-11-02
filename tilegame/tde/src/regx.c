@@ -109,6 +109,34 @@
 #include "common.h"
 #include "tdefunc.h"
 #include "define.h"
+/* tilegame: the variables of this file are in the editor state (tdestate.h) */
+struct regx_state {
+   int lookahead;
+   int regx_rc;
+   int parser_state;
+   char class_bits[32];
+   int c1;
+   int c2;
+   int ttype;
+   NFA_TYPE *nfa_pointer;
+   int search_len;
+   int search_col;
+   text_ptr search_string;
+   int subs_found;
+};
+#define REGX_S ((struct regx_state *)tde->mod[TDE_MOD_REGX])
+#define lookahead (REGX_S->lookahead)
+#define regx_rc (REGX_S->regx_rc)
+#define parser_state (REGX_S->parser_state)
+#define class_bits (REGX_S->class_bits)
+#define c1 (REGX_S->c1)
+#define c2 (REGX_S->c2)
+#define ttype (REGX_S->ttype)
+#define nfa_pointer (REGX_S->nfa_pointer)
+#define search_len (REGX_S->search_len)
+#define search_col (REGX_S->search_col)
+#define search_string (REGX_S->search_string)
+#define subs_found (REGX_S->subs_found)
 
 #ifndef min
  #define min(a,b)       (((a) < (b)) ? (a) : (b))
@@ -166,30 +194,12 @@
 #define ASSERTNOT       7
 
 
-static int  lookahead;
-static int  regx_rc;
-static int  parser_state;
-static char class_bits[32];
 static int  bit[8] = { 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80 };
-static int  c1;
-static int  c2;
-static int  ttype;
 
-static NFA_TYPE  *nfa_pointer;
 
-       int  nfa_status;
-static int  search_len;
-static int  search_col;
-static text_ptr search_string;
 
-extern int  found_len;                  /* defined in findrep.c */
-extern int  block_replace_offset;
-extern long last_replace_line;
 extern int  add_search_line( line_list_ptr, long, int );
 
-static int  subs_found;
-       int  subs_pos[10];
-       int  subs_len[10];
 
 
 /*
@@ -1263,18 +1273,18 @@ int  escape_char( int let )
  * Purpose: add a null node to our pattern matching machine
  * Date:    June 5, 1993
  * Passed:  index:  current node in nfa
- *          ttype:  terminal type - CLOSURE, OR, JUXTA, etc...
+ *          ttype_:  terminal type - CLOSURE, OR, JUXTA, etc...
  *          n1:     pointer to next state, path for lambda transitions
  *          n2:     pointer to other next state, usually a NNODE
  * Returns: none, but modifies local global nfa.
  */
-void emit_cnode( int index, int ttype, int n1, int n2 )
+void emit_cnode( int index, int ttype_, int n1, int n2 )
 {
    assert( index >= 0);
    assert( index < REGX_SIZE );
 
    nfa.node_type[index] = CNODE;
-   nfa.term_type[index] = ttype;
+   nfa.term_type[index] = ttype_;
    nfa.c[index] = 0;
    nfa.next1[index] = n1;
    nfa.next2[index] = n2;
@@ -1286,19 +1296,19 @@ void emit_cnode( int index, int ttype, int n1, int n2 )
  * Purpose: add a to our pattern matching machine
  * Date:    June 5, 1993
  * Passed:  index:  current node in nfa
- *          ttype:  terminal type - EOL, ASCII, etc...
+ *          ttype_:  terminal type - EOL, ASCII, etc...
  *          c:      letter this node recognizes
  *          n1:     pointer to next state
  *          n2:     pointer to other next state, which can be same as n1
  * Returns: none, but modifies local global nfa.
  */
-void emit_nnode( int index, int ttype, int c, int n1, int n2 )
+void emit_nnode( int index, int ttype_, int c, int n1, int n2 )
 {
    assert( index >= 0);
    assert( index < REGX_SIZE );
 
    nfa.node_type[index] = NNODE;
-   nfa.term_type[index] = ttype;
+   nfa.term_type[index] = ttype_;
    nfa.c[index] = c;
    nfa.next1[index] = n1;
    nfa.next2[index] = n2;
@@ -1388,4 +1398,12 @@ int  Kleene_star( int let )
 int  letter( int let )
 {
    return( !separator( let )  &&  !Kleene_star( let ) );
+}
+
+
+/* tilegame: sets up this file's part of the editor state */
+void regx_state_init( void )
+{
+
+   tde->mod[TDE_MOD_REGX] = tde_calloc( 1, sizeof(struct regx_state) );
 }

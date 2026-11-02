@@ -58,9 +58,14 @@
 #include "define.h"
 #include "tdefunc.h"
 #include "config.h"
+/* tilegame: the variables of this file are in the editor state (tdestate.h) */
+struct macro_state {
+   BLOCK block;
+};
+#define MACRO_S ((struct macro_state *)tde->mod[TDE_MOD_MACRO])
+#define block (MACRO_S->block)
 
 
-extern long found_rline;        /* defined in findrep.c */
 
 
 /*
@@ -84,7 +89,7 @@ int  record_on_off( TDE_WIN *window )
 {
 long key;
 int  func = 0;
-MACRO *mac    = NULL;
+MACRO *mac_    = NULL;
 TREE  *branch = NULL;
 TREE  *tree;
 int  line;
@@ -96,7 +101,7 @@ long *keys;
 int  rc;
 
    tree = (window != NULL && window->syntax) ?
-          &window->file_info->syntax->key_tree : &key_tree;
+          &window->file_info->syntax->lang_tree : &key_tree;
 
    mode.record = !mode.record;
    if (mode.record == TRUE) {
@@ -118,7 +123,7 @@ int  rc;
          if (branch != NULL) {
             existing = TRUE;
             func = branch->func;
-            g_status.key_macro = branch->macro;
+            g_status.key_macro = branch->macro_ptr;
          }
       } else
          func = getfunc( key );
@@ -152,7 +157,7 @@ int  rc;
             branch = search_tree( key, tree->left );
             if (branch != NULL) {
                existing = TRUE;
-               g_status.key_macro = branch->macro;
+               g_status.key_macro = branch->macro_ptr;
             }
          }
       }
@@ -160,7 +165,7 @@ int  rc;
          /*
           * check for a previous macro
           */
-         if ((mac = g_status.key_macro) != NULL) {
+         if ((mac_ = g_status.key_macro) != NULL) {
             /*
              * overwrite recording?
              */
@@ -169,13 +174,13 @@ int  rc;
          }
       }
       if (mode.record == TRUE) {
-         if (mac != NULL) {
+         if (mac_ != NULL) {
             /*
              * key has already been assigned to a macro, clear macro def.
              */
-            if (mac->len > 1)
-               my_free( mac->key.keys );
-            mac->len = 0;
+            if (mac_->len > 1)
+               my_free( mac_->key.keys );
+            mac_->len = 0;
          } else {
             if ((func == PseudoMacro || PARENT_KEY( key )) && !existing) {
                if ((branch = my_calloc( sizeof(TREE) )) == NULL) {
@@ -184,7 +189,7 @@ int  rc;
                }
             }
             if (mode.record == TRUE) {
-               if ((mac = my_calloc( sizeof(MACRO) )) == NULL) {
+               if ((mac_ = my_calloc( sizeof(MACRO) )) == NULL) {
                   mode.record = FALSE;
                   no_memory   = TRUE;
                }
@@ -197,33 +202,33 @@ int  rc;
           * it each time and try again.
           */
          g_status.stroke_count = STROKE_LIMIT;
-         while ((mac->key.keys = my_malloc( g_status.stroke_count *
+         while ((mac_->key.keys = my_malloc( g_status.stroke_count *
                                               sizeof(long), &rc )) == NULL  &&
                  g_status.stroke_count > 1)
             g_status.stroke_count /= 2;
-         if (mac->key.keys == NULL) {
+         if (mac_->key.keys == NULL) {
             mode.record = FALSE;
             no_memory   = TRUE;
          }
       }
       if (mode.record == TRUE) {
          g_status.recording_key = key;
-         g_status.rec_macro     = mac;
+         g_status.rec_macro     = mac_;
 
-         mac->mode[0] = mode.insert;
-         mac->mode[1] = mode.smart_tab;
-         mac->mode[2] = mode.indent;
+         mac_->modes[0] = mode.insert;
+         mac_->modes[1] = mode.smart_tab;
+         mac_->modes[2] = mode.indent;
          g_status.macro_mark.marked = FALSE;
 
          if (func == PseudoMacro || PARENT_KEY( key )) {
-            branch->macro = mac;
+            branch->macro_ptr = mac_;
             if (!existing) {
                branch->key = key;
                branch->func = PlayBack;
                add_branch( branch, tree );
             }
          } else {
-            macro[KEY_IDX( key )] = mac;
+            macro[KEY_IDX( key )] = mac_;
             key_func[KEY_IDX( key )] = PlayBack;
          }
 
@@ -234,14 +239,14 @@ int  rc;
           * out of memory
           */
          error( WARNING, line, main4 );
-         my_free( mac );
+         my_free( mac_ );
          if (!existing)
             my_free( branch );
       }
       RESTORE_LINE( line );
    }
 
-   if (mode.record == FALSE && (mac = g_status.rec_macro) != NULL) {
+   if (mode.record == FALSE && (mac_ = g_status.rec_macro) != NULL) {
       /*
        * the flashing "Recording" and the stroke count write over the modes.
        *  when we get thru defining a macro, redisplay the modes.
@@ -252,9 +257,9 @@ int  rc;
        * macro structure; if one stroke was recorded use the pointer to
        * keep it; otherwise realloc to the size required.
        */
-      if (mac->len == 0) {
-         my_free( mac->key.keys );
-         my_free( mac );
+      if (mac_->len == 0) {
+         my_free( mac_->key.keys );
+         my_free( mac_ );
          key = g_status.recording_key;
          /*
           * retain the branch because I really couldn't be
@@ -263,19 +268,19 @@ int  rc;
          if (key >= 0x2121) {
             branch = search_tree( key, tree );
             branch->func = 0;
-            branch->macro = NULL;
+            branch->macro_ptr = NULL;
          } else {
             macro[KEY_IDX( key )] = NULL;
             key_func[KEY_IDX( key )] = 0;
          }
-      } else if (mac->len == 1) {
-         key = *mac->key.keys;
-         my_free( mac->key.keys );
-         mac->key.key = key;
+      } else if (mac_->len == 1) {
+         key = *mac_->key.keys;
+         my_free( mac_->key.keys );
+         mac_->key.key = key;
       } else {
-         keys = my_realloc( mac->key.keys, mac->len * sizeof(long), &rc );
+         keys = my_realloc( mac_->key.keys, mac_->len * sizeof(long), &rc );
          if (keys != NULL)
-            mac->key.keys = keys;
+            mac_->key.keys = keys;
          /*
           * Finally, move the cursor to the mark, if one was specified.
           */
@@ -358,24 +363,24 @@ TREE *search_tree( long key, TREE *tree )
 MACRO *find_pseudomacro( unsigned key, TDE_WIN *window )
 {
 TREE *branch;
-MACRO *mac = NULL;
+MACRO *mac_ = NULL;
 LANGUAGE *language;
 
    if (window != NULL && window->syntax) {
       language = window->file_info->syntax;
       do {
-         branch = search_tree( key, language->key_tree.left );
+         branch = search_tree( key, language->lang_tree.left );
          if (branch != NULL)
-            mac = branch->macro;
+            mac_ = branch->macro_ptr;
          language = language->parent;
-      } while (mac == NULL && language != NULL);
+      } while (mac_ == NULL && language != NULL);
    }
-   if (mac == NULL) {
+   if (mac_ == NULL) {
       branch = search_tree( key, key_tree.left );
       if (branch != NULL)
-         mac = branch->macro;
+         mac_ = branch->macro_ptr;
    }
-   return( mac );
+   return( mac_ );
 }
 
 
@@ -417,16 +422,16 @@ TREE **new_branch = &tree;
  */
 void record_key( long key, int func )
 {
-MACRO *mac;
+MACRO *mac_;
 
    if (mode.record == TRUE && (func != 0 || key < 256) &&
        func != RecordMacro    && func != SaveMacro &&
        func != ClearAllMacros && func != LoadMacro &&
        func != Help           && func != PullDown) {
 
-      mac = g_status.rec_macro;
+      mac_ = g_status.rec_macro;
 
-      if (func == BackSpace && mac->len > 0 && mac->key.keys[mac->len-1] < 256)
+      if (func == BackSpace && mac_->len > 0 && mac_->key.keys[mac_->len-1] < 256)
          show_avail_strokes( +1 );
 
       else if (g_status.stroke_count == 0)
@@ -436,7 +441,7 @@ MACRO *mac;
          error( WARNING, g_status.current_window->bottom_line, main13 );
 
       else {
-         mac->key.keys[mac->len] = (func == 0 || func == PlayBack)
+         mac_->key.keys[mac_->len] = (func == 0 || func == PlayBack)
                                    ? key : (func | _FUNCTION);
          show_avail_strokes( -1 );
       }
@@ -548,7 +553,7 @@ int  i, j;
                tree = &key_tree;
             } else {
                fprintf( fp, main20b, window->file_info->syntax->name, answer );
-               tree = &window->file_info->syntax->key_tree;
+               tree = &window->file_info->syntax->lang_tree;
             }
             write_pseudomacro( fp, tree->left );
             write_twokeymacro( fp, tree->right );
@@ -575,7 +580,7 @@ int  i, j;
  * 051222:  write a literal on the same line as its presumed function;
  *          split literals at "\n".
  */
-void write_macro( FILE *file, MACRO *macro, long mkey )
+void write_macro( FILE *file, MACRO *macro_, long mkey )
 {
 int  j;
 long key;
@@ -585,44 +590,44 @@ int  function = FALSE;
 char str[KEY_STR_MAX];
 char ch;
 
-   if (macro->len == 1) {
-      key = macro->key.key;
+   if (macro_->len == 1) {
+      key = macro_->key.key;
       if (key < 256) {
          fprintf( file, " \"%c\"\n\n", (int)key );
          return;
       }
    }
 
-   if (macro->mode[0] == FALSE)
+   if (macro_->modes[0] == FALSE)
       fputs( " Overwrite", file );
-   if (macro->mode[1] == FALSE)
+   if (macro_->modes[1] == FALSE)
       fputs( " FixedTabs", file );
-   if (macro->mode[2] == FALSE)
+   if (macro_->modes[2] == FALSE)
       fputs( " NoIndent", file );
 
-   if (macro->flag & WRAP)
+   if (macro_->flag & WRAP)
       fputs( " Wrap", file );
-   if (macro->flag & NOWRAP)
+   if (macro_->flag & NOWRAP)
       fputs( " NoWrap", file );
-   if (macro->flag & NOWARN)
+   if (macro_->flag & NOWARN)
       fputs( " NoWarn", file );
-   if ((macro->flag & NEEDBLOCK) == NEEDBLOCK)
+   if ((macro_->flag & NEEDBLOCK) == NEEDBLOCK)
       fputs( " NeedBlock", file );
    else {
-      if (macro->flag & NEEDBOX)
+      if (macro_->flag & NEEDBOX)
          fputs( " NeedBox", file );
-      if (macro->flag & NEEDLINE)
+      if (macro_->flag & NEEDLINE)
          fputs( " NeedLine", file );
-      if (macro->flag & NEEDSTREAM)
+      if (macro_->flag & NEEDSTREAM)
          fputs( " NeedStream", file );
    }
-   if (macro->flag & USESBLOCK)
+   if (macro_->flag & USESBLOCK)
       fputs( " UsesBlock", file );
-   if (macro->flag & USESDIALOG)
+   if (macro_->flag & USESDIALOG)
       fputs( " UsesDialog", file );
 
-   for (j = 0; j < macro->len; ++j) {
-      key = (macro->len == 1) ? macro->key.key : macro->key.keys[j];
+   for (j = 0; j < macro_->len; ++j) {
+      key = (macro_->len == 1) ? macro_->key.key : macro_->key.keys[j];
       if (key == mkey  &&  !literal) {       /* why a recursive pseudomacro? */
          fputs( "\nPlayBack\n\n", file );    /* func_str is Macro */
          return;                             /* must be last */
@@ -703,7 +708,7 @@ int  t1, t2;
 
    while (pmacro != NULL) {
       write_pseudomacro( file, pmacro->left );
-      if (pmacro->macro != NULL) {
+      if (pmacro->macro_ptr != NULL) {
          fputs( func_str[PseudoMacro], file );
          fputc( ' ', file );
          t1 = (int)pmacro->key >> 8;
@@ -723,7 +728,7 @@ int  t1, t2;
             fprintf( file, "\"%c%c\"", t1, t2 );
          else
             fprintf( file, "%c%c", t1, t2 );
-         write_macro( file, pmacro->macro, pmacro->key );
+         write_macro( file, pmacro->macro_ptr, pmacro->key );
       }
       pmacro = pmacro->right;
    }
@@ -747,10 +752,10 @@ char buf[KEY_STR_MAX];
 
    while (twokey != NULL) {
       write_twokeymacro( file, twokey->left );
-      if (twokey->macro != NULL) {
+      if (twokey->macro_ptr != NULL) {
          fprintf( file, "%s %s", key_name( twokey->key, buf ),
                                  func_str[PlayBack] );
-         write_macro( file, twokey->macro, twokey->key );
+         write_macro( file, twokey->macro_ptr, twokey->key );
       }
       twokey = twokey->right;
    }
@@ -830,7 +835,7 @@ TREE *tree;
       }
       tree = &key_tree;
    } else
-      tree = &window->file_info->syntax->key_tree;
+      tree = &window->file_info->syntax->lang_tree;
 
    delete_pseudomacro( tree->left );
    tree->left = NULL;
@@ -855,10 +860,10 @@ void delete_pseudomacro( TREE *tree )
       return;
 
    if (tree->left == NULL && tree->right == NULL) {
-      if (tree->macro != NULL) {
-         if (tree->macro->len > 1)
-            my_free( tree->macro->key.keys );
-         my_free( tree->macro );
+      if (tree->macro_ptr != NULL) {
+         if (tree->macro_ptr->len > 1)
+            my_free( tree->macro_ptr->key.keys );
+         my_free( tree->macro_ptr );
       }
       my_free( tree );
    } else {
@@ -884,12 +889,12 @@ void delete_pseudomacro( TREE *tree )
 void delete_twokeymacro( TREE *tree )
 {
    while (tree != NULL) {
-      if (tree->macro != NULL) {
-         if (tree->macro->len > 1)
-            my_free( tree->macro->key.keys );
-         my_free( tree->macro );
+      if (tree->macro_ptr != NULL) {
+         if (tree->macro_ptr->len > 1)
+            my_free( tree->macro_ptr->key.keys );
+         my_free( tree->macro_ptr );
          tree->func = 0;
-         tree->macro = NULL;
+         tree->macro_ptr = NULL;
       }
       delete_twokeymacro( tree->left );
       tree = tree->right;
@@ -982,7 +987,6 @@ int  rc = ERROR;
 }
 
 
-static BLOCK block;
 
 
 /*
@@ -1014,7 +1018,7 @@ int  play_back( TDE_WIN *window )
 {
 int    rc = OK;
 int    popped;          /* flag is set when macro is popped */
-MACRO *mac = NULL;
+MACRO *mac_ = NULL;
 int    cur_mode[3];     /* remember the current editor settings */
 unsigned pkey = 0;
 MACRO *pmac = NULL;
@@ -1038,7 +1042,7 @@ int    recursed;
       old_ms   = g_status.mstack;
       g_status.mstack = NULL;
    }
-   ms.macro = g_status.current_macro;   /* these are part of the above if */
+   ms.macro_ptr = g_status.current_macro;   /* these are part of the above if */
    ms.pos   = g_status.macro_next;      /* but moved outside to avoid GCC */
    ms.mark  = g_status.macro_mark;      /* uninitialised warnings         */
 
@@ -1121,12 +1125,12 @@ int    recursed;
              *  all this stuff is reset by the pop -- do not reset it again.
              */
             g_status.macro_next = 0;
-            mac = g_status.current_macro = g_status.key_macro;
-            mode.insert    = mac->mode[0];
-            mode.smart_tab = mac->mode[1];
-            mode.indent    = mac->mode[2];
+            mac_ = g_status.current_macro = g_status.key_macro;
+            mode.insert    = mac_->modes[0];
+            mode.smart_tab = mac_->modes[1];
+            mode.indent    = mac_->modes[2];
             g_status.macro_mark.marked = FALSE;
-            if (mac->flag & USESBLOCK) {
+            if (mac_->flag & USESBLOCK) {
                block.marked = g_status.marked;
                block.file   = g_status.marked_file;
                block.type   = file->block_type;
@@ -1138,7 +1142,7 @@ int    recursed;
             }
          }
          popped = recursed = FALSE;
-         while (rc != ERROR  &&  g_status.macro_next < mac->len) {
+         while (rc != ERROR  &&  g_status.macro_next < mac_->len) {
 
             /*
              * set up all editor variables as if we were entering
@@ -1147,8 +1151,8 @@ int    recursed;
             window = g_status.current_window;
             display_dirty_windows( window );
             CEH_OK;
-            g_status.key_pressed = (mac->len == 1) ? mac->key.key :
-                                   mac->key.keys[g_status.macro_next];
+            g_status.key_pressed = (mac_->len == 1) ? mac_->key.key :
+                                   mac_->key.keys[g_status.macro_next];
             g_status.command = getfunc( g_status.key_pressed );
             if (g_status.wrapped) {
                g_status.wrapped = FALSE;
@@ -1230,7 +1234,7 @@ int    recursed;
          /*
           * restore the block, irrespective of how the macro finished.
           */
-         if (!recursed  &&  !g_status.stop  &&  (mac->flag & USESBLOCK)) {
+         if (!recursed  &&  !g_status.stop  &&  (mac_->flag & USESBLOCK)) {
             unmark_block( window );
             g_status.marked_file = block.file;
             g_status.marked  = block.marked;
@@ -1252,14 +1256,14 @@ int    recursed;
          if (g_status.current_macro == g_status.key_macro  &&
              !g_status.stop && !g_status.control_break) {
             rc = OK;
-            g_status.macro_next = mac->len;
+            g_status.macro_next = mac_->len;
          }
 
          /*
           * If the macro finished, goto the marker if one was set.
           * If there's nothing on the stack, then get out.
           */
-         if (rc != ERROR && g_status.macro_next == mac->len) {
+         if (rc != ERROR && g_status.macro_next == mac_->len) {
             g_status.command = MacroMark;
             goto_marker( window );
             if (g_status.mstack == NULL)
@@ -1269,7 +1273,7 @@ int    recursed;
                rc = ERROR;
             } else {
                popped = TRUE;
-               mac = g_status.current_macro;
+               mac_ = g_status.current_macro;
             }
          }
       }
@@ -1302,7 +1306,7 @@ int    recursed;
    if (old_ms != NULL) {
       g_status.mstack = old_ms;
       g_status.macro_executing = TRUE;
-      g_status.current_macro   = ms.macro;
+      g_status.current_macro   = ms.macro_ptr;
       g_status.macro_next = ms.pos;
       g_status.macro_mark = ms.mark;
    }
@@ -1334,10 +1338,10 @@ MACRO_STACK *ms;
        * Point to the previous macro on the stack and make this macro
        *  the top of the stack.
        */
-      ms->macro = g_status.current_macro;
+      ms->macro_ptr = g_status.current_macro;
       ms->pos   = g_status.macro_next+1;
       ms->mark  = g_status.macro_mark;
-      ms->block = block;
+      ms->saved_block = block;
       ms->prev  = g_status.mstack;
       g_status.mstack = ms;
       return( OK );
@@ -1369,15 +1373,15 @@ MACRO_STACK *ms = g_status.mstack;
        * Pop the macro, its position and marker. Point to the previous macro.
        * Restore the editor modes to the original macro.
        */
-      g_status.current_macro = ms->macro;
+      g_status.current_macro = ms->macro_ptr;
       g_status.macro_next = ms->pos;
       g_status.macro_mark = ms->mark;
-      block               = ms->block;
+      block               = ms->saved_block;
       g_status.mstack     = ms->prev;
       free( ms );
-      mode.insert    = g_status.current_macro->mode[0];
-      mode.smart_tab = g_status.current_macro->mode[1];
-      mode.indent    = g_status.current_macro->mode[2];
+      mode.insert    = g_status.current_macro->modes[0];
+      mode.smart_tab = g_status.current_macro->modes[1];
+      mode.indent    = g_status.current_macro->modes[2];
       return( OK );
    } else
       return( STACK_UNDERFLOW );
@@ -1487,4 +1491,12 @@ file_infos *file;
                        window->rline;
    file->dirty = GLOBAL;
    return( OK );
+}
+
+
+/* tilegame: sets up this file's part of the editor state */
+void macro_state_init( void )
+{
+
+   tde->mod[TDE_MOD_MACRO] = tde_calloc( 1, sizeof(struct macro_state) );
 }

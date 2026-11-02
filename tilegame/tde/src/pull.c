@@ -38,21 +38,31 @@
 #include "common.h"
 #include "define.h"
 #include "tdefunc.h"
+/* tilegame: the variables of this file are in the editor state (tdestate.h) */
+struct pull_state {
+   int saved_major;
+   int major_col[MAJOR_MAX];
+   int major_width[MAJOR_MAX];
+   Char *buffer[2];
+   int buf_len[2];
+   int selection_level;
+   int make_menu_frame;
+   char create_menu_key_name[40];
+};
+#define PULL_S ((struct pull_state *)tde->mod[TDE_MOD_PULL])
+#define saved_major (PULL_S->saved_major)
+#define major_col (PULL_S->major_col)
+#define major_width (PULL_S->major_width)
+#define buffer (PULL_S->buffer)
+#define buf_len (PULL_S->buf_len)
 
 
-extern int  make_window;        /* defined in window.c */
-extern int  search_type;        /* defined in findrep.c */
 #if defined( __UNIX__ )
 extern int  xterm;              /* unix/console.c */
 #endif
 
-static int  saved_major = 0;
 
-static int  major_col[MAJOR_MAX];   /* jmh - made these global so it's only */
-static int  major_width[MAJOR_MAX]; /*  necessary to calculate them once */
 
-static Char *buffer[2];         /* jmh 991022: allocate the buffer once */
-static int  buf_len[2];
 
 static void check_menu( MENU_STR * );
        void make_menu( MENU_STR *, long *, int );
@@ -204,13 +214,12 @@ int  begin;
 int  end;
 int  sel, not_sel, unavail, sel_unavail;
 long func = ERROR;
-static int level = -1;
 
-   ++level;
-   if (buffer[level] == NULL)
-      buffer[level] = (Char *)malloc( buf_len[level] * sizeof(Char) );
+   ++(PULL_S->selection_level);
+   if (buffer[(PULL_S->selection_level)] == NULL)
+      buffer[(PULL_S->selection_level)] = (Char *)malloc( buf_len[(PULL_S->selection_level)] * sizeof(Char) );
 
-   if (buffer[level] != NULL) {
+   if (buffer[(PULL_S->selection_level)] != NULL) {
       cnt = menu->minor_cnt;
       minor_width = menu->width;
       begin   = menu->first;
@@ -239,7 +248,7 @@ static int level = -1;
                row = 0;
          }
       }
-      save_area( buffer[level], minor_width, cnt, row, col );
+      save_area( buffer[(PULL_S->selection_level)], minor_width, cnt, row, col );
       for (i = 0; i < cnt; i++) {
          s_output( menu->minor[i].line, row+i, col,
                    (menu->minor[i].disabled) ? unavail : not_sel );
@@ -319,12 +328,12 @@ static int level = -1;
          }
       } else if (*ch != PullDown)
          func = menu->minor[select].minor_func;
-      restore_area( buffer[level], minor_width, cnt, row, col );
+      restore_area( buffer[(PULL_S->selection_level)], minor_width, cnt, row, col );
    } else {
       func = ERROR;
       *ch = AbortCommand;
    }
-   --level;
+   --(PULL_S->selection_level);
    return( func );
 }
 
@@ -638,15 +647,15 @@ int  dis;
  * Name:    get_bar_spacing
  * Purpose: calculate headings for main menu choices
  * Date:    November 13, 1993
- * Passed:  major_col: column to display each menu heading
- *          major_width: width of each menu heading
+ * Passed:  major_col_: column to display each menu heading
+ *          major_width_: width of each menu heading
  * Notes:   assume 6 spaces between the menu items
  * jmh 991025: since I added another menu, use 5 spaces.
  * jmh 031129: with the User menu, drop it down to 4.
  * jmh 050710: with the Help menu, drop it down to 3.
  * jmh 050722: with customisation, calculate it.
  */
-void get_bar_spacing( int major_col[], int major_width[] )
+void get_bar_spacing( int major_col_[], int major_width_[] )
 {
 int  i;
 int  spc, col;
@@ -657,8 +666,8 @@ char *hdr;
       hdr = menu[i].major_name;
       if (*hdr == '\0')
          ++hdr;
-      major_width[i] = strlen( hdr );
-      col += major_width[i];
+      major_width_[i] = strlen( hdr );
+      col += major_width_[i];
    }
    if (menu_cnt == 1)
       spc = 0;
@@ -675,8 +684,8 @@ char *hdr;
    else if (col > 6)
       col = 6;
    for (i = 0; i < menu_cnt; i++) {
-      major_col[i] = col;
-      col += spc + major_width[i];
+      major_col_[i] = col;
+      col += spc + major_width_[i];
    }
 }
 
@@ -686,11 +695,11 @@ char *hdr;
  * Purpose: slap the main menu choices on the lite bar
  * Date:    November 13, 1993
  * Passed:  row: lite bar row
- *          major_col: column to display each menu heading
+ *          major_col_: column to display each menu heading
  *
  * jmh 991021: add a space before and after the heading.
  */
-void draw_lite_head( int row, int major_col[] )
+void draw_lite_head( int row, int major_col_[] )
 {
 int  i;
 char *hdr;
@@ -699,7 +708,7 @@ char *hdr;
       hdr = menu[i].major_name;
       if (*hdr == '\0')
          ++hdr;
-      s_output( hdr, row, major_col[i], Color( Menu_header ) );
+      s_output( hdr, row, major_col_[i], Color( Menu_header ) );
    }
    refresh( );
 }
@@ -833,12 +842,11 @@ int  seps;
 int  inner[10];
 int  j;
 static const char *fc, *fc2;
-static int  frame = -1;
 
-   if (frame != g_display.frame_style) {
-      frame = g_display.frame_style;
-      fc = graphic_char[frame];
-      fc2 = (frame < 3) ? fc : graphic_char[2];
+   if ((PULL_S->make_menu_frame) != g_display.frame_style) {
+      (PULL_S->make_menu_frame) = g_display.frame_style;
+      fc = graphic_char[(PULL_S->make_menu_frame)];
+      fc2 = ((PULL_S->make_menu_frame) < 3) ? fc : graphic_char[2];
    }
 
    cnt   = menu->minor_cnt;
@@ -865,8 +873,8 @@ static int  frame = -1;
          }
       }
    }
-   /* frame+space, letter+bracket+space, function, two spaces,
-      key, space+frame */
+   /* (PULL_S->make_menu_frame)+space, letter+bracket+space, function, two spaces,
+      key, space+(PULL_S->make_menu_frame) */
    len = 2 + 3 + width + 2 + wid + 2;
    new_name = create_frame( len, cnt, seps, inner, -1, -1 );
    if (new_name == NULL)
@@ -930,7 +938,6 @@ static int  frame = -1;
  */
 static char *create_menu_key( long func, long *func_key )
 {
-static char name[40];
 long key;
 int  parent;
 int  len;
@@ -939,13 +946,13 @@ int  len;
       return( NULL );
 
    if (func == 0) {
-      name[0] = POP_OUT;
-      name[1] = '\0';
+      (PULL_S->create_menu_key_name)[0] = POP_OUT;
+      (PULL_S->create_menu_key_name)[1] = '\0';
 
    } else if (func >= 0x2121 && func < 0x10000L) {
-      name[0] = (unsigned)func >> 8;
-      name[1] = (int)func & 0xff;
-      name[2] = '\0';
+      (PULL_S->create_menu_key_name)[0] = (unsigned)func >> 8;
+      (PULL_S->create_menu_key_name)[1] = (int)func & 0xff;
+      (PULL_S->create_menu_key_name)[2] = '\0';
 
    } else if (func_key == NULL && (func & _FUNCTION))
       return( NULL );
@@ -959,15 +966,15 @@ int  len;
          key = func;
       parent = PARENT_KEY( key );
       if (parent) {
-         menu_key_name( parent, name );
-         len = strlen( name );
-         name[len++] = ' ';
-         menu_key_name( CHILD_KEY( key ), name + len );
+         menu_key_name( parent, (PULL_S->create_menu_key_name) );
+         len = strlen( (PULL_S->create_menu_key_name) );
+         (PULL_S->create_menu_key_name)[len++] = ' ';
+         menu_key_name( CHILD_KEY( key ), (PULL_S->create_menu_key_name) + len );
       } else
-         menu_key_name( (int)key, name );
+         menu_key_name( (int)key, (PULL_S->create_menu_key_name) );
    }
 
-   return( name );
+   return( (PULL_S->create_menu_key_name) );
 }
 
 
@@ -1017,4 +1024,15 @@ int  viewer( long key )
       return( FALSE );
 
    return( TRUE );
+}
+
+
+/* tilegame: sets up this file's part of the editor state */
+void pull_state_init( void )
+{
+   tde->mod[TDE_MOD_PULL] = tde_calloc( 1, sizeof(struct pull_state) );
+   PULL_S->selection_level = -1;
+   PULL_S->make_menu_frame = -1;
+
+   saved_major = 0;
 }

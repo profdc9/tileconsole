@@ -26,63 +26,31 @@
  * Gather them into logical structures and make them global to all
  * modules.
  */
-extern displays g_display;
 
-extern status_infos g_status;
 
-extern boyer_moore_type bm;
 
-extern boyer_moore_type sas_bm;
 
-extern REGX_INFO regx;
 
-extern REGX_INFO sas_regx;
 
-extern NFA_TYPE nfa;
 
-extern NFA_TYPE sas_nfa;
 
-extern option_infos g_option, g_option_all;
 
-extern mode_infos mode;
 
-extern KEY_FUNC key_func;
 
-extern MACRO *macro[MODIFIERS][MAX_KEYS];
-extern TREE   key_tree;
 
 #if defined( __DOS16__ )
 extern CEH ceh;
 #endif
 
-extern SORT sort;
 
 extern SORT_ORDER sort_order;
-extern int  scancode_map[MAX_KEYS];     /* added by jmh 020903 */
-
-extern DIFF diff;
-
-extern char line_out[MAX_COLS+2];       /* added by jmh 021106 */
-
-extern char ruler_line[];               /* added by jmh 991110 */
-extern TDE_WIN ruler_win;               /* added by jmh 050720 */
-
-extern HISTORY h_file;                  /* histories added by jmh 990424 */
-extern HISTORY h_find;
-extern HISTORY h_border;
-extern HISTORY h_fill;
-extern HISTORY h_stamp;
-extern HISTORY h_line;
-extern HISTORY h_lang;
-extern HISTORY h_grep;
-extern HISTORY h_win;
-extern HISTORY h_exec;
-extern HISTORY h_parm;
 
 
-extern TDE_COLORS colour;
 
-extern int syntax_color[SHL_NUM_COLORS];
+
+
+
+
 
 extern int (* const do_it[NUM_FUNCS])( TDE_WIN * );
 extern const char func_flag[NUM_FUNCS]; /* added by jmh 990428 */
@@ -108,7 +76,6 @@ extern unsigned char upper_lower[];     /* unsigned by jmh 980808 */
  * if we are in un*x, let's emulate the PC color table.
  */
 #if defined( __UNIX__ )
-extern chtype tde_color_table[256];
 #endif
 
 /*
@@ -117,7 +84,6 @@ extern chtype tde_color_table[256];
 extern const char * const tde_help;     /* added by jmh 010528 */
 extern const char * const credit_screen[];
 extern char help_screen[2][HELP_HEIGHT][HELP_WIDTH+1];
-extern int  help_dim[2][2];
 extern const char * const regx_help[];
 extern const char * const replace_help[];
 extern const char * const wildcard_help[];
@@ -444,7 +410,6 @@ extern const int  longest_day;          /* ditto */
 extern const char graphic_char[GRAPHIC_SETS][11];
 
 /* Status strings added by jmh 990410 */
-extern char *stat_screen[];
 extern const char status0[];            /* 991021 */
 extern const char * const status1a[];
 extern const char * const status1b[];

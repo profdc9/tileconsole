@@ -34,7 +34,49 @@
 /*
  * DefineSearch
  */
-DIALOG find_dialog[] = {
+
+/*
+ * ReplaceString
+ */
+
+/*
+ * BorderBlockEx
+ */
+
+/*
+ * DefineDiff
+ */
+
+/*
+ * DefineGrep
+ */
+
+/*
+ * Execute
+ */
+
+/*
+ * FileAttributes
+ */
+
+/*
+ * NumberBlock
+ */
+
+/*
+ * SetMargins
+ */
+
+/*
+ * SetTabs
+ */
+
+
+/* tilegame: sets up this file's part of the editor state */
+void dialogs_state_init( void )
+{
+
+   { DIALOG  tmpl_find_dialog[] = {
    { 45, 10, NULL,        ERROR, NULL },
    {  3,  2, "Pattern:",  ERROR, NULL },
    { 12,  2, NULL,        30,    &h_find },
@@ -45,12 +87,8 @@ DIALOG find_dialog[] = {
    { 24,  6, "All files", FALSE, NULL },
    { 24,  7, "Results",   FALSE, NULL },
    {  0,  0, NULL,        ERROR, NULL }
-};
-
-/*
- * ReplaceString
- */
-DIALOG replace_dialog[] = {
+}; _Static_assert( sizeof tmpl_find_dialog == sizeof find_dialog, "find_dialog" ); memcpy( &find_dialog, &tmpl_find_dialog, sizeof find_dialog ); }
+   { DIALOG  tmpl_replace_dialog[] = {
    { 49, 12, NULL,           ERROR, NULL },
    {  7,  2, "Pattern:",     ERROR, NULL },
    {  3,  4, "Replacement:", ERROR, NULL },
@@ -63,12 +101,8 @@ DIALOG replace_dialog[] = {
    { 26,  8, "All files",    FALSE, NULL },
    { 26,  9, "No prompt",    FALSE, NULL },
    {  0,  0, NULL,           ERROR, NULL }
-};
-
-/*
- * BorderBlockEx
- */
-DIALOG border_dialog[] = {
+}; _Static_assert( sizeof tmpl_replace_dialog == sizeof replace_dialog, "replace_dialog" ); memcpy( &replace_dialog, &tmpl_replace_dialog, sizeof replace_dialog ); }
+   { DIALOG  tmpl_border_dialog[] = {
    { 50, 11, NULL,           ERROR, NULL },
    {  5,  3, "Top-left",     ERROR, NULL },
    { 23,  1, "Top",          ERROR, NULL },
@@ -87,12 +121,8 @@ DIALOG border_dialog[] = {
    { 22,  7, NULL,           5,     &h_border },
    { 29,  7, NULL,           5,     &h_border },
    {  0,  0, NULL,           ERROR, &h_border }
-};
-
-/*
- * DefineDiff
- */
-DIALOG diff_dialog[] = {
+}; _Static_assert( sizeof tmpl_border_dialog == sizeof border_dialog, "border_dialog" ); memcpy( &border_dialog, &tmpl_border_dialog, sizeof border_dialog ); }
+   { DIALOG  tmpl_diff_dialog[] = {
    { 55,  9, NULL,                   ERROR, NULL },
    {  4,  2, "First window:",        ERROR, NULL },
    {  3,  4, "Second window:",       ERROR, NULL },
@@ -104,12 +134,8 @@ DIALOG diff_dialog[] = {
    { 25,  5, "Ignore end of line",   FALSE, NULL },
    { 25,  6, "Current position",     FALSE, NULL },
    {  0,  0, NULL,                   ERROR, NULL }
-};
-
-/*
- * DefineGrep
- */
-DIALOG grep_dialog[] = {
+}; _Static_assert( sizeof tmpl_diff_dialog == sizeof diff_dialog, "diff_dialog" ); memcpy( &diff_dialog, &tmpl_diff_dialog, sizeof diff_dialog ); }
+   { DIALOG  tmpl_grep_dialog[] = {
    { 45, 11, NULL,       ERROR, NULL },
    {  3,  2, "Pattern:", ERROR, NULL },
    {  5,  4, "Files:",   ERROR, NULL },
@@ -120,12 +146,8 @@ DIALOG grep_dialog[] = {
    { 24,  7, "Load all", FALSE, NULL },
    { 24,  8, "Binary",   FALSE, NULL },
    {  0,  0, NULL,       ERROR, NULL }
-};
-
-/*
- * Execute
- */
-DIALOG exec_dialog[] = {
+}; _Static_assert( sizeof tmpl_grep_dialog == sizeof grep_dialog, "grep_dialog" ); memcpy( &grep_dialog, &tmpl_grep_dialog, sizeof grep_dialog ); }
+   { DIALOG  tmpl_exec_dialog[] = {
    { 51, 10, NULL,             ERROR, NULL },
    {  3,  2, "Command:",       ERROR, NULL },
    { 12,  2, NULL,             36,    &h_exec },
@@ -135,12 +157,8 @@ DIALOG exec_dialog[] = {
    { 27,  5, "Original files", FALSE, NULL },
    { 27,  6, "Reload files",   FALSE, NULL },
    {  0,  0, NULL,             ERROR, NULL }
-};
-
-/*
- * FileAttributes
- */
-DIALOG fattr_dialog[] = {
+}; _Static_assert( sizeof tmpl_exec_dialog == sizeof exec_dialog, "exec_dialog" ); memcpy( &exec_dialog, &tmpl_exec_dialog, sizeof exec_dialog ); }
+   { DIALOG  tmpl_fattr_dialog[] = {
 #if defined( __UNIX__ )
    { 61, 11, NULL,         ERROR, NULL },
    { 10,  2, "User",       ERROR, NULL },
@@ -167,12 +185,8 @@ DIALOG fattr_dialog[] = {
    { 13,  8, NULL,         5,     NULL },
 #endif
    {  0,  0, NULL,         ERROR, NULL }
-};
-
-/*
- * NumberBlock
- */
-DIALOG number_dialog[] = {
+}; _Static_assert( sizeof tmpl_fattr_dialog == sizeof fattr_dialog, "fattr_dialog" ); memcpy( &fattr_dialog, &tmpl_fattr_dialog, sizeof fattr_dialog ); }
+   { static const DIALOG tmpl_number_dialog[] = {
    { 31, 13, NULL,               ERROR, NULL },
    {  3,  2, "Starting number:", ERROR, NULL },
    {  9,  4, "Increment:",       ERROR, NULL },
@@ -183,12 +197,8 @@ DIALOG number_dialog[] = {
    {  7,  9, "Left align",       FALSE, NULL },
    {  7, 10, "Zero fill",        FALSE, NULL },
    {  0,  0, NULL,               ERROR, NULL }
-};
-
-/*
- * SetMargins
- */
-DIALOG margins_dialog[] = {
+}; _Static_assert( sizeof tmpl_number_dialog == sizeof number_dialog, "number_dialog" ); memcpy( &number_dialog, &tmpl_number_dialog, sizeof number_dialog ); }
+   { static const DIALOG tmpl_margins_dialog[] = {
    { 21, 15, NULL,         ERROR, NULL },
    {  7,  2, "Margins",    ERROR, NULL },
    {  8,  5, "Left:",      ERROR, NULL },
@@ -199,12 +209,8 @@ DIALOG margins_dialog[] = {
    { 14,  9, NULL,         4,     NULL },
    {  4, 12, "Justify",    FALSE, NULL },
    {  0,  0, NULL,         ERROR, NULL }
-};
-
-/*
- * SetTabs
- */
-DIALOG tabs_dialog[] = {
+}; _Static_assert( sizeof tmpl_margins_dialog == sizeof margins_dialog, "margins_dialog" ); memcpy( &margins_dialog, &tmpl_margins_dialog, sizeof margins_dialog ); }
+   { static const DIALOG tmpl_tabs_dialog[] = {
    { 19, 10, NULL,         ERROR, NULL },
    {  6,  2, "Tab Size",   ERROR, NULL },
    {  4,  5, "Logical:",   ERROR, NULL },
@@ -212,4 +218,5 @@ DIALOG tabs_dialog[] = {
    { 13,  5, NULL,         3,     NULL },
    { 13,  7, NULL,         3,     NULL },
    {  0,  0, NULL,         ERROR, NULL }
-};
+}; _Static_assert( sizeof tmpl_tabs_dialog == sizeof tabs_dialog, "tabs_dialog" ); memcpy( &tabs_dialog, &tmpl_tabs_dialog, sizeof tabs_dialog ); }
+}

@@ -12,16 +12,6 @@
 #define D_DONE          2       /* callback on dialog completion */
 
 
-extern DIALOG find_dialog[];
-extern DIALOG replace_dialog[];
-extern DIALOG border_dialog[];
-extern DIALOG diff_dialog[];
-extern DIALOG grep_dialog[];
-extern DIALOG exec_dialog[];
-extern DIALOG fattr_dialog[];
-extern DIALOG number_dialog[];
-extern DIALOG margins_dialog[];
-extern DIALOG tabs_dialog[];
 
 extern int  find_proc( int, char * );
 extern int  replace_proc( int, char * );

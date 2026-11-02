@@ -32,7 +32,111 @@
 #include "tdefunc.h"
 
 
-KEY_FUNC key_func = {
+
+
+/*
+ * Default macro definitions for the above PlayBack keys.
+ */
+#define F(func) func | _FUNCTION
+static long win_one[] = { F(GotoWindow), '1' }; /* :X */
+#undef F
+
+static MACRO colon_X = { { 1, 1, 1 }, 0, 2, { 0 } };
+
+/*
+ * jmh 991025: allocate memory for the macros to avoid clearing problems.
+ *             Assume more than one key and memory is available.
+ * jmh 991108: Can I tell if a pointer references static memory or
+ *              allocated memory?
+ */
+static MACRO *allocate_macro( MACRO *mac_, long *keys )
+{
+MACRO *new_mac;
+int len;
+int rc = OK;
+
+   len = mac_->len * sizeof(long);
+   mac_->key.keys = my_malloc( len, &rc );
+   memcpy( mac_->key.keys, keys, len );
+   new_mac = my_malloc( sizeof(MACRO), &rc );
+   memcpy( new_mac, mac_, sizeof(MACRO) );
+
+   return( new_mac );
+}
+
+
+/*
+ * Name:    default_twokeys
+ * Class:   initialization (only called in initialize())
+ * Purpose: set-up default two-key assignments
+ * Author:  Jason Hood
+ * Date:    July 27, 1998
+ * Notes:   Since I dynamically allocate two-keys now, they can no longer
+ *           be stored directly in the executable. This function is called
+ *           during initialization to create default two-key combinations.
+ *          Requires the parent key to be TwoCharKey in above array.
+ *          Assumes there's enough heap, since it's done before the config
+ *           file. If an error _is_ generated, then TDE16 probably needs to
+ *           go to the large model.
+ *
+ * 990428:  add the viewer macros/two-keys.
+ */
+
+void default_twokeys( void )
+{
+TREE *twokey;
+
+   cfg_key_tree = &key_tree;
+
+   add_twokey( CREATE_TWOKEY( _CTRL+_K, _I ), BlockIndentN );
+   add_twokey( CREATE_TWOKEY( _CTRL+_K, _U ), BlockUndentN );
+   add_twokey( CREATE_TWOKEY( _CTRL+_K, _CTRL+_I ), BlockIndent );
+   add_twokey( CREATE_TWOKEY( _CTRL+_K, _CTRL+_U ), BlockUndent );
+#if defined( __UNIX__ )
+   add_twokey( CREATE_TWOKEY( _CTRL+_K, _Q ), Quit );
+   add_twokey( CREATE_TWOKEY( _CTRL+_K, _N ), ReadConfig );
+   add_twokey( CREATE_TWOKEY( _CTRL+_K, _B ), MarkBegin );
+   add_twokey( CREATE_TWOKEY( _CTRL+_K, _K ), MarkEnd );
+   add_twokey( CREATE_TWOKEY( _CTRL+_K, _CTRL+_B ), BlockBegin );
+   add_twokey( CREATE_TWOKEY( _CTRL+_K, _CTRL+_K ), BlockEnd );
+   add_twokey( CREATE_TWOKEY( _CTRL+_K, _SHIFT+_1 ), SetMark1 );
+   add_twokey( CREATE_TWOKEY( _CTRL+_K, _SHIFT+_2 ), SetMark2 );
+   add_twokey( CREATE_TWOKEY( _CTRL+_K, _SHIFT+_3 ), SetMark3 );
+   add_twokey( CREATE_TWOKEY( _CTRL+_K, _1 ), GotoMark1 );
+   add_twokey( CREATE_TWOKEY( _CTRL+_K, _2 ), GotoMark2 );
+   add_twokey( CREATE_TWOKEY( _CTRL+_K, _3 ), GotoMark3 );
+   add_twokey( CREATE_TWOKEY( _CTRL+_K, _M ), MacroMark );
+   add_twokey( CREATE_TWOKEY( _CTRL+_K, _P ), Pause );
+#endif
+
+   add_twokey( CREATE_TWOKEY( _M, _1 ), SetMark1 );
+   add_twokey( CREATE_TWOKEY( _M, _2 ), SetMark2 );
+   add_twokey( CREATE_TWOKEY( _M, _3 ), SetMark3 );
+   add_twokey( CREATE_TWOKEY( _APOSTROPHE, _APOSTROPHE ), PreviousPosition );
+   add_twokey( CREATE_TWOKEY( _APOSTROPHE, _1 ),  GotoMark1 );
+   add_twokey( CREATE_TWOKEY( _APOSTROPHE, _2 ),  GotoMark2 );
+   add_twokey( CREATE_TWOKEY( _APOSTROPHE, _3 ),  GotoMark3 );
+   add_twokey( CREATE_TWOKEY( _APOSTROPHE, _SHIFT+_6 ),  TopOfFile );
+   add_twokey( CREATE_TWOKEY( _APOSTROPHE, _SHIFT+_4 ),  EndOfFile );
+   add_twokey( CREATE_TWOKEY( _SHIFT+_SEMICOLON, _N ),  NextHiddenWindow );
+   add_twokey( CREATE_TWOKEY( _SHIFT+_SEMICOLON, _P ),  PrevHiddenWindow );
+   add_twokey( CREATE_TWOKEY( _SHIFT+_SEMICOLON, _E ),  EditFile );
+   add_twokey( CREATE_TWOKEY( _SHIFT+_SEMICOLON, _F ),  Status );
+   add_twokey( CREATE_TWOKEY( _SHIFT+_SEMICOLON, _Q ),  Quit );
+   add_twokey( CREATE_TWOKEY( _SHIFT+_SEMICOLON, _SHIFT+_Q ),  QuitAll );
+   add_twokey( CREATE_TWOKEY( _SHIFT+_SEMICOLON, _X ),  GotoWindow );
+   add_twokey( CREATE_TWOKEY( _SHIFT+_SEMICOLON, _SHIFT+_X ),  PlayBack );
+   twokey = search_tree( CREATE_TWOKEY( _SHIFT+_SEMICOLON, _SHIFT+_X ),
+                         key_tree.right );
+   twokey->macro_ptr = allocate_macro( &colon_X, win_one );
+}
+
+
+/* tilegame: sets up this file's part of the editor state */
+void default_state_init( void )
+{
+
+   { static const KEY_FUNC tmpl_key_func = {
 { /* Unshifted keys */
      RestoreLine,               /* Esc */
      0,                         /* 1 */
@@ -802,104 +906,5 @@ KEY_FUNC key_func = {
      0,                         /* Shift+Ctrl+Alt+F12 */
 }
 };
-
-
-/*
- * Default macro definitions for the above PlayBack keys.
- */
-#define F(func) func | _FUNCTION
-static long win_one[] = { F(GotoWindow), '1' }; /* :X */
-#undef F
-
-static MACRO colon_X = { { 1, 1, 1 }, 0, 2, { 0 } };
-
-/*
- * jmh 991025: allocate memory for the macros to avoid clearing problems.
- *             Assume more than one key and memory is available.
- * jmh 991108: Can I tell if a pointer references static memory or
- *              allocated memory?
- */
-static MACRO *allocate_macro( MACRO *mac, long *keys )
-{
-MACRO *new_mac;
-int len;
-int rc = OK;
-
-   len = mac->len * sizeof(long);
-   mac->key.keys = my_malloc( len, &rc );
-   memcpy( mac->key.keys, keys, len );
-   new_mac = my_malloc( sizeof(MACRO), &rc );
-   memcpy( new_mac, mac, sizeof(MACRO) );
-
-   return( new_mac );
-}
-
-
-/*
- * Name:    default_twokeys
- * Class:   initialization (only called in initialize())
- * Purpose: set-up default two-key assignments
- * Author:  Jason Hood
- * Date:    July 27, 1998
- * Notes:   Since I dynamically allocate two-keys now, they can no longer
- *           be stored directly in the executable. This function is called
- *           during initialization to create default two-key combinations.
- *          Requires the parent key to be TwoCharKey in above array.
- *          Assumes there's enough heap, since it's done before the config
- *           file. If an error _is_ generated, then TDE16 probably needs to
- *           go to the large model.
- *
- * 990428:  add the viewer macros/two-keys.
- */
-extern TREE key_tree;           /* global.c (common.h is not included here) */
-extern TREE *cfg_key_tree;      /* config.c */
-extern MACRO *macro[MODIFIERS][MAX_KEYS]; /* global.c */
-
-void default_twokeys( void )
-{
-TREE *twokey;
-
-   cfg_key_tree = &key_tree;
-
-   add_twokey( CREATE_TWOKEY( _CTRL+_K, _I ), BlockIndentN );
-   add_twokey( CREATE_TWOKEY( _CTRL+_K, _U ), BlockUndentN );
-   add_twokey( CREATE_TWOKEY( _CTRL+_K, _CTRL+_I ), BlockIndent );
-   add_twokey( CREATE_TWOKEY( _CTRL+_K, _CTRL+_U ), BlockUndent );
-#if defined( __UNIX__ )
-   add_twokey( CREATE_TWOKEY( _CTRL+_K, _Q ), Quit );
-   add_twokey( CREATE_TWOKEY( _CTRL+_K, _N ), ReadConfig );
-   add_twokey( CREATE_TWOKEY( _CTRL+_K, _B ), MarkBegin );
-   add_twokey( CREATE_TWOKEY( _CTRL+_K, _K ), MarkEnd );
-   add_twokey( CREATE_TWOKEY( _CTRL+_K, _CTRL+_B ), BlockBegin );
-   add_twokey( CREATE_TWOKEY( _CTRL+_K, _CTRL+_K ), BlockEnd );
-   add_twokey( CREATE_TWOKEY( _CTRL+_K, _SHIFT+_1 ), SetMark1 );
-   add_twokey( CREATE_TWOKEY( _CTRL+_K, _SHIFT+_2 ), SetMark2 );
-   add_twokey( CREATE_TWOKEY( _CTRL+_K, _SHIFT+_3 ), SetMark3 );
-   add_twokey( CREATE_TWOKEY( _CTRL+_K, _1 ), GotoMark1 );
-   add_twokey( CREATE_TWOKEY( _CTRL+_K, _2 ), GotoMark2 );
-   add_twokey( CREATE_TWOKEY( _CTRL+_K, _3 ), GotoMark3 );
-   add_twokey( CREATE_TWOKEY( _CTRL+_K, _M ), MacroMark );
-   add_twokey( CREATE_TWOKEY( _CTRL+_K, _P ), Pause );
-#endif
-
-   add_twokey( CREATE_TWOKEY( _M, _1 ), SetMark1 );
-   add_twokey( CREATE_TWOKEY( _M, _2 ), SetMark2 );
-   add_twokey( CREATE_TWOKEY( _M, _3 ), SetMark3 );
-   add_twokey( CREATE_TWOKEY( _APOSTROPHE, _APOSTROPHE ), PreviousPosition );
-   add_twokey( CREATE_TWOKEY( _APOSTROPHE, _1 ),  GotoMark1 );
-   add_twokey( CREATE_TWOKEY( _APOSTROPHE, _2 ),  GotoMark2 );
-   add_twokey( CREATE_TWOKEY( _APOSTROPHE, _3 ),  GotoMark3 );
-   add_twokey( CREATE_TWOKEY( _APOSTROPHE, _SHIFT+_6 ),  TopOfFile );
-   add_twokey( CREATE_TWOKEY( _APOSTROPHE, _SHIFT+_4 ),  EndOfFile );
-   add_twokey( CREATE_TWOKEY( _SHIFT+_SEMICOLON, _N ),  NextHiddenWindow );
-   add_twokey( CREATE_TWOKEY( _SHIFT+_SEMICOLON, _P ),  PrevHiddenWindow );
-   add_twokey( CREATE_TWOKEY( _SHIFT+_SEMICOLON, _E ),  EditFile );
-   add_twokey( CREATE_TWOKEY( _SHIFT+_SEMICOLON, _F ),  Status );
-   add_twokey( CREATE_TWOKEY( _SHIFT+_SEMICOLON, _Q ),  Quit );
-   add_twokey( CREATE_TWOKEY( _SHIFT+_SEMICOLON, _SHIFT+_Q ),  QuitAll );
-   add_twokey( CREATE_TWOKEY( _SHIFT+_SEMICOLON, _X ),  GotoWindow );
-   add_twokey( CREATE_TWOKEY( _SHIFT+_SEMICOLON, _SHIFT+_X ),  PlayBack );
-   twokey = search_tree( CREATE_TWOKEY( _SHIFT+_SEMICOLON, _SHIFT+_X ),
-                         key_tree.right );
-   twokey->macro = allocate_macro( &colon_X, win_one );
+   memcpy( &key_func, &tmpl_key_func, sizeof key_func ); }
 }

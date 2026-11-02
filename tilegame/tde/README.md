@@ -31,3 +31,20 @@ table of PC scan codes; the C library layer; the console functions cell by cell.
 
 `make tde_ed` builds the editor with the SDL window: `./tde_ed [FOLDER]` (default `./tde_files`, which is /sd; put `tde.cfg`, `tde.hlp` and `tde.shl` from
 `config/` in `FOLDER/tde/`).
+
+## The editor's state
+
+TDE's file-scope variables are members of one structure, reached through the pointer `tde` (`src/tdestate.h`):
+
+- `tde_state_create()` makes a state with every variable at its first value and selects it; `tde_state_destroy()` frees it.
+  `tde_main` (the editor's `main`) does both, so the editor can be run again in the same process
+  (`test_second_run` in `tests/test_tde.c`).
+- Variables used by several files are members of `tde_state_t`; those private to a file are in a `struct <file>_state`
+  in that file (found through `tde->mod[]`). Each name is a macro for its member, so the editor's code reads as before.
+  `tdestate_gen.h` and `tdestate_macros.h` list them.
+- The editor's `malloc`, `calloc`, `realloc` and `free` are tracking versions (`tdestate.c`); destroying the state
+  frees whatever the editor still holds.
+- Some names clashed with variables and members of the editor (`macro`, `mode`, `diff`, `list`, ...); the local ones were renamed.
+- The menu tables (`menu.c`) stay static; a copy is kept and put back for each new state.
+- What is left at file scope is constant data (the tables of the help, prompts, configuration words and function table).
+  `nm build/tder/*.o | grep -i ' [bBdD] '` shows it.

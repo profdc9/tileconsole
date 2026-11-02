@@ -79,10 +79,17 @@
 #include "tdefunc.h"    /* prototypes for all functions in tde */
 #include "common.h"
 
+/* tilegame: the variables of this file are in the editor state (tdestate.h) */
+struct ed_state {
+   long offset_old_rline;
+   int change_cur_dir_io_mode_changed;
+   int toggle_draw_graphics;
+};
+#define ED_S ((struct ed_state *)tde->mod[TDE_MOD_ED])
+
 
 #if !defined( __DOS16__ )
 #include <setjmp.h>
-jmp_buf editor_jmp;
 #endif
 
 #if defined( __WIN32__ )
@@ -90,7 +97,6 @@ extern int    handle_mouse;     /* defined in win32/console.c */
 extern HANDLE conin;
 #endif
 
-extern long found_rline;        /* defined in findrep.c */
 
 
 /*
@@ -1636,7 +1642,6 @@ register int k;
 char line_col[20];
 static const char hex_digit[] = "0123456789abcdef";
 file_infos *file;
-static long old_rline;
 int  do_mode;
 
    line_col[19] = '\0';
@@ -1754,9 +1759,9 @@ int  do_mode;
              file->marker[k].rline == window->rline)
             line_col[i++] = k + '0';
       }
-      if (old_rline != window->rline) {
+      if ((ED_S->offset_old_rline) != window->rline) {
          show_search_message( CLR_SEARCH );
-         old_rline = window->rline;
+         (ED_S->offset_old_rline) = window->rline;
       }
       if (i) {
          line_col[i] = '\0';
@@ -2130,7 +2135,6 @@ int  change_cur_dir( TDE_WIN *arg_filler )
 {
 int  func;
 int  rc = OK;
-static int io_mode_changed = FALSE;     /* remember that it was insert mode */
 
    /*
     * Press the key for cursor update direction.
@@ -2149,12 +2153,12 @@ static int io_mode_changed = FALSE;     /* remember that it was insert mode */
    if (rc == OK) {
       if (func != CUR_RIGHT && mode.insert) {
          toggle_overwrite( NULL );      /* NOTE: dummy argument */
-         io_mode_changed = TRUE;
+         (ED_S->change_cur_dir_io_mode_changed) = TRUE;
       }
       mode.cur_dir = func;
-      if (func == CUR_RIGHT && io_mode_changed) {
+      if (func == CUR_RIGHT && (ED_S->change_cur_dir_io_mode_changed)) {
          toggle_overwrite( NULL );      /* NOTE: dummy argument */
-         io_mode_changed = FALSE;
+         (ED_S->change_cur_dir_io_mode_changed) = FALSE;
       }
       show_cur_dir( );
    }
@@ -2196,7 +2200,6 @@ file_infos *fp = window->file_info;
  */
 int  toggle_draw( TDE_WIN *arg_filler )
 {
-static int graphics = FALSE;
 
    mode.draw = !mode.draw;
    show_draw_mode( );
@@ -2204,11 +2207,11 @@ static int graphics = FALSE;
    if (mode.draw) {
       if (mode.graphics < 0) {
          toggle_graphic_chars( NULL );
-         graphics = TRUE;
+         (ED_S->toggle_draw_graphics) = TRUE;
       }
    } else {
-      if (graphics) {
-         graphics = FALSE;
+      if ((ED_S->toggle_draw_graphics)) {
+         (ED_S->toggle_draw_graphics) = FALSE;
          if (mode.graphics > 0)
             toggle_graphic_chars( NULL );
       }
@@ -2549,7 +2552,7 @@ int  repeat( TDE_WIN *window )
 long count;
 long key;
 int  func;
-MACRO *mac;
+MACRO *mac_;
 MACRO_STACK *stack;
 int  rc;
 int  prompt_line;
@@ -2575,7 +2578,7 @@ long *keys = NULL;              /* remove GCC warning */
    g_status.viewer_key = TRUE;
    key  = prompt_key( ed20, prompt_line );
    func = getfunc( key );
-   mac  = g_status.key_macro;
+   mac_  = g_status.key_macro;
 
    if (func < 0 || func >= NUM_FUNCS)
       return( ERROR );
@@ -2599,11 +2602,11 @@ long *keys = NULL;              /* remove GCC warning */
     * if repeating a recursive macro, remove the last key from the macro
     * to make it non-recursive, allowing the count to be used
     */
-   if (func == PlayBack && mac->len > 1 && mac->key.keys[mac->len-1] == key) {
-      --mac->len;
-      if (mac->len == 1) {
-         keys = mac->key.keys;
-         mac->key.key = *keys;
+   if (func == PlayBack && mac_->len > 1 && mac_->key.keys[mac_->len-1] == key) {
+      --mac_->len;
+      if (mac_->len == 1) {
+         keys = mac_->key.keys;
+         mac_->key.key = *keys;
       }
       recursive = TRUE;
    } else
@@ -2630,7 +2633,7 @@ long *keys = NULL;              /* remove GCC warning */
       else {
          g_status.key_pressed = key;
          g_status.command     = func;
-         g_status.key_macro   = mac;
+         g_status.key_macro   = mac_;
          rc = execute( window );
       }
 
@@ -2639,9 +2642,9 @@ long *keys = NULL;              /* remove GCC warning */
    }
 
    if (recursive) {
-      if (mac->len == 1)
-         mac->key.keys = keys;
-      ++mac->len;
+      if (mac_->len == 1)
+         mac_->key.keys = keys;
+      ++mac_->len;
    }
 
    if (stack != NULL) {
@@ -2906,4 +2909,12 @@ char *p, *q, *w;
       }
    }
    return( rc );
+}
+
+/* tilegame: sets up this file's part of the editor state */
+void ed_state_init( void )
+{
+   tde->mod[TDE_MOD_ED] = tde_calloc( 1, sizeof(struct ed_state) );
+   ED_S->change_cur_dir_io_mode_changed = FALSE;
+   ED_S->toggle_draw_graphics = FALSE;
 }

@@ -192,6 +192,8 @@ static void test_console_primitives(void)
 
 int tde_test_console(void)
 {
+    tde_state_create();      /* (the editor's variables are in its state) */
     test_console_primitives();
+    tde_state_destroy();
     return checks;
 }

@@ -59,6 +59,12 @@ char *greatest_composer_ever = "W. A. Mozart, 1756-1791";
 #include "define.h"
 #include "tdefunc.h"
 
+/* tilegame: the variables of this file are in the editor state (tdestate.h) */
+struct main_state {
+   char executable_path[PATH_MAX];
+};
+#define MAIN_S ((struct main_state *)tde->mod[TDE_MOD_MAIN])
+
 #if !defined( __DOS16__ )
  #include <signal.h>            /* unix critical errors */
  #if defined( __DJGPP__ )
@@ -93,11 +99,7 @@ int  _CRT_glob = 0;
 extern unsigned _stklen = 10240;        /* 10K stack (jmh 020821) */
 #endif
 
-extern char *cmd_config;        /* defined in config.c */
-extern char wksp_file[];        /* defined in file.c */
-extern int  wksp_loaded;        /* defined in file.c */
 
-char init_wd[PATH_MAX];         /* directory TDE started in (jmh 021021) */
 
 
 /*
@@ -123,11 +125,10 @@ char init_wd[PATH_MAX];         /* directory TDE started in (jmh 021021) */
  * jmh 050819: recognise "-??" as wildcard help and "--version".
  * jmh 051018: DOS/Win: assume if last arg ends in '"' it should really be '\'.
  */
-int  main( int argc, char *argv[] )
+static int editor_session( int argc, char *argv[] )
 {
 char *argv0;
 char *home;
-static char path[PATH_MAX];
 int  i;
 int  viewer;
 
@@ -161,8 +162,8 @@ int  viewer;
     * As recommended by the Win32 documentation.
     */
    SetFileApisToOEM( );
-   GetModuleFileName( NULL, path, sizeof(path) );
-   argv0 = path;
+   GetModuleFileName( NULL, (MAIN_S->executable_path), sizeof((MAIN_S->executable_path)) );
+   argv0 = (MAIN_S->executable_path);
 #else
    argv0 = argv[0];
 #endif
@@ -207,11 +208,11 @@ int  viewer;
       argv0[i] = '\0';
    }
 
-   get_full_path( argv0, path );
-   i = strlen( path );
-   if (path[i-1] != '/') {
-      path[i] = '/';
-      path[i+1] = '\0';
+   get_full_path( argv0, (MAIN_S->executable_path) );
+   i = strlen( (MAIN_S->executable_path) );
+   if ((MAIN_S->executable_path)[i-1] != '/') {
+      (MAIN_S->executable_path)[i] = '/';
+      (MAIN_S->executable_path)[i+1] = '\0';
    }
 
 #if !defined( __UNIX__ )
@@ -223,7 +224,7 @@ int  viewer;
    g_status.arg     = 1;
    g_status.argc    = argc;
    g_status.argv    = argv;
-   g_status.argv[0] = path;
+   g_status.argv[0] = (MAIN_S->executable_path);
 
    /*
     * jmh 010605: process -v and -i.
@@ -316,6 +317,22 @@ int  viewer;
       fprintf( stderr, "%s.\n", g_status.errmsg );
 
    return( 0 );
+}
+
+
+/*
+ * tilegame: a run of the editor has a state of its own, made here and destroyed at the end, so the editor can
+ *  be run again in the same process.
+ */
+int  main( int argc, char *argv[] )
+{
+int  rc;
+
+   if (tde_state_create( ) == NULL)
+      return( 1 );
+   rc = editor_session( argc, argv );
+   tde_state_destroy( );
+   return( rc );
 }
 
 
@@ -712,4 +729,10 @@ void show_credits( void )
        !g_status.input_redir && !g_status.output_redir  &&
        file_exists( wksp_file ) == ERROR)
       show_help( );
+}
+
+/* tilegame: sets up this file's part of the editor state */
+void main_state_init( void )
+{
+   tde->mod[TDE_MOD_MAIN] = tde_calloc( 1, sizeof(struct main_state) );
 }

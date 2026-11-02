@@ -53,12 +53,8 @@
 #include "tdefunc.h"
 
 
-int  make_window;       /* tell other functions not to redraw */
 
-extern TDE_WIN    *results_window; /* defined in findrep.c */
-extern file_infos *results_file;
 
-extern TDE_WIN    *browser_window; /* defined in movement.c */
 
 static TDE_WIN *find_make_window( TDE_WIN * );
 

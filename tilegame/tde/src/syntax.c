@@ -51,6 +51,24 @@
 #include "tdefunc.h"    /* prototypes for all functions in tde */
 #include "syntax.h"     /* syntax highlighting definitions */
 #include "config.h"     /* syntax highlighting file processing */
+/* tilegame: the variables of this file are in the editor state (tdestate.h) */
+struct syntax_state {
+   int initialized;
+   file_infos *syntax_file;
+   int rescan;
+   int error_no;
+   int prompt_line;
+   int in_macro;
+   int out_of_memory;
+};
+#define SYNTAX_S ((struct syntax_state *)tde->mod[TDE_MOD_SYNTAX])
+#define initialized (SYNTAX_S->initialized)
+#define syntax_file (SYNTAX_S->syntax_file)
+#define rescan (SYNTAX_S->rescan)
+#define error_no (SYNTAX_S->error_no)
+#define prompt_line (SYNTAX_S->prompt_line)
+#define in_macro (SYNTAX_S->in_macro)
+#define out_of_memory (SYNTAX_S->out_of_memory)
 
 #define NO_LANGUAGE     -2      /* return codes for scan_syntax */
 #define LANGUAGE_EXISTS  1
@@ -58,27 +76,12 @@
 /*
  * Some globals for file parsing.
  */
-static int  initialized = FALSE; /* have the colors been defined? */
 
-static file_infos *syntax_file; /* file containing syntax highlighting */
 
-static int  rescan = FALSE;     /* rescan an already loaded language */
 
-extern char *line_in;           /* input line buffer */
-extern char line_out[];         /* output line buffer */
-extern int  line_no;            /* current line number */
-static int  error_no = 0;       /* errors before this already displayed */
-extern int  process_macro;
-extern MACRO *mac;
 extern TREE *branch;
-extern TREE *cfg_key_tree;
-static int  prompt_line;
-static int  in_macro = FALSE;
-extern int  background;
-extern MENU_STR *user_menu;
 extern void make_menu( MENU_STR *, long *, int );
 
-static int  out_of_memory;      /* no room for keywords */
 
 static void lang_defaults( syntax_info * );
 static int  language_list( char * );
@@ -285,7 +288,7 @@ int  cnt;
       }
 
       if (load) {
-         cfg_key_tree = &ll->key_tree;
+         cfg_key_tree = &ll->lang_tree;
          user_menu = &ll->menu;
          if (user_menu->minor_cnt == 0  &&
              ll->parent && ll->parent->menu.minor_cnt != 0) {
@@ -434,7 +437,7 @@ int  len = strlen( lang );
       g_status.language_list = new_lang;
       memcpy( new_lang->name, lang, len + 1 );
 
-      new_lang->key_tree.key = 0x10000L;
+      new_lang->lang_tree.key = 0x10000L;
       
       /*
        * Use config setting for tab mode if this is not set.
@@ -2001,11 +2004,11 @@ int  syntax_select( TDE_WIN *window )
 {
 char answer[MAX_COLS+2];
 LANGUAGE *old_syntax;
-int  prompt_line;
+int  prompt_line_;
 int  i, j;
 int  rc;
 
-   prompt_line = window->bottom_line;
+   prompt_line_ = window->bottom_line;
 
    old_syntax = window->file_info->syntax;
    if (old_syntax == NULL)
@@ -2016,7 +2019,7 @@ int  rc;
    /*
     * Syntax highlighting language:
     */
-   rc = get_name( syntax12, prompt_line, answer, &h_lang );
+   rc = get_name( syntax12, prompt_line_, answer, &h_lang );
    if (rc == 0)
       rc = language_list( answer );
    if (rc >= 0) {
@@ -2247,4 +2250,16 @@ LTYPE *item;
    }
 
    fclose( fp );
+}
+
+
+/* tilegame: sets up this file's part of the editor state */
+void syntax_state_init( void )
+{
+
+   tde->mod[TDE_MOD_SYNTAX] = tde_calloc( 1, sizeof(struct syntax_state) );
+   initialized = FALSE;
+   rescan = FALSE;
+   error_no = 0;
+   in_macro = FALSE;
 }

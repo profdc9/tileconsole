@@ -38,6 +38,12 @@
 #include "common.h"
 #include "tdefunc.h"
 #include "define.h"
+/* tilegame: the variables of this file are in the editor state (tdestate.h) */
+struct memory_state {
+   int *group;
+};
+#define MEMORY_S ((struct memory_state *)tde->mod[TDE_MOD_MEMORY])
+#define group (MEMORY_S->group)
 
 
 static void *allocate( unsigned );
@@ -53,7 +59,6 @@ static unsigned long ptoul( void * );
 #define ptoul (unsigned long)
 #endif
 
-static int  *group = NULL;
 
 
 #define SUS (sizeof(unsigned short))
@@ -625,11 +630,11 @@ mem_info *block;
  * Purpose: find a block with a certain amount of free space
  * Date:    November 27, 2001
  * Passed:  size: free space required
- *          sort: TRUE to find an exact size for sorting
+ *          sort_: TRUE to find an exact size for sorting
  * Returns: index in size array or -1 if no space is big enough
  * Notes:   attempts to find an exact size first, otherwise uses best fit.
  */
-static int  find_size( unsigned size, int sort )
+static int  find_size( unsigned size, int sort_ )
 {
 int  bot;
 int  mid;
@@ -646,7 +651,7 @@ unsigned space;
       if (size == space)
          return( mid );
       else if (size < space) {
-         if (sort  ||  (space <= MAX_SPACE  ||  space >= size + MIN_SPACE))
+         if (sort_  ||  (space <= MAX_SPACE  ||  space >= size + MIN_SPACE))
             i = mid;
          top = mid - 1;
       } else
@@ -808,3 +813,12 @@ static unsigned long ptoul( void *s )
 #pragma warn +rvl
 #endif
 #endif
+
+
+/* tilegame: sets up this file's part of the editor state */
+void memory_state_init( void )
+{
+
+   tde->mod[TDE_MOD_MEMORY] = tde_calloc( 1, sizeof(struct memory_state) );
+   group = NULL;
+}

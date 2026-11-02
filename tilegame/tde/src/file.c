@@ -67,28 +67,24 @@
 #include "common.h"
 #include "define.h"
 #include "tdefunc.h"
+/* tilegame: the variables of this file are in the editor state (tdestate.h) */
+struct file_state {
+   char file_buf[READ_LENGTH];
+   char *cmd_title;
+};
+#define FILE_S ((struct file_state *)tde->mod[TDE_MOD_FILE])
+#define file_buf (FILE_S->file_buf)
+#define cmd_title (FILE_S->cmd_title)
 
 
-static char file_buf[READ_LENGTH];      /* jmh 021102: file buffer */
-static char *cmd_title;                 /* jmh 030331: for -c */
 
-char wksp_file[PATH_MAX];       /* jmh 020802: for -w */
-int  wksp_loaded;               /* jmh 020911: for AutoSaveWorkspace */
 
-extern char init_wd[PATH_MAX];  /* defined in main.c */
-extern char *line_in;           /* defined in config.c */
-extern int  make_window;        /* defined in window.c */
 
 #if defined( __WIN32__ )
 extern HANDLE conin;            /* defined in win32/console.c */
 #endif
 
-extern int  auto_reload;        /* defined in utils.c */
 
-extern TDE_WIN *results_window; /* defined in findrep.c */
-extern file_infos *results_file;
-extern file_infos *search_file;
-extern long found_rline;
 
 static void write_history( FILE *, HISTORY * ); /* added by jmh 021029 */
 static void read_history( FILE *, HISTORY * );  /* ditto */
@@ -1172,9 +1168,9 @@ int  grep, cmd_line;
          /*
           * Process the startup macro.
           */
-         if (cmd_line  &&  g_option.macro) {
+         if (cmd_line  &&  g_option.macro_ptr) {
             g_status.command = PlayBack;
-            g_status.key_macro = macro[KEY_IDX( g_option.macro )];
+            g_status.key_macro = macro[KEY_IDX( g_option.macro_ptr )];
             play_back( win );
          }
       }
@@ -2167,11 +2163,11 @@ TDE_WIN *first_win = NULL;
                         break;
 
                      case 'e':
-                        g_option.macro = (minus) ? _CONTROLKEY : _SHIFTKEY;
+                        g_option.macro_ptr = (minus) ? _CONTROLKEY : _SHIFTKEY;
                         i = arg[2];
                         if (i == '-') {
-                           clear_previous_macro( g_option.macro );
-                           g_option.macro = 0;
+                           clear_previous_macro( g_option.macro_ptr );
+                           g_option.macro_ptr = 0;
                         } else {
                            if (i == '\0')
                               arg = g_status.argv[++g_status.arg];
@@ -3059,4 +3055,12 @@ char ch;
          show_cwd( );
    }
    return( OK );
+}
+
+
+/* tilegame: sets up this file's part of the editor state */
+void file_state_init( void )
+{
+
+   tde->mod[TDE_MOD_FILE] = tde_calloc( 1, sizeof(struct file_state) );
 }

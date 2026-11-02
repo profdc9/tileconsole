@@ -362,7 +362,7 @@ int  user_idx = MAJOR - 2;
 /*
  * popup menu for selecting the new window in the make window functions.
  */
-Begin( make_window )
+Begin( make_window_items )
    SepLabel( " Make window with..." )
    Separator
    Item( "Next file",           EditNextFile        )
@@ -376,7 +376,7 @@ Begin( make_window )
    Item( "Next grep",           RepeatGrep          )
 End
 
-MENU_STR make_window_menu = Popout( make_window );
+MENU_STR make_window_menu = Popout( make_window_items );
 
 
 char *key_word[MAX_KEYS] = {

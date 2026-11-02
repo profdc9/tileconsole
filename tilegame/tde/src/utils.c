@@ -62,22 +62,22 @@
 #if defined( __WIN32__ )
 #include <process.h>
 #endif
+/* tilegame: the variables of this file are in the editor state (tdestate.h) */
+struct utils_state {
+   int ruler1;                 /* for the popup ruler */
+   int ruler2;
+   int exec_proc_necho;
+   int exec_proc_npause;
+};
+#define UTILS_S ((struct utils_state *)tde->mod[TDE_MOD_UTILS])
+#define ruler1 (UTILS_S->ruler1)
+#define ruler2 (UTILS_S->ruler2)
 
 
-extern long swap_br, swap_er;           /* block.c */
-extern int  swap_bc, swap_ec;
 
-extern int  copied_rcol;                /* undo.c */
-extern int  copied_mod;
-extern int  copied_dirty;
 
-extern long found_rline;                /* findrep.c */
-extern int  found_rcol;
-extern int  found_vlen;
 
-       int  auto_reload = FALSE;        /* for file.c */
 
-static int  ruler1 = -1, ruler2 = -1;   /* for the popup ruler */
 
 
 /*
@@ -2016,48 +2016,46 @@ ftime_t ftime;
  */
 int  exec_proc( int id, char *text )
 {
-static int  necho  = ERROR;     /* remember the old echo state */
-static int  npause = ERROR;     /* remember the old pause state */
 
    if (id == -IDE_COMMAND) {
       if (*text == '\0') {
-         if (necho == ERROR) {
-            necho = CB_NEcho;
-            if (!necho)
+         if ((UTILS_S->exec_proc_necho) == ERROR) {
+            (UTILS_S->exec_proc_necho) = CB_NEcho;
+            if (!(UTILS_S->exec_proc_necho))
                check_box( IDC_NECHO );
             check_box_enabled( IDC_NECHO, FALSE );
          }
-         if (npause == ERROR) {
-            npause = CB_NPause;
-            if (!npause)
+         if ((UTILS_S->exec_proc_npause) == ERROR) {
+            (UTILS_S->exec_proc_npause) = CB_NPause;
+            if (!(UTILS_S->exec_proc_npause))
                check_box( IDC_NPAUSE );
             check_box_enabled( IDC_NPAUSE, FALSE );
          }
       } else {
          check_box_enabled( IDC_NECHO, TRUE );
-         if (necho == FALSE)
+         if ((UTILS_S->exec_proc_necho) == FALSE)
             check_box( IDC_NECHO );
-         necho = ERROR;
+         (UTILS_S->exec_proc_necho) = ERROR;
          if (!CB_Capture) {
             check_box_enabled( IDC_NPAUSE, TRUE );
-            if (npause == FALSE)
+            if ((UTILS_S->exec_proc_npause) == FALSE)
                check_box( IDC_NPAUSE );
-            npause = ERROR;
+            (UTILS_S->exec_proc_npause) = ERROR;
          }
       }
 
    } else if (id == IDC_CAPTURE) {
-      if (necho == ERROR) { /* empty command will have already done pause */
+      if ((UTILS_S->exec_proc_necho) == ERROR) { /* empty command will have already done pause */
          if (CB_Capture) {
-            npause = CB_NPause;
-            if (!npause)
+            (UTILS_S->exec_proc_npause) = CB_NPause;
+            if (!(UTILS_S->exec_proc_npause))
                check_box( IDC_NPAUSE );
             check_box_enabled( IDC_NPAUSE, FALSE );
-         } else if (npause != ERROR) {
+         } else if ((UTILS_S->exec_proc_npause) != ERROR) {
             check_box_enabled( IDC_NPAUSE, TRUE );
-            if (!npause)
+            if (!(UTILS_S->exec_proc_npause))
                check_box( IDC_NPAUSE );
-            npause = ERROR;
+            (UTILS_S->exec_proc_npause) = ERROR;
          }
       }
    }
@@ -2741,4 +2739,17 @@ int  rc;
       strcat( rel, path + len );
    }
    return( rel );
+}
+
+
+/* tilegame: sets up this file's part of the editor state */
+void utils_state_init( void )
+{
+   tde->mod[TDE_MOD_UTILS] = tde_calloc( 1, sizeof(struct utils_state) );
+   ruler1 = -1;
+   ruler2 = -1;
+   UTILS_S->exec_proc_necho = ERROR;
+   UTILS_S->exec_proc_npause = ERROR;
+
+   auto_reload = FALSE;
 }

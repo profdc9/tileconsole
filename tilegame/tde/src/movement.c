@@ -29,7 +29,6 @@
 #include "tdefunc.h"
 
 
-TDE_WIN *browser_window;        /* current window being used for browsing */
 
 static int  browser_parse( char *, long *, int * );
 
@@ -204,7 +203,7 @@ void move_display( TDE_WIN *window, TDE_WIN *pos )
 {
 register TDE_WIN *win;
 TDE_WIN old;
-long diff;
+long diff_;
 int  cline;
 
    win = window;
@@ -215,11 +214,11 @@ int  cline;
    win->ll    = pos->ll;
    win->bin_offset = pos->bin_offset;
 
-   diff = win->rline - old.rline;
-   if (diff) {
+   diff_ = win->rline - old.rline;
+   if (diff_) {
       cline = win->cline;
-      if (labs( diff ) >= g_display.end_line  ||
-          check_cline( win, win->cline + (int)diff )) {
+      if (labs( diff_ ) >= g_display.end_line  ||
+          check_cline( win, win->cline + (int)diff_ )) {
          check_cline( win, cline );
          win->file_info->dirty = LOCAL | RULER;
       }
@@ -423,22 +422,22 @@ int  goto_top( TDE_WIN *window )
 {
 register TDE_WIN *win;   /* put window pointer in a register */
 long line;
-int  diff;
+int  diff_;
 int  empty;
 
    if (g_status.command_count == 0) {
       win   = window;
-      diff  = win->cline - win->top_line;
+      diff_  = win->cline - win->top_line;
       line  = win->rline;
       empty = (win->file_info->length == 0);
-      if ((diff && (line != 1 || empty))  ||  (line == 0 && !empty)) {
+      if ((diff_ && (line != 1 || empty))  ||  (line == 0 && !empty)) {
          if (un_copy_line( win->ll, win, TRUE, TRUE ) == ERROR)
             return( ERROR );
 
          undo_move( win, 0 );
 
          update_line( win );
-         line -= diff;
+         line -= diff_;
          win->cline = win->top_line;
          if (line == 0 && !empty) {
             ++line;
@@ -463,17 +462,17 @@ int  empty;
 int  goto_bottom( TDE_WIN *window )
 {
 register TDE_WIN *win;   /* put window pointer in a register */
-int  diff;
+int  diff_;
 long line;
 int  empty;
 long length;
 
    if (g_status.command_count == 0) {
       win   = window;
-      diff  = win->bottom_line - win->cline;
+      diff_  = win->bottom_line - win->cline;
       line  = win->rline;
       empty = ((length = win->file_info->length) == 0);
-      if ((diff && (line != length || empty)) || (line == length+1 && !empty)) {
+      if ((diff_ && (line != length || empty)) || (line == length+1 && !empty)) {
          if (un_copy_line( win->ll, win, TRUE, TRUE ) == ERROR)
             return( ERROR );
 
@@ -489,10 +488,10 @@ long length;
             }
          } else {
             update_line( win );
-            if (line + diff > length)
-               diff = (int)(length - line);
-            line += diff;
-            win->cline += diff;
+            if (line + diff_ > length)
+               diff_ = (int)(length - line);
+            line += diff_;
+            win->cline += diff_;
             move_to_line( win, line, TRUE );
             show_curl_line( win );
          }
@@ -1645,7 +1644,7 @@ int  center_window( TDE_WIN *window )
 {
 int  center;
 int  center_line;
-int  diff;
+int  diff_;
 file_infos *file;
 register TDE_WIN *win;           /* put window pointer in a register */
 
@@ -1653,20 +1652,20 @@ register TDE_WIN *win;           /* put window pointer in a register */
    file = win->file_info;
    center = (win->bottom_line + 1 - win->top_line) / 2;
    center_line = win->top_line + center;
-   diff = center_line - win->cline;
-   if (diff != 0) {
+   diff_ = center_line - win->cline;
+   if (diff_ != 0) {
       if (g_status.command == CenterWindow) {
-         if (diff < 0 || win->rline + diff <= file->length + 1) {
+         if (diff_ < 0 || win->rline + diff_ <= file->length + 1) {
             if (un_copy_line( win->ll, win, TRUE, TRUE ) == ERROR)
                return( ERROR );
             undo_move( win, 0 );
             update_line( win );
-            win->cline += diff;
-            move_to_line( win, win->rline + diff, TRUE );
+            win->cline += diff_;
+            move_to_line( win, win->rline + diff_, TRUE );
             show_curl_line( win );
          }
       } else {
-         if (diff < 0 || center_line <= win->top_line + win->rline) {
+         if (diff_ < 0 || center_line <= win->top_line + win->rline) {
             win->cline  = center_line;
             file->dirty = LOCAL;
          }

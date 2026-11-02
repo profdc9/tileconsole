@@ -255,6 +255,8 @@ static void put_file(const char *name, const char *data, size_t len)
 /* The files as they are after the run: the child lists them to a file of the parent's choosing. */
 static char dump_dir[64];
 
+static const char *second_keys, *second_cmd;   /* a second run of the editor after the first, in the same process */
+
 static void child(const char *keys, const char *cmdline)
 {
     char *args[8];
@@ -303,6 +305,16 @@ static void child(const char *keys, const char *cmdline)
         args[n++] = p;
     args[n] = NULL;
     tde_main(n, args);
+    if (second_keys) {   /* the editor again, with a new state: it must start as it did the first time */
+        parse_keys(second_keys);
+        args[0] = program;   /* (the first run left its own path in argv[0], which went with its state) */
+        n = 1;
+        snprintf(buf, sizeof buf, "%s", second_cmd ? second_cmd : "");
+        for (char *p = strtok(buf, " "); p && n < 7; p = strtok(NULL, " "))
+            args[n++] = p;
+        args[n] = NULL;
+        tde_main(n, args);
+    }
     finish(10);   /* the editor ended by itself: this is its screen, and the exit code says so */
 }
 
@@ -606,6 +618,36 @@ static void test_line_endings_and_big(void)
 
 /* Things that stopped the editor: a stream block that begins at the end of its first line, copied (an assertion in the copy code; the fix is in block.c), and what
  * a prompt does with the cursor keys. The editor is built with its assertion checks on for the tests. */
+static int run_twice(const char *keys1, const char *cmd1, const char *keys2, const char *cmd2)
+{
+    second_keys = keys2;
+    second_cmd = cmd2;
+    const int r = run(keys1, cmd1);
+    second_keys = second_cmd = NULL;
+    return r;
+}
+
+/* The editor can be run again in one process: each run has a state of its own. */
+static void test_second_run(void)
+{
+    fresh_files();
+    put_file("a.txt", "one\ntwo\nthree\n", 14);
+    put_file("b.txt", "bee\n", 4);
+    want("/sd/a.txt");
+    want("/sd/b.txt");
+    /* the first run changes things the editor keeps (a file saved, search and mode state, a second window) */
+    CHECK(run("Y", "b.txt"));
+    char fresh_screen[25][81];
+    memcpy(fresh_screen, screen_text, sizeof fresh_screen);
+    const int fc0 = cursor[0], fc1 = cursor[1];
+    CHECK(run_twice("{DOWN}X{F2}{A-F}two\n{F3}", "a.txt", "Y", "b.txt"));
+    CHECK(memcmp(fresh_screen, screen_text, sizeof fresh_screen) == 0 && cursor[0] == fc0 && cursor[1] == fc1);
+    CHECK(file_is("/sd/a.txt", "one\nXtwo\nthree\n"));
+    /* the second run does not know the first one's files, windows or marks */
+    CHECK(run_twice("{S-F4}b.txt\n{INS}{A-B}{F3}{F3}", "a.txt", "", "b.txt") && ROW_HAS(0, "b.txt") && !ROW_HAS(0, "a.txt") && ROW_IS(3, "bee"));
+    CHECK(!run_twice("{F3}", "a.txt", "{F3}", "b.txt"));   /* both end by themselves */
+}
+
 static void test_crashes(void)
 {
     fresh_files();
@@ -982,6 +1024,7 @@ int main(int argc, char **argv)
     test_menus_and_help();
     test_line_endings_and_big();
     test_keys();
+    test_second_run();
     test_crashes();
     printf("all %d checks passed\n", checks);
     return 0;
