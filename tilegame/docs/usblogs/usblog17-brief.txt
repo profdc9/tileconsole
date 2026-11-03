@@ -1,0 +1,619 @@
+docs/usblogs/usblog17.bin: 1557 events kept of 1557, ended by: still running (not closed)
+span 42040.732 ms
+    0.000  event ATTACH dev 0  hub 0 port 0 speed 2 (in isr)
+    0.000  port reset
+    0.050  port reset end
+    0.500  dev 0  SETUP IN GET_DESCRIPTOR DEVICE #0 wValue 0100 wIndex 0000 wLength 8  -> ok
+    0.500    dev 0  IN  8 bytes  -> ok
+    0.500    dev 0  OUT (status stage, 0 bytes)  -> ok
+    0.500  dev 0  SETUP OUT SET_ADDRESS wValue 0006 wIndex 0000 wLength 0  -> ok
+    0.500    dev 0  IN  (status stage, 0 bytes)  -> ok
+    0.503  device close dev 0
+    0.503  dev 6  SETUP IN GET_DESCRIPTOR DEVICE #0 wValue 0100 wIndex 0000 wLength 18  -> ok
+    0.503    dev 6  IN  18 bytes  -> ok
+    0.503    dev 6  OUT (status stage, 0 bytes)  -> ok
+    0.503  dev 6  SETUP IN GET_DESCRIPTOR CONFIGURATION #0 wValue 0200 wIndex 0000 wLength 9  -> ok
+    0.503    dev 6  IN  9 bytes  -> ok
+    0.503    dev 6  OUT (status stage, 0 bytes)  -> ok
+    0.503  dev 6  SETUP IN GET_DESCRIPTOR CONFIGURATION #0 wValue 0200 wIndex 0000 wLength 25  -> ok
+    0.503    dev 6  IN  25 bytes  -> ok
+    0.504    dev 6  OUT (status stage, 0 bytes)  -> ok
+    0.504  dev 6  SETUP OUT SET_CONFIGURATION wValue 0001 wIndex 0000 wLength 0  -> ok
+    0.504    dev 6  IN  (status stage, 0 bytes)  -> ok
+    0.504  dev 6  SETUP IN request 6 wValue 0000 wIndex 0000 wLength 9 (class)  -> ok
+    0.504    dev 6  IN  9 bytes  -> ok
+    0.504    dev 6  OUT (status stage, 0 bytes)  -> ok
+    0.504  dev 6  SETUP OUT GET_PROTOCOL wValue 0008 wIndex 0001 wLength 0 (class)  -> ok
+    0.504    dev 6  IN  (status stage, 0 bytes)  -> ok
+    0.506  dev 6  SETUP OUT GET_PROTOCOL wValue 0008 wIndex 0002 wLength 0 (class)  -> ok
+    0.506    dev 6  IN  (status stage, 0 bytes)  -> ok
+    0.508  dev 6  SETUP OUT GET_PROTOCOL wValue 0008 wIndex 0003 wLength 0 (class)  -> ok
+    0.508    dev 6  IN  (status stage, 0 bytes)  -> ok
+    0.510  dev 6  SETUP OUT GET_PROTOCOL wValue 0008 wIndex 0004 wLength 0 (class)  -> ok
+    0.510    dev 6  IN  (status stage, 0 bytes)  -> ok
+    0.512    dev 6  IN  1 bytes  -> ok
+    0.758  dev 6  SETUP IN request 0 wValue 0000 wIndex 0002 wLength 4 (class)  -> ok
+    0.758    dev 6  IN  4 bytes  -> ok
+    0.758    dev 6  OUT (status stage, 0 bytes)  -> ok
+    0.758  dev 6  SETUP OUT GET_REPORT wValue 0010 wIndex 0002 wLength 0 (class)  -> ok
+    0.758    dev 6  IN  (status stage, 0 bytes)  -> ok
+    0.759  dev 6  SETUP OUT GET_PROTOCOL wValue 0004 wIndex 0002 wLength 0 (class)  -> ok
+    0.759    dev 6  IN  (status stage, 0 bytes)  -> ok
+    0.771  event ATTACH dev 0  hub 6 port 2 speed 0
+    1.221  dev 6  SETUP IN request 0 wValue 0000 wIndex 0002 wLength 4 (class)  -> ok
+    1.221    dev 6  IN  4 bytes  -> ok
+    1.221    dev 6  OUT (status stage, 0 bytes)  -> ok
+    1.221    dev 6  IN  1 bytes  -> ok
+    1.268  dev 6  SETUP IN request 0 wValue 0000 wIndex 0002 wLength 4 (class)  -> ok
+    1.268    dev 6  IN  4 bytes  -> ok
+    1.268    dev 6  OUT (status stage, 0 bytes)  -> ok
+    1.268  dev 6  SETUP OUT GET_REPORT wValue 0010 wIndex 0002 wLength 0 (class)  -> ok
+    1.268    dev 6  IN  (status stage, 0 bytes)  -> ok
+    1.268  event REMOVE dev 0  hub 6 port 2 speed 0
+    1.269    dev 6  IN  1 bytes  -> ok
+    1.523  dev 6  SETUP IN request 0 wValue 0000 wIndex 0002 wLength 4 (class)  -> ok
+    1.523    dev 6  IN  4 bytes  -> ok
+    1.523    dev 6  OUT (status stage, 0 bytes)  -> ok
+    1.523  dev 6  SETUP OUT GET_REPORT wValue 0014 wIndex 0002 wLength 0 (class)  -> ok
+    1.523    dev 6  IN  (status stage, 0 bytes)  -> ok
+    1.523    dev 6  IN  1 bytes  -> ok
+    2.798  dev 6  SETUP IN request 0 wValue 0000 wIndex 0002 wLength 4 (class)  -> ok
+    2.798    dev 6  IN  4 bytes  -> ok
+    2.798    dev 6  OUT (status stage, 0 bytes)  -> ok
+    2.798  dev 6  SETUP OUT GET_REPORT wValue 0010 wIndex 0002 wLength 0 (class)  -> ok
+    2.798    dev 6  IN  (status stage, 0 bytes)  -> ok
+    2.798  event REMOVE dev 0  hub 6 port 2 speed 0
+    2.798    dev 6  IN  1 bytes  -> ok
+    3.053  dev 6  SETUP IN request 0 wValue 0000 wIndex 0002 wLength 4 (class)  -> ok
+    3.053    dev 6  IN  4 bytes  -> ok
+    3.053    dev 6  OUT (status stage, 0 bytes)  -> ok
+    3.053  dev 6  SETUP OUT GET_REPORT wValue 0010 wIndex 0002 wLength 0 (class)  -> ok
+    3.053    dev 6  IN  (status stage, 0 bytes)  -> ok
+    3.053  dev 6  SETUP OUT GET_PROTOCOL wValue 0004 wIndex 0002 wLength 0 (class)  -> ok
+    3.053    dev 6  IN  (status stage, 0 bytes)  -> ok
+    3.066  event ATTACH dev 0  hub 6 port 2 speed 0
+    3.516  dev 6  SETUP IN request 0 wValue 0000 wIndex 0002 wLength 4 (class)  -> ok
+    3.516    dev 6  IN  4 bytes  -> ok
+    3.516    dev 6  OUT (status stage, 0 bytes)  -> ok
+    3.516  dev 6  SETUP OUT GET_REPORT wValue 0014 wIndex 0002 wLength 0 (class)  -> ok
+    3.516    dev 6  IN  (status stage, 0 bytes)  -> ok
+    3.516  dev 0  SETUP IN GET_DESCRIPTOR DEVICE #0 wValue 0100 wIndex 0000 wLength 8  -> ok
+    3.516    dev 0  IN  8 bytes  -> ok
+    3.518    dev 0  OUT (status stage, 0 bytes)  -> ok
+    3.521  dev 0  SETUP OUT SET_ADDRESS wValue 0001 wIndex 0000 wLength 0  -> ok
+    3.521    dev 0  IN  (status stage, 0 bytes)  -> ok
+    3.523  device close dev 0
+    3.523  dev 1  SETUP IN GET_DESCRIPTOR DEVICE #0 wValue 0100 wIndex 0000 wLength 18  -> ok
+    3.523    dev 1  IN  18 bytes  -> ok
+    3.527    dev 1  OUT (status stage, 0 bytes)  -> ok
+    3.530  dev 1  SETUP IN GET_DESCRIPTOR CONFIGURATION #0 wValue 0200 wIndex 0000 wLength 9  -> ok
+    3.530    dev 1  IN  9 bytes  -> ok
+    3.533    dev 1  OUT (status stage, 0 bytes)  -> ok
+    3.536  dev 1  SETUP IN GET_DESCRIPTOR CONFIGURATION #0 wValue 0200 wIndex 0000 wLength 106  -> ok
+    3.536    dev 1  IN  106 bytes  -> ok
+               ... 5 receive timeouts
+    3.557    dev 1  OUT (status stage, 0 bytes)  -> ok
+    3.560  dev 1  SETUP OUT SET_CONFIGURATION wValue 0001 wIndex 0000 wLength 0  -> ok
+    3.560    dev 1  IN  (status stage, 0 bytes)  -> ok
+    3.561    dev 1  IN  32 bytes  (no completion)
+    3.561    dev 1  OUT 3 bytes  (no completion)
+    3.561  dev 1  SETUP OUT SET_IDLE wValue 0000 wIndex 0001 wLength 0 (class)  -> ok
+    3.562    dev 1  IN  (status stage, 0 bytes)  -> ok
+    3.562    dev 1  data/status OUT ep5 3 bytes -> ok
+    3.562    dev 1  data/status IN  ep0 0 bytes -> ok
+    3.562    dev 1  IN  32 bytes  (no completion)
+    3.562  dev 1  SETUP OUT SET_PROTOCOL wValue 0000 wIndex 0001 wLength 0 (class)  -> ok
+    3.562    dev 1  IN  (status stage, 0 bytes)  (no completion)
+    3.563  DATA SEQUENCE ERROR flag seen by the task (#1)  sie_status=VBUS_DETECTED|ENDPOINT_ERROR|NAK_REC|ACK_REC|speed=full|line=1  buf_status=00000000  epx_buf_ctrl=00007400
+               ... 206 receive timeouts
+    3.564    dev 1  data/status IN  ep0 0 bytes -> ok
+    3.564  dev 1  SETUP IN GET_DESCRIPTOR HID REPORT #0 wValue 2200 wIndex 0001 wLength 166  -> ok
+    3.564    dev 1  IN  166 bytes  -> ok
+    3.565    dev 1  IN  32 bytes  -> ok
+    3.566    dev 1  OUT (status stage, 0 bytes)  -> ok
+    3.567    dev 1  IN  32 bytes  -> ok
+    3.568    dev 1  IN  32 bytes  -> ok
+               ... 1 receive timeouts
+    3.568  HID mounted dev 1 interface 0  report descriptor 166 bytes
+    3.568  dev 1  SETUP OUT SET_IDLE wValue 0000 wIndex 0002 wLength 0 (class)  -> ok
+    3.568    dev 1  IN  (status stage, 0 bytes)  -> ok
+    3.570  dev 1  SETUP IN GET_DESCRIPTOR HID REPORT #0 wValue 2200 wIndex 0002 wLength 33  -> ok
+    3.570    dev 1  IN  33 bytes  -> ok
+    3.570    dev 1  IN  32 bytes  -> ok
+    3.571    dev 1  OUT (status stage, 0 bytes)  -> ok
+    3.572  HID mounted dev 1 interface 1  report descriptor 33 bytes
+    3.572    dev 1  data/status IN  ep4 20 bytes -> ok
+    3.572    dev 6  IN  1 bytes  (no completion)
+    3.572    dev 1  IN  32 bytes  -> ok
+    3.573    dev 1  IN  32 bytes  -> ok
+    3.575    dev 1  IN  32 bytes  -> ok
+    3.577    dev 1  IN  32 bytes  -> ok
+    3.578    dev 1  IN  32 bytes  -> ok
+    3.580    dev 1  IN  32 bytes  -> ok
+    3.582    dev 1  IN  32 bytes  -> ok
+    3.584    dev 1  IN  32 bytes  -> ok
+    3.585    dev 1  IN  32 bytes  -> ok
+    3.587    dev 1  IN  32 bytes  -> ok
+    3.589    dev 1  IN  32 bytes  -> ok
+    3.590    dev 1  IN  32 bytes  -> ok
+    3.592    dev 1  IN  32 bytes  -> ok
+               ... 12 receive timeouts
+    3.594    dev 1  IN  32 bytes  -> ok
+    3.595    dev 1  IN  32 bytes  -> ok
+    3.597    dev 1  IN  32 bytes  -> ok
+    3.599    dev 1  IN  32 bytes  -> ok
+    3.601    dev 1  IN  32 bytes  -> ok
+    3.602    dev 1  IN  32 bytes  -> ok
+    3.604    dev 1  IN  32 bytes  -> ok
+    3.606    dev 1  IN  32 bytes  -> ok
+    3.607    dev 1  IN  32 bytes  -> ok
+    3.609    dev 1  IN  32 bytes  -> ok
+    3.611    dev 1  IN  32 bytes  -> ok
+               ... 9 receive timeouts
+    3.612    dev 1  IN  32 bytes  -> ok
+    3.614    dev 1  IN  32 bytes  -> ok
+    3.616    dev 1  IN  32 bytes  -> ok
+    3.617    dev 1  IN  32 bytes  -> ok
+    3.619    dev 1  IN  32 bytes  -> ok
+    3.621    dev 1  IN  32 bytes  -> ok
+    3.622    dev 1  IN  32 bytes  -> ok
+    3.624    dev 1  IN  32 bytes  -> ok
+    3.626    dev 1  IN  32 bytes  -> ok
+    3.627    dev 1  IN  32 bytes  -> ok
+    3.629    dev 1  IN  32 bytes  -> ok
+    3.631    dev 1  IN  32 bytes  -> ok
+               ... 10 receive timeouts
+    3.632    dev 1  IN  32 bytes  -> ok
+    3.634    dev 1  IN  32 bytes  -> ok
+    3.636    dev 1  IN  32 bytes  -> ok
+    3.637    dev 1  IN  32 bytes  -> ok
+    3.639    dev 1  IN  32 bytes  -> ok
+    3.641    dev 1  IN  32 bytes  -> ok
+    3.642    dev 1  IN  32 bytes  -> ok
+               ... 5 receive timeouts
+    3.644    dev 1  IN  32 bytes  -> ok
+    3.646    dev 1  IN  32 bytes  -> ok
+    3.647    dev 1  IN  32 bytes  -> ok
+    3.649    dev 1  IN  32 bytes  -> ok
+    3.651    dev 1  IN  32 bytes  -> ok
+               ... 3 receive timeouts
+    3.653    dev 1  IN  32 bytes  -> ok
+    3.654    dev 1  IN  32 bytes  -> ok
+    3.656    dev 1  IN  32 bytes  -> ok
+    3.658    dev 1  IN  32 bytes  -> ok
+    3.659    dev 1  IN  32 bytes  -> ok
+    3.661    dev 1  IN  32 bytes  -> ok
+    3.663    dev 1  IN  32 bytes  -> ok
+    3.664    dev 1  IN  32 bytes  -> ok
+    3.666    dev 1  IN  32 bytes  -> ok
+    3.668    dev 1  IN  32 bytes  -> ok
+    3.669    dev 1  IN  32 bytes  -> ok
+    3.671    dev 1  IN  32 bytes  -> ok
+    3.673    dev 1  IN  32 bytes  -> ok
+    3.674    dev 1  IN  32 bytes  -> ok
+    3.676    dev 1  IN  32 bytes  -> ok
+    3.678    dev 1  IN  32 bytes  -> ok
+    3.679    dev 1  IN  32 bytes  -> ok
+    3.681    dev 1  IN  32 bytes  -> ok
+    3.683    dev 1  IN  32 bytes  -> ok
+    3.684    dev 1  IN  32 bytes  -> ok
+    3.686    dev 1  IN  32 bytes  -> ok
+    3.688    dev 1  IN  32 bytes  -> ok
+    3.689    dev 1  IN  32 bytes  -> ok
+    3.691    dev 1  IN  32 bytes  -> ok
+    3.693    dev 1  IN  32 bytes  -> ok
+    3.695    dev 1  IN  32 bytes  -> ok
+    3.696    dev 1  IN  32 bytes  -> ok
+    3.698    dev 1  IN  32 bytes  -> ok
+    3.700    dev 1  IN  32 bytes  -> ok
+    3.701    dev 1  IN  32 bytes  -> ok
+               ... 26 receive timeouts
+    3.703    dev 1  IN  32 bytes  -> ok
+    3.705    dev 1  IN  32 bytes  -> ok
+    3.706    dev 1  IN  32 bytes  -> ok
+    3.708    dev 1  IN  32 bytes  -> ok
+    3.710    dev 1  IN  32 bytes  -> ok
+    3.712    dev 1  IN  32 bytes  -> ok
+    3.713    dev 1  IN  32 bytes  -> ok
+    3.715    dev 1  IN  32 bytes  -> ok
+    3.717    dev 1  IN  32 bytes  -> ok
+               ... 5 receive timeouts
+    3.718    dev 1  IN  32 bytes  -> ok
+    3.720    dev 1  IN  32 bytes  -> ok
+    3.722    dev 1  IN  32 bytes  -> ok
+    3.723    dev 1  IN  32 bytes  -> ok
+    3.725    dev 1  IN  32 bytes  -> ok
+    3.727    dev 1  IN  32 bytes  -> ok
+    3.728    dev 1  IN  32 bytes  -> ok
+    3.730    dev 1  IN  32 bytes  -> ok
+               ... 7 receive timeouts
+   14.783    dev 6  data/status IN  ep1 1 bytes -> ok
+    3.732    dev 1  IN  32 bytes  (no completion)
+   14.783  dev 6  SETUP IN request 0 wValue 0000 wIndex 0004 wLength 4 (class)  -> ok
+   14.783    dev 6  IN  4 bytes  -> ok
+   14.783    dev 6  OUT (status stage, 0 bytes)  -> ok
+   14.783  dev 6  SETUP OUT GET_REPORT wValue 0010 wIndex 0004 wLength 0 (class)  -> ok
+   14.783    dev 6  IN  (status stage, 0 bytes)  -> ok
+   14.783  dev 6  SETUP OUT GET_PROTOCOL wValue 0004 wIndex 0004 wLength 0 (class)  -> ok
+   14.783    dev 6  IN  (status stage, 0 bytes)  -> ok
+   14.784  event ATTACH dev 0  hub 6 port 4 speed 0
+   15.234  dev 6  SETUP IN request 0 wValue 0000 wIndex 0004 wLength 4 (class)  -> ok
+   15.234    dev 6  IN  4 bytes  -> ok
+   15.234    dev 6  OUT (status stage, 0 bytes)  -> ok
+   15.234  dev 6  SETUP OUT GET_REPORT wValue 0014 wIndex 0004 wLength 0 (class)  -> ok
+   15.234    dev 6  IN  (status stage, 0 bytes)  -> ok
+   15.235  dev 0  SETUP IN GET_DESCRIPTOR DEVICE #0 wValue 0100 wIndex 0000 wLength 8  -> ok
+               ... 6 receive timeouts
+   15.241    dev 0  IN  8 bytes  (no completion)
+   15.242  DATA SEQUENCE ERROR flag seen by the task (#2)  sie_status=VBUS_DETECTED|ENDPOINT_ERROR|NAK_REC|ACK_REC|speed=full|line=1  buf_status=00000000  epx_buf_ctrl=00007408
+   15.243    dev 0  data/status IN  ep0 0 bytes -> ok
+   15.243    dev 0  OUT (status stage, 0 bytes)  -> ok
+   15.244  dev 0  SETUP OUT SET_ADDRESS wValue 0002 wIndex 0000 wLength 0  -> ok
+               ... 4 receive timeouts
+   15.249    dev 0  IN  (status stage, 0 bytes)  (no completion)
+   15.250  DATA SEQUENCE ERROR flag seen by the task (#3)  sie_status=VBUS_DETECTED|ENDPOINT_ERROR|NAK_REC|ACK_REC|speed=full|line=1  buf_status=00000000  epx_buf_ctrl=00007400
+               ... 1 receive timeouts
+   15.251    dev 0  data/status IN  ep0 0 bytes -> ok
+   15.253  device close dev 0
+   15.253  dev 2  SETUP IN GET_DESCRIPTOR DEVICE #0 wValue 0100 wIndex 0000 wLength 18  -> ok
+               ... 3 receive timeouts
+   15.257    dev 2  IN  18 bytes  (no completion)
+   15.258  DATA SEQUENCE ERROR flag seen by the task (#4)  sie_status=VBUS_DETECTED|ENDPOINT_ERROR|NAK_REC|ACK_REC|speed=full|line=2  buf_status=00000000  epx_buf_ctrl=04013401
+   15.259    dev 2  data/status IN  ep0 0 bytes -> ok
+   15.259    dev 2  OUT (status stage, 0 bytes)  -> ok
+               ... 1 receive timeouts
+   15.260  dev 2  SETUP IN GET_DESCRIPTOR CONFIGURATION #0 wValue 0200 wIndex 0000 wLength 9  (no completion)
+   16.262  USB HOST RESTARTED (a receive timeout storm), restart number 1
+   16.262  HID unmounted dev 1 interface 0
+   16.262  HID unmounted dev 1 interface 1
+   16.262  device close dev 1
+   16.262  device close dev 2
+   16.262  device close dev 6
+   16.412  event ATTACH dev 0  hub 0 port 0 speed 0 (in isr)
+   16.412  port reset
+   16.462  port reset end
+   16.912  dev 0  SETUP IN GET_DESCRIPTOR DEVICE #0 wValue 0100 wIndex 0000 wLength 8  -> ok
+   16.912    dev 0  IN  8 bytes  -> ok
+   16.913    dev 0  OUT (status stage, 0 bytes)  -> ok
+   16.913  dev 0  SETUP OUT SET_ADDRESS wValue 0006 wIndex 0000 wLength 0  -> ok
+   16.913    dev 0  IN  (status stage, 0 bytes)  -> ok
+   16.915  device close dev 0
+   16.915  dev 6  SETUP IN GET_DESCRIPTOR DEVICE #0 wValue 0100 wIndex 0000 wLength 18  -> ok
+   16.915    dev 6  IN  18 bytes  -> ok
+   16.915    dev 6  OUT (status stage, 0 bytes)  -> ok
+   16.915  dev 6  SETUP IN GET_DESCRIPTOR CONFIGURATION #0 wValue 0200 wIndex 0000 wLength 9  -> ok
+   16.915    dev 6  IN  9 bytes  -> ok
+   16.915    dev 6  OUT (status stage, 0 bytes)  -> ok
+   16.915  dev 6  SETUP IN GET_DESCRIPTOR CONFIGURATION #0 wValue 0200 wIndex 0000 wLength 25  -> ok
+   16.915    dev 6  IN  25 bytes  -> ok
+   16.915    dev 6  OUT (status stage, 0 bytes)  -> ok
+   16.915  dev 6  SETUP OUT SET_CONFIGURATION wValue 0001 wIndex 0000 wLength 0  -> ok
+   16.915    dev 6  IN  (status stage, 0 bytes)  -> ok
+   16.916  dev 6  SETUP IN request 6 wValue 0000 wIndex 0000 wLength 9 (class)  -> ok
+   16.916    dev 6  IN  9 bytes  -> ok
+   16.916    dev 6  OUT (status stage, 0 bytes)  -> ok
+   16.916  dev 6  SETUP OUT GET_PROTOCOL wValue 0008 wIndex 0001 wLength 0 (class)  -> ok
+   16.916    dev 6  IN  (status stage, 0 bytes)  -> ok
+   16.918  dev 6  SETUP OUT GET_PROTOCOL wValue 0008 wIndex 0002 wLength 0 (class)  -> ok
+   16.918    dev 6  IN  (status stage, 0 bytes)  -> ok
+   16.919  dev 6  SETUP OUT GET_PROTOCOL wValue 0008 wIndex 0003 wLength 0 (class)  -> ok
+   16.919    dev 6  IN  (status stage, 0 bytes)  -> ok
+   16.921  dev 6  SETUP OUT GET_PROTOCOL wValue 0008 wIndex 0004 wLength 0 (class)  -> ok
+   16.921    dev 6  IN  (status stage, 0 bytes)  -> ok
+   16.923    dev 6  IN  1 bytes  -> ok
+   17.170  dev 6  SETUP IN request 0 wValue 0000 wIndex 0002 wLength 4 (class)  -> ok
+   17.170    dev 6  IN  4 bytes  -> ok
+   17.171    dev 6  OUT (status stage, 0 bytes)  -> ok
+   17.171  dev 6  SETUP OUT GET_REPORT wValue 0010 wIndex 0002 wLength 0 (class)  -> ok
+   17.171    dev 6  IN  (status stage, 0 bytes)  -> ok
+   17.171  dev 6  SETUP OUT GET_PROTOCOL wValue 0004 wIndex 0002 wLength 0 (class)  -> ok
+   17.171    dev 6  IN  (status stage, 0 bytes)  -> ok
+   17.183  event ATTACH dev 0  hub 6 port 2 speed 0
+   17.633  dev 6  SETUP IN request 0 wValue 0000 wIndex 0002 wLength 4 (class)  -> ok
+   17.634    dev 6  IN  4 bytes  -> ok
+   17.634    dev 6  OUT (status stage, 0 bytes)  -> ok
+   17.634  dev 6  SETUP OUT GET_REPORT wValue 0014 wIndex 0002 wLength 0 (class)  -> ok
+   17.634    dev 6  IN  (status stage, 0 bytes)  -> ok
+   17.634  dev 0  SETUP IN GET_DESCRIPTOR DEVICE #0 wValue 0100 wIndex 0000 wLength 8  -> ok
+   17.634    dev 0  IN  8 bytes  -> ok
+   17.635    dev 0  OUT (status stage, 0 bytes)  -> ok
+   17.638  dev 0  SETUP OUT SET_ADDRESS wValue 0001 wIndex 0000 wLength 0  -> ok
+   17.638    dev 0  IN  (status stage, 0 bytes)  -> ok
+   17.640  device close dev 0
+   17.640  dev 1  SETUP IN GET_DESCRIPTOR DEVICE #0 wValue 0100 wIndex 0000 wLength 18  -> ok
+   17.640    dev 1  IN  18 bytes  -> ok
+   17.644    dev 1  OUT (status stage, 0 bytes)  -> ok
+   17.647  dev 1  SETUP IN GET_DESCRIPTOR CONFIGURATION #0 wValue 0200 wIndex 0000 wLength 9  -> ok
+   17.647    dev 1  IN  9 bytes  -> ok
+   17.650    dev 1  OUT (status stage, 0 bytes)  -> ok
+   17.653  dev 1  SETUP IN GET_DESCRIPTOR CONFIGURATION #0 wValue 0200 wIndex 0000 wLength 106  -> ok
+   17.653    dev 1  IN  106 bytes  -> ok
+               ... 5 receive timeouts
+   17.674    dev 1  OUT (status stage, 0 bytes)  -> ok
+   17.677  dev 1  SETUP OUT SET_CONFIGURATION wValue 0001 wIndex 0000 wLength 0  -> ok
+   17.677    dev 1  IN  (status stage, 0 bytes)  -> ok
+   17.678    dev 1  IN  32 bytes  (no completion)
+   17.678    dev 1  OUT 3 bytes  (no completion)
+   17.678  dev 1  SETUP OUT SET_IDLE wValue 0000 wIndex 0001 wLength 0 (class)  -> ok
+   17.678    dev 1  IN  (status stage, 0 bytes)  -> ok
+   17.679    dev 1  data/status OUT ep5 3 bytes -> ok
+   17.679    dev 1  data/status IN  ep0 0 bytes -> ok
+   17.679    dev 1  IN  32 bytes  (no completion)
+   17.679  dev 1  SETUP OUT SET_PROTOCOL wValue 0000 wIndex 0001 wLength 0 (class)  -> ok
+   17.679    dev 1  IN  (status stage, 0 bytes)  -> ok
+   17.680  dev 1  SETUP IN GET_DESCRIPTOR HID REPORT #0 wValue 2200 wIndex 0001 wLength 166  -> ok
+   17.680    dev 1  IN  166 bytes  -> ok
+   17.680    dev 1  OUT (status stage, 0 bytes)  -> ok
+   17.681  HID mounted dev 1 interface 0  report descriptor 166 bytes
+   17.681  dev 1  SETUP OUT SET_IDLE wValue 0000 wIndex 0002 wLength 0 (class)  -> ok
+   17.681    dev 1  IN  (status stage, 0 bytes)  -> ok
+   17.682  dev 1  SETUP IN GET_DESCRIPTOR HID REPORT #0 wValue 2200 wIndex 0002 wLength 33  -> ok
+   17.682    dev 1  IN  33 bytes  -> ok
+   17.682    dev 1  OUT (status stage, 0 bytes)  -> ok
+   17.683  HID mounted dev 1 interface 1  report descriptor 33 bytes
+   17.683    dev 6  IN  1 bytes  -> ok
+   17.935  dev 6  SETUP IN request 0 wValue 0000 wIndex 0004 wLength 4 (class)  -> ok
+   17.935    dev 6  IN  4 bytes  -> ok
+   17.936    dev 6  OUT (status stage, 0 bytes)  -> ok
+   17.936  dev 6  SETUP OUT GET_REPORT wValue 0010 wIndex 0004 wLength 0 (class)  -> ok
+   17.936    dev 6  IN  (status stage, 0 bytes)  -> ok
+   17.936  dev 6  SETUP OUT GET_PROTOCOL wValue 0004 wIndex 0004 wLength 0 (class)  -> ok
+   17.936    dev 6  IN  (status stage, 0 bytes)  -> ok
+   17.936  event ATTACH dev 0  hub 6 port 4 speed 0
+   18.386  dev 6  SETUP IN request 0 wValue 0000 wIndex 0004 wLength 4 (class)  (no completion)
+   18.386    dev 6  data/status OUT ep0 8 bytes -> ok
+   18.386    dev 1  OUT 3 bytes  (no completion)
+   18.386    dev 6  IN  4 bytes  -> ok
+   18.387    dev 6  OUT (status stage, 0 bytes)  -> ok
+   18.387  dev 6  SETUP OUT GET_REPORT wValue 0014 wIndex 0004 wLength 0 (class)  -> ok
+   18.387    dev 6  IN  (status stage, 0 bytes)  -> ok
+   18.387    dev 1  data/status OUT ep5 3 bytes -> ok
+   18.387  dev 0  SETUP IN GET_DESCRIPTOR DEVICE #0 wValue 0100 wIndex 0000 wLength 8  -> ok
+               ... 3 receive timeouts
+   18.390    dev 0  IN  8 bytes  (no completion)
+   18.391  DATA SEQUENCE ERROR flag seen by the task (#5)  sie_status=VBUS_DETECTED|ENDPOINT_ERROR|NAK_REC|ACK_REC|speed=full|line=2  buf_status=00000000  epx_buf_ctrl=00007408
+   18.392    dev 0  data/status IN  ep0 0 bytes -> ok
+   18.392    dev 0  OUT (status stage, 0 bytes)  -> ok
+   18.393  dev 0  SETUP OUT SET_ADDRESS wValue 0002 wIndex 0000 wLength 0  -> ok
+               ... 4 receive timeouts
+   18.398    dev 0  IN  (status stage, 0 bytes)  (no completion)
+   18.399  DATA SEQUENCE ERROR flag seen by the task (#6)  sie_status=VBUS_DETECTED|ENDPOINT_ERROR|NAK_REC|ACK_REC|speed=full|line=2  buf_status=00000000  epx_buf_ctrl=00007400
+               ... 1 receive timeouts
+   18.400    dev 0  data/status IN  ep0 0 bytes -> ok
+   18.402  device close dev 0
+   18.402  dev 2  SETUP IN GET_DESCRIPTOR DEVICE #0 wValue 0100 wIndex 0000 wLength 18  -> ok
+               ... 3 receive timeouts
+   18.406    dev 2  IN  18 bytes  (no completion)
+   18.407  DATA SEQUENCE ERROR flag seen by the task (#7)  sie_status=VBUS_DETECTED|ENDPOINT_ERROR|NAK_REC|ACK_REC|speed=full|line=1  buf_status=00000000  epx_buf_ctrl=00007412
+   18.408    dev 2  data/status IN  ep0 0 bytes -> ok
+   18.408    dev 2  OUT (status stage, 0 bytes)  -> ok
+               ... 1 receive timeouts
+   18.409  dev 2  SETUP IN GET_DESCRIPTOR CONFIGURATION #0 wValue 0200 wIndex 0000 wLength 9  (no completion)
+   18.885    dev 1  OUT 3 bytes  -> ok
+               ... 476 receive timeouts
+   19.385    dev 1  OUT 3 bytes  -> ok
+               ... 500 receive timeouts
+   19.885    dev 1  OUT 3 bytes  -> ok
+               ... 500 receive timeouts
+   20.385    dev 1  OUT 3 bytes  -> ok
+               ... 500 receive timeouts
+   20.885    dev 1  OUT 3 bytes  -> ok
+               ... 500 receive timeouts
+   21.385    dev 1  OUT 3 bytes  -> ok
+               ... 500 receive timeouts
+   21.409  USB HOST RESTARTED (a receive timeout storm), restart number 2
+   21.409  HID unmounted dev 1 interface 0
+   21.409  HID unmounted dev 1 interface 1
+   21.409  device close dev 1
+   21.409  device close dev 2
+   21.409  device close dev 6
+   21.559  event ATTACH dev 0  hub 0 port 0 speed 0 (in isr)
+   21.559  port reset
+   21.609  port reset end
+   22.059  dev 0  SETUP IN GET_DESCRIPTOR DEVICE #0 wValue 0100 wIndex 0000 wLength 8  -> ok
+   22.060    dev 0  IN  8 bytes  -> ok
+   22.060    dev 0  OUT (status stage, 0 bytes)  -> ok
+   22.060  dev 0  SETUP OUT SET_ADDRESS wValue 0006 wIndex 0000 wLength 0  -> ok
+   22.060    dev 0  IN  (status stage, 0 bytes)  -> ok
+   22.062  device close dev 0
+   22.062  dev 6  SETUP IN GET_DESCRIPTOR DEVICE #0 wValue 0100 wIndex 0000 wLength 18  -> ok
+   22.062    dev 6  IN  18 bytes  -> ok
+   22.062    dev 6  OUT (status stage, 0 bytes)  -> ok
+   22.062  dev 6  SETUP IN GET_DESCRIPTOR CONFIGURATION #0 wValue 0200 wIndex 0000 wLength 9  -> ok
+   22.062    dev 6  IN  9 bytes  -> ok
+   22.062    dev 6  OUT (status stage, 0 bytes)  -> ok
+   22.062  dev 6  SETUP IN GET_DESCRIPTOR CONFIGURATION #0 wValue 0200 wIndex 0000 wLength 25  -> ok
+   22.062    dev 6  IN  25 bytes  -> ok
+   22.063    dev 6  OUT (status stage, 0 bytes)  -> ok
+   22.063  dev 6  SETUP OUT SET_CONFIGURATION wValue 0001 wIndex 0000 wLength 0  -> ok
+   22.063    dev 6  IN  (status stage, 0 bytes)  -> ok
+   22.063  dev 6  SETUP IN request 6 wValue 0000 wIndex 0000 wLength 9 (class)  -> ok
+   22.063    dev 6  IN  9 bytes  -> ok
+   22.063    dev 6  OUT (status stage, 0 bytes)  -> ok
+   22.063  dev 6  SETUP OUT GET_PROTOCOL wValue 0008 wIndex 0001 wLength 0 (class)  -> ok
+   22.063    dev 6  IN  (status stage, 0 bytes)  -> ok
+   22.065  dev 6  SETUP OUT GET_PROTOCOL wValue 0008 wIndex 0002 wLength 0 (class)  -> ok
+   22.065    dev 6  IN  (status stage, 0 bytes)  -> ok
+   22.067  dev 6  SETUP OUT GET_PROTOCOL wValue 0008 wIndex 0003 wLength 0 (class)  -> ok
+   22.067    dev 6  IN  (status stage, 0 bytes)  -> ok
+   22.068  dev 6  SETUP OUT GET_PROTOCOL wValue 0008 wIndex 0004 wLength 0 (class)  -> ok
+   22.068    dev 6  IN  (status stage, 0 bytes)  -> ok
+   22.070    dev 6  IN  1 bytes  -> ok
+   22.317  dev 6  SETUP IN request 0 wValue 0000 wIndex 0002 wLength 4 (class)  -> ok
+   22.318    dev 6  IN  4 bytes  -> ok
+   22.318    dev 6  OUT (status stage, 0 bytes)  -> ok
+   22.318  dev 6  SETUP OUT GET_REPORT wValue 0010 wIndex 0002 wLength 0 (class)  -> ok
+   22.318    dev 6  IN  (status stage, 0 bytes)  -> ok
+   22.318  dev 6  SETUP OUT GET_PROTOCOL wValue 0004 wIndex 0002 wLength 0 (class)  -> ok
+   22.318    dev 6  IN  (status stage, 0 bytes)  -> ok
+   22.331  event ATTACH dev 0  hub 6 port 2 speed 0
+   22.781  dev 6  SETUP IN request 0 wValue 0000 wIndex 0002 wLength 4 (class)  -> ok
+   22.781    dev 6  IN  4 bytes  -> ok
+   22.781    dev 6  OUT (status stage, 0 bytes)  -> ok
+   22.781  dev 6  SETUP OUT GET_REPORT wValue 0014 wIndex 0002 wLength 0 (class)  -> ok
+   22.781    dev 6  IN  (status stage, 0 bytes)  -> ok
+   22.781  dev 0  SETUP IN GET_DESCRIPTOR DEVICE #0 wValue 0100 wIndex 0000 wLength 8  -> ok
+   22.781    dev 0  IN  8 bytes  -> ok
+   22.782    dev 0  OUT (status stage, 0 bytes)  -> ok
+   22.785  dev 0  SETUP OUT SET_ADDRESS wValue 0001 wIndex 0000 wLength 0  -> ok
+   22.785    dev 0  IN  (status stage, 0 bytes)  -> ok
+   22.787  device close dev 0
+   22.787  dev 1  SETUP IN GET_DESCRIPTOR DEVICE #0 wValue 0100 wIndex 0000 wLength 18  -> ok
+   22.787    dev 1  IN  18 bytes  -> ok
+   22.791    dev 1  OUT (status stage, 0 bytes)  -> ok
+   22.794  dev 1  SETUP IN GET_DESCRIPTOR CONFIGURATION #0 wValue 0200 wIndex 0000 wLength 9  -> ok
+   22.794    dev 1  IN  9 bytes  -> ok
+   22.797    dev 1  OUT (status stage, 0 bytes)  -> ok
+   22.800  dev 1  SETUP IN GET_DESCRIPTOR CONFIGURATION #0 wValue 0200 wIndex 0000 wLength 106  -> ok
+   22.800    dev 1  IN  106 bytes  -> ok
+               ... 5 receive timeouts
+   22.821    dev 1  OUT (status stage, 0 bytes)  -> ok
+   22.824  dev 1  SETUP OUT SET_CONFIGURATION wValue 0001 wIndex 0000 wLength 0  -> ok
+   22.824    dev 1  IN  (status stage, 0 bytes)  -> ok
+   22.826    dev 1  IN  32 bytes  (no completion)
+   22.826    dev 1  OUT 3 bytes  (no completion)
+   22.826  dev 1  SETUP OUT SET_IDLE wValue 0000 wIndex 0001 wLength 0 (class)  -> ok
+   22.826    dev 1  IN  (status stage, 0 bytes)  -> ok
+   22.826    dev 1  data/status OUT ep5 3 bytes -> ok
+   22.826    dev 1  data/status IN  ep0 0 bytes -> ok
+   22.827    dev 1  IN  32 bytes  (no completion)
+   22.827  dev 1  SETUP OUT SET_PROTOCOL wValue 0000 wIndex 0001 wLength 0 (class)  -> ok
+   22.827    dev 1  IN  (status stage, 0 bytes)  -> ok
+   22.827  dev 1  SETUP IN GET_DESCRIPTOR HID REPORT #0 wValue 2200 wIndex 0001 wLength 166  -> ok
+   22.827    dev 1  IN  166 bytes  -> ok
+   22.827    dev 1  OUT (status stage, 0 bytes)  -> ok
+   22.829  HID mounted dev 1 interface 0  report descriptor 166 bytes
+   22.829  dev 1  SETUP OUT SET_IDLE wValue 0000 wIndex 0002 wLength 0 (class)  -> ok
+   22.829    dev 1  IN  (status stage, 0 bytes)  -> ok
+   22.829  dev 1  SETUP IN GET_DESCRIPTOR HID REPORT #0 wValue 2200 wIndex 0002 wLength 33  -> ok
+   22.829    dev 1  IN  33 bytes  -> ok
+   22.829    dev 1  OUT (status stage, 0 bytes)  -> ok
+   22.830  HID mounted dev 1 interface 1  report descriptor 33 bytes
+   22.830    dev 6  IN  1 bytes  -> ok
+   23.083  dev 6  SETUP IN request 0 wValue 0000 wIndex 0004 wLength 4 (class)  -> ok
+   23.083    dev 6  IN  4 bytes  -> ok
+   23.083    dev 6  OUT (status stage, 0 bytes)  -> ok
+   23.083  dev 6  SETUP OUT GET_REPORT wValue 0010 wIndex 0004 wLength 0 (class)  -> ok
+   23.083    dev 6  IN  (status stage, 0 bytes)  -> ok
+   23.083  dev 6  SETUP OUT GET_PROTOCOL wValue 0004 wIndex 0004 wLength 0 (class)  -> ok
+   23.083    dev 6  IN  (status stage, 0 bytes)  -> ok
+   23.083  event ATTACH dev 0  hub 6 port 4 speed 0
+   23.533  dev 6  SETUP IN request 0 wValue 0000 wIndex 0004 wLength 4 (class)  (no completion)
+   23.534    dev 6  data/status OUT ep0 8 bytes -> ok
+   23.534    dev 1  OUT 3 bytes  (no completion)
+   23.534    dev 6  IN  4 bytes  -> ok
+   23.534    dev 6  OUT (status stage, 0 bytes)  -> ok
+   23.534  dev 6  SETUP OUT GET_REPORT wValue 0014 wIndex 0004 wLength 0 (class)  -> ok
+   23.534    dev 6  IN  (status stage, 0 bytes)  -> ok
+   23.534    dev 1  data/status OUT ep5 3 bytes -> ok
+   23.534  dev 0  SETUP IN GET_DESCRIPTOR DEVICE #0 wValue 0100 wIndex 0000 wLength 8  -> ok
+               ... 3 receive timeouts
+   23.538    dev 0  IN  8 bytes  (no completion)
+   23.539  DATA SEQUENCE ERROR flag seen by the task (#8)  sie_status=VBUS_DETECTED|ENDPOINT_ERROR|NAK_REC|ACK_REC|speed=full|line=1  buf_status=00000000  epx_buf_ctrl=00007408
+   23.540    dev 0  data/status IN  ep0 0 bytes -> ok
+   23.540    dev 0  OUT (status stage, 0 bytes)  -> ok
+   23.541  dev 0  SETUP OUT SET_ADDRESS wValue 0002 wIndex 0000 wLength 0  -> ok
+               ... 4 receive timeouts
+   23.546    dev 0  IN  (status stage, 0 bytes)  (no completion)
+   23.547  DATA SEQUENCE ERROR flag seen by the task (#9)  sie_status=VBUS_DETECTED|ENDPOINT_ERROR|NAK_REC|ACK_REC|speed=full|line=1  buf_status=00000000  epx_buf_ctrl=00007400
+               ... 1 receive timeouts
+   23.548    dev 0  data/status IN  ep0 0 bytes -> ok
+   23.550  device close dev 0
+   23.550  dev 2  SETUP IN GET_DESCRIPTOR DEVICE #0 wValue 0100 wIndex 0000 wLength 18  -> ok
+               ... 3 receive timeouts
+   23.554    dev 2  IN  18 bytes  (no completion)
+   23.555  DATA SEQUENCE ERROR flag seen by the task (#10)  sie_status=VBUS_DETECTED|ENDPOINT_ERROR|NAK_REC|ACK_REC|speed=full|line=1  buf_status=00000000  epx_buf_ctrl=00007412
+   23.556    dev 2  data/status IN  ep0 0 bytes -> ok
+   23.556    dev 2  OUT (status stage, 0 bytes)  -> ok
+               ... 1 receive timeouts
+   23.557  dev 2  SETUP IN GET_DESCRIPTOR CONFIGURATION #0 wValue 0200 wIndex 0000 wLength 9  (no completion)
+   24.033    dev 1  OUT 3 bytes  -> ok
+               ... 476 receive timeouts
+   24.533    dev 1  OUT 3 bytes  -> ok
+               ... 500 receive timeouts
+   25.033    dev 1  OUT 3 bytes  -> ok
+               ... 500 receive timeouts
+   25.533    dev 1  OUT 3 bytes  -> ok
+               ... 500 receive timeouts
+   26.033    dev 1  OUT 3 bytes  -> ok
+               ... 500 receive timeouts
+   26.533    dev 1  OUT 3 bytes  -> ok
+               ... 500 receive timeouts
+   27.033    dev 1  OUT 3 bytes  -> ok
+               ... 500 receive timeouts
+   27.533    dev 1  OUT 3 bytes  -> ok
+               ... 500 receive timeouts
+   28.033    dev 1  OUT 3 bytes  -> ok
+               ... 500 receive timeouts
+   28.533    dev 1  OUT 3 bytes  -> ok
+               ... 500 receive timeouts
+   29.033    dev 1  OUT 3 bytes  -> ok
+               ... 500 receive timeouts
+   29.533    dev 1  OUT 3 bytes  -> ok
+               ... 500 receive timeouts
+   30.033    dev 1  OUT 3 bytes  -> ok
+               ... 500 receive timeouts
+   30.533    dev 1  OUT 3 bytes  -> ok
+               ... 500 receive timeouts
+   31.033    dev 1  OUT 3 bytes  -> ok
+               ... 887 receive timeouts
+   31.421  event REMOVE dev 0  hub 0 port 0 speed 4 (in isr)
+   31.421  HID unmounted dev 1 interface 0
+   31.422  HID unmounted dev 1 interface 1
+   31.422  device close dev 1
+   31.422  device close dev 2
+   31.422  device close dev 6
+   31.721  USB HOST RESTARTED (the root port was unplugged), restart number 3
+   36.966  event ATTACH dev 0  hub 0 port 0 speed 0 (in isr)
+   36.966  port reset
+   37.016  port reset end
+   37.466  dev 0  SETUP IN GET_DESCRIPTOR DEVICE #0 wValue 0100 wIndex 0000 wLength 8  -> ok
+   37.466    dev 0  IN  8 bytes  -> ok
+   37.466    dev 0  OUT (status stage, 0 bytes)  -> ok
+   37.466  dev 0  SETUP OUT SET_ADDRESS wValue 0001 wIndex 0000 wLength 0  -> ok
+   37.466    dev 0  IN  (status stage, 0 bytes)  -> ok
+   37.468  device close dev 0
+   37.468  dev 1  SETUP IN GET_DESCRIPTOR DEVICE #0 wValue 0100 wIndex 0000 wLength 18  -> ok
+   37.468    dev 1  IN  18 bytes  -> ok
+   37.469    dev 1  OUT (status stage, 0 bytes)  -> ok
+   37.469  dev 1  SETUP IN GET_DESCRIPTOR CONFIGURATION #0 wValue 0200 wIndex 0000 wLength 9  -> ok
+   37.469    dev 1  IN  9 bytes  -> ok
+   37.469    dev 1  OUT (status stage, 0 bytes)  -> ok
+   37.469  dev 1  SETUP IN GET_DESCRIPTOR CONFIGURATION #0 wValue 0200 wIndex 0000 wLength 59  -> ok
+   37.470    dev 1  IN  59 bytes  -> ok
+               ... 2 receive timeouts
+   37.471    dev 1  OUT (status stage, 0 bytes)  -> ok
+   37.471  dev 1  SETUP OUT SET_CONFIGURATION wValue 0001 wIndex 0000 wLength 0  -> ok
+   37.471    dev 1  IN  (status stage, 0 bytes)  -> ok
+   37.472  dev 1  SETUP OUT SET_IDLE wValue 0000 wIndex 0000 wLength 0 (class)  -> ok
+   37.472    dev 1  IN  (status stage, 0 bytes)  -> ok
+   37.472  dev 1  SETUP OUT SET_PROTOCOL wValue 0000 wIndex 0000 wLength 0 (class)  -> ok
+   37.472    dev 1  IN  (status stage, 0 bytes)  -> ok
+   37.472  dev 1  SETUP IN GET_DESCRIPTOR HID REPORT #0 wValue 2200 wIndex 0000 wLength 54  -> ok
+   37.472    dev 1  IN  54 bytes  -> ok
+               ... 2 receive timeouts
+   37.474    dev 1  OUT (status stage, 0 bytes)  -> ok
+   37.474  HID mounted dev 1 interface 0  report descriptor 54 bytes
+   37.474  dev 1  SETUP OUT SET_IDLE wValue 0000 wIndex 0001 wLength 0 (class)  -> ok
+   37.474    dev 1  IN  (status stage, 0 bytes)  -> ok
+   37.474  dev 1  SETUP IN GET_DESCRIPTOR HID REPORT #0 wValue 2200 wIndex 0001 wLength 25  -> ok
+   37.474    dev 1  IN  25 bytes  -> ok
+   37.475    dev 1  OUT (status stage, 0 bytes)  -> ok
+   37.475  HID mounted dev 1 interface 1  report descriptor 25 bytes
+   37.674  dev 1  SETUP OUT SET_PROTOCOL wValue 0000 wIndex 0000 wLength 0 (class)  (no completion)
+   37.674    dev 1  IN  8 bytes  -> ok
+   37.675    dev 1  IN  (status stage, 0 bytes)  -> ok
+   39.681    dev 1  data/status IN  ep1 8 bytes -> ok
+   39.681    dev 1  IN  8 bytes  -> ok
+   39.801    dev 1  IN  8 bytes  -> ok
+   40.371    dev 1  IN  8 bytes  -> ok
+   40.481    dev 1  IN  8 bytes  -> ok
+   40.541    dev 1  IN  8 bytes  -> ok
+   40.581    dev 1  IN  8 bytes  -> ok
+   41.141    dev 1  IN  8 bytes  -> ok
+   41.231    dev 1  IN  8 bytes  -> ok
+   41.351    dev 1  IN  8 bytes  -> ok
+   41.441    dev 1  IN  8 bytes  -> ok
+   41.451    dev 1  IN  8 bytes  -> ok
+   41.541    dev 1  IN  8 bytes  -> ok
+   42.041    dev 1  IN  8 bytes  (no completion)

@@ -19,6 +19,8 @@ Power is ruled out (self-powered hub, bigger supply capacitor, 252 MHz).
 - RP2350B board, USB host on the native port, `BOARD_TUH_RHPORT 0`, full speed, OS none, `CFG_TUH_HUB 1`.
 - TinyUSB 0.18.0 (Pico SDK 2.3.1, `86ad6e56c1700e85f1c5678607a762cfe3aa2f47`) is the version of the logs below, with `CFG_TUSB_DEBUG=2`.
   Also tried: 0.21.0 (`dae3f9a3`) and master `27ed59447`; see "Other versions".
+- Firmware: https://github.com/profdc9/tileconsole, commit `285e0d2ef2db8a7d08bd4e313a2d87422c5ae292` (build options `-DPLAT_USB_HID=ON
+  -DCPU_MHZ=504 -DTUSB_LOG=ON`); the log recorder is `tilegame/board/usblog_usb.c`.
 - The RP2350 host is full speed only, so the hub runs at full speed and the keyboard is reached with preamble (`PREAMBLE_EN`).
   Linux, on a high-speed host, enumerates the same keyboard through the hub's TT without trouble.
 - Keyboard: HID boot keyboard, bcdUSB 1.10, EP0 max packet 8. Gamepad: composite (two HID interfaces plus a vendor XInput interface).
@@ -47,12 +49,14 @@ and never recovered (usblog15/16/17).
 - Moved the failure later in the enumeration:
   - `SIE_CTRL.SOF_SYNC` added for transfers with `need_pre()`: `SET_ADDRESS` and the 18-byte descriptor pass, the configuration
     descriptor request fails (3 of 3 attempts, `usblog17`).
-  - a 300 us wait before each control transaction to a low-speed device behind the hub (master, `usblog19`): the status stage and
+  - a 300 us wait before each control transaction to a low-speed device behind the hub (master, `usblog19`; in that run my XInput class
+    driver was not bound because of the `open()` bug mentioned below, the pad otherwise enumerated): the status stage and
     `SET_ADDRESS` pass; the second packet of the 18-byte descriptor read (sent by the controller itself right after the first) then times out.
 - `CFG_TUSB_DEBUG=2` (the build of log 23) does not cure it: it fails in the same way, which is why the log above has the storm.
 
 ## Other versions
-- 0.18.0 without debug: same failure, same recovery by order.
+- 0.18.0 without debug output: the same failure (usblog15, 16, 17), and no recovery by restart because the keyboard was in a higher
+  port than the gamepad there. I have not run the lower-port keyboard case on a build without `CFG_TUSB_DEBUG`.
 - master `27ed59447`: a receive timeout now fails the transfer at once (no endless retry), TinyUSB retries the control transfer three times
   and then gives up; the keyboard is never retried. In `usblog20` (master, `CFG_TUSB_DEBUG=2`, keyboard alone on the hub, no gamepad
   attached) it fails like this at the 18-byte device descriptor read ("on EP 80 with 16 bytes: FAILED" four times), a case that
@@ -79,5 +83,5 @@ and the controller has no register for the gap between packets of one stage.
 
 ## Files
 https://github.com/profdc9/tileconsole/tree/main/tilegame/docs/usblogs (`usblog23.bin`, `usblog23-brief.txt`,
-`usblog23-annotated.txt`, `tusb23.txt`; also 18, 19, 20). Decoder: `tilegame/tools/usblog_decode.py` (`--brief` for one line per
+`usblog23-annotated.txt`, `tusb23.txt`; also 15, 16, 17 (0.18.0), 18, 19 (master, with my driver bug), 20 (master, fixed)). Decoder: `tilegame/tools/usblog_decode.py` (`--brief` for one line per
 request); recorder: `tilegame/board/usblog_usb.c`; notes: `tilegame/docs/usb-and-power.md`.
