@@ -4,24 +4,24 @@ span 34635.034 ms
     0.000  port reset
     0.050  port reset end
     0.500  dev 0  SETUP IN GET_DESCRIPTOR DEVICE #0 wValue 0100 wIndex 0000 wLength 8  -> ok
-    0.500    dev 0  IN  8 bytes  -> ok
+    0.500    dev 0  IN  8 bytes requested  -> ok
     0.500    dev 0  OUT (status stage, 0 bytes)  -> ok
     0.500  dev 0  SETUP OUT SET_ADDRESS wValue 0006 wIndex 0000 wLength 0  -> ok
     0.500    dev 0  IN  (status stage, 0 bytes)  -> ok
     0.503  device close dev 0
     0.503  dev 6  SETUP IN GET_DESCRIPTOR DEVICE #0 wValue 0100 wIndex 0000 wLength 18  -> ok
-    0.503    dev 6  IN  18 bytes  -> ok
+    0.503    dev 6  IN  18 bytes requested  -> ok
     0.503    dev 6  OUT (status stage, 0 bytes)  -> ok
     0.503  dev 6  SETUP IN GET_DESCRIPTOR CONFIGURATION #0 wValue 0200 wIndex 0000 wLength 9  -> ok
-    0.503    dev 6  IN  9 bytes  -> ok
+    0.503    dev 6  IN  9 bytes requested  -> ok
     0.503    dev 6  OUT (status stage, 0 bytes)  -> ok
     0.503  dev 6  SETUP IN GET_DESCRIPTOR CONFIGURATION #0 wValue 0200 wIndex 0000 wLength 25  -> ok
-    0.503    dev 6  IN  25 bytes  -> ok
+    0.503    dev 6  IN  25 bytes requested  -> ok
     0.504    dev 6  OUT (status stage, 0 bytes)  -> ok
     0.504  dev 6  SETUP OUT SET_CONFIGURATION wValue 0001 wIndex 0000 wLength 0  -> ok
     0.504    dev 6  IN  (status stage, 0 bytes)  -> ok
     0.504  dev 6  SETUP IN request 6 wValue 0000 wIndex 0000 wLength 9 (class)  -> ok
-    0.504    dev 6  IN  9 bytes  -> ok
+    0.504    dev 6  IN  9 bytes requested  -> ok
     0.504    dev 6  OUT (status stage, 0 bytes)  -> ok
     0.504  dev 6  SETUP OUT GET_PROTOCOL wValue 0008 wIndex 0001 wLength 0 (class)  -> ok
     0.504    dev 6  IN  (status stage, 0 bytes)  -> ok
@@ -31,9 +31,9 @@ span 34635.034 ms
     0.508    dev 6  IN  (status stage, 0 bytes)  -> ok
     0.510  dev 6  SETUP OUT GET_PROTOCOL wValue 0008 wIndex 0004 wLength 0 (class)  -> ok
     0.510    dev 6  IN  (status stage, 0 bytes)  -> ok
-    0.512    dev 6  IN  1 bytes  -> ok
+    0.512    dev 6  IN  1 bytes requested  -> ok
     3.563  dev 6  SETUP IN request 0 wValue 0000 wIndex 0004 wLength 4 (class)  -> ok
-    3.563    dev 6  IN  4 bytes  -> ok
+    3.563    dev 6  IN  4 bytes requested  -> ok
     3.563    dev 6  OUT (status stage, 0 bytes)  -> ok
     3.563  dev 6  SETUP OUT GET_REPORT wValue 0010 wIndex 0004 wLength 0 (class)  -> ok
     3.563    dev 6  IN  (status stage, 0 bytes)  -> ok
@@ -41,26 +41,26 @@ span 34635.034 ms
     3.563    dev 6  IN  (status stage, 0 bytes)  -> ok
     3.576  event ATTACH dev 0  hub 6 port 4 speed 0
     4.026  dev 6  SETUP IN request 0 wValue 0000 wIndex 0004 wLength 4 (class)  -> ok
-    4.026    dev 6  IN  4 bytes  -> ok
+    4.026    dev 6  IN  4 bytes requested  -> ok
     4.026    dev 6  OUT (status stage, 0 bytes)  -> ok
     4.026  dev 6  SETUP OUT GET_REPORT wValue 0014 wIndex 0004 wLength 0 (class)  -> ok
     4.026    dev 6  IN  (status stage, 0 bytes)  -> ok
     4.027  dev 0  SETUP IN GET_DESCRIPTOR DEVICE #0 wValue 0100 wIndex 0000 wLength 8  -> ok
-    4.027    dev 0  IN  8 bytes  -> ok
+    4.027    dev 0  IN  8 bytes requested  -> ok
     4.027    dev 0  OUT (status stage, 0 bytes)  -> ok
     4.027  dev 0  SETUP OUT SET_ADDRESS wValue 0001 wIndex 0000 wLength 0  -> ok
     4.027    dev 0  IN  (status stage, 0 bytes)  -> ok
     4.029  device close dev 0
     4.029  dev 1  SETUP IN GET_DESCRIPTOR DEVICE #0 wValue 0100 wIndex 0000 wLength 18  -> ok
-    4.029    dev 1  IN  18 bytes  -> ok
+    4.029    dev 1  IN  18 bytes requested  -> ok
                ... 1 receive timeouts
     4.030    dev 1  OUT (status stage, 0 bytes)  -> ok
     4.030  dev 1  SETUP IN GET_DESCRIPTOR CONFIGURATION #0 wValue 0200 wIndex 0000 wLength 9  -> ok
-    4.030    dev 1  IN  9 bytes  -> ok
+    4.030    dev 1  IN  9 bytes requested  -> ok
                ... 1 receive timeouts
     4.031    dev 1  OUT (status stage, 0 bytes)  -> ok
     4.031  dev 1  SETUP IN GET_DESCRIPTOR CONFIGURATION #0 wValue 0200 wIndex 0000 wLength 59  -> ok
-    4.031    dev 1  IN  59 bytes  -> ok
+    4.031    dev 1  IN  59 bytes requested  -> ok
                ... 6 receive timeouts
     4.033    dev 1  OUT (status stage, 0 bytes)  -> ok
     4.033  dev 1  SETUP OUT SET_CONFIGURATION wValue 0001 wIndex 0000 wLength 0  -> ok
@@ -70,7 +70,7 @@ span 34635.034 ms
     4.033  dev 1  SETUP OUT SET_PROTOCOL wValue 0000 wIndex 0000 wLength 0 (class)  -> ok
     4.033    dev 1  IN  (status stage, 0 bytes)  -> ok
     4.034  dev 1  SETUP IN GET_DESCRIPTOR HID REPORT #0 wValue 2200 wIndex 0000 wLength 54  -> ok
-    4.034    dev 1  IN  54 bytes  -> ok
+    4.034    dev 1  IN  54 bytes requested  -> ok
                ... 4 receive timeouts
     4.035    dev 1  OUT (status stage, 0 bytes)  -> ok
                ... 1 receive timeouts
@@ -79,43 +79,43 @@ span 34635.034 ms
     4.036    dev 1  IN  (status stage, 0 bytes)  -> ok
     4.036  dev 1  SETUP IN GET_DESCRIPTOR HID REPORT #0 wValue 2200 wIndex 0001 wLength 25  -> ok
                ... 1 receive timeouts
-    4.036    dev 1  IN  25 bytes  -> ok
+    4.036    dev 1  IN  25 bytes requested  -> ok
                ... 3 receive timeouts
     4.037    dev 1  OUT (status stage, 0 bytes)  -> ok
     4.037  HID mounted dev 1 interface 1  report descriptor 25 bytes
-    4.037    dev 6  IN  1 bytes  (no completion)
+    4.037    dev 6  IN  1 bytes requested  (no completion)
     4.237  dev 1  SETUP OUT SET_PROTOCOL wValue 0000 wIndex 0000 wLength 0 (class)  (no completion)
-    4.237    dev 1  IN  8 bytes  -> ok
+    4.237    dev 1  IN  8 bytes requested  -> ok
     4.237    dev 1  IN  (status stage, 0 bytes)  -> ok
     4.753    dev 1  data/status IN  ep1 8 bytes -> ok
-    4.753    dev 1  IN  8 bytes  -> ok
-    4.883    dev 1  IN  8 bytes  -> ok
+    4.753    dev 1  IN  8 bytes requested  -> ok
+    4.883    dev 1  IN  8 bytes requested  -> ok
                ... 1 receive timeouts
-    5.013    dev 1  IN  8 bytes  -> ok
-    5.133    dev 1  IN  8 bytes  -> ok
-    5.253    dev 1  IN  8 bytes  -> ok
+    5.013    dev 1  IN  8 bytes requested  -> ok
+    5.133    dev 1  IN  8 bytes requested  -> ok
+    5.253    dev 1  IN  8 bytes requested  -> ok
                ... 1 receive timeouts
-    5.363    dev 1  IN  8 bytes  -> ok
-    5.473    dev 1  IN  8 bytes  -> ok
-    5.573    dev 1  IN  8 bytes  -> ok
-    5.703    dev 1  IN  8 bytes  -> ok
+    5.363    dev 1  IN  8 bytes requested  -> ok
+    5.473    dev 1  IN  8 bytes requested  -> ok
+    5.573    dev 1  IN  8 bytes requested  -> ok
+    5.703    dev 1  IN  8 bytes requested  -> ok
                ... 2 receive timeouts
-    5.803    dev 1  IN  8 bytes  -> ok
-    5.923    dev 1  IN  8 bytes  -> ok
-    5.943    dev 1  IN  8 bytes  -> ok
-    5.983    dev 1  IN  8 bytes  -> ok
+    5.803    dev 1  IN  8 bytes requested  -> ok
+    5.923    dev 1  IN  8 bytes requested  -> ok
+    5.943    dev 1  IN  8 bytes requested  -> ok
+    5.983    dev 1  IN  8 bytes requested  -> ok
                ... 3 receive timeouts
     9.173    dev 6  data/status IN  ep1 1 bytes -> ok
-    6.013    dev 1  IN  8 bytes  (no completion)
+    6.013    dev 1  IN  8 bytes requested  (no completion)
     9.173  dev 6  SETUP IN request 0 wValue 0000 wIndex 0003 wLength 4 (class)  -> ok
-    9.173    dev 6  IN  4 bytes  -> ok
+    9.173    dev 6  IN  4 bytes requested  -> ok
     9.173    dev 6  OUT (status stage, 0 bytes)  -> ok
     9.173  dev 6  SETUP OUT GET_REPORT wValue 0010 wIndex 0003 wLength 0 (class)  -> ok
     9.173    dev 6  IN  (status stage, 0 bytes)  -> ok
     9.173  event REMOVE dev 0  hub 6 port 3 speed 0
-    9.173    dev 6  IN  1 bytes  -> ok
+    9.173    dev 6  IN  1 bytes requested  -> ok
     9.428  dev 6  SETUP IN request 0 wValue 0000 wIndex 0003 wLength 4 (class)  -> ok
-    9.428    dev 6  IN  4 bytes  -> ok
+    9.428    dev 6  IN  4 bytes requested  -> ok
     9.428    dev 6  OUT (status stage, 0 bytes)  -> ok
     9.428  dev 6  SETUP OUT GET_REPORT wValue 0010 wIndex 0003 wLength 0 (class)  -> ok
     9.428    dev 6  IN  (status stage, 0 bytes)  -> ok
@@ -123,191 +123,191 @@ span 34635.034 ms
     9.429    dev 6  IN  (status stage, 0 bytes)  -> ok
     9.441  event ATTACH dev 0  hub 6 port 3 speed 0
     9.891  dev 6  SETUP IN request 0 wValue 0000 wIndex 0003 wLength 4 (class)  -> ok
-    9.891    dev 6  IN  4 bytes  -> ok
+    9.891    dev 6  IN  4 bytes requested  -> ok
     9.892    dev 6  OUT (status stage, 0 bytes)  -> ok
     9.892  dev 6  SETUP OUT GET_REPORT wValue 0014 wIndex 0003 wLength 0 (class)  -> ok
     9.892    dev 6  IN  (status stage, 0 bytes)  -> ok
     9.892  dev 0  SETUP IN GET_DESCRIPTOR DEVICE #0 wValue 0100 wIndex 0000 wLength 8  -> ok
-    9.892    dev 0  IN  8 bytes  -> ok
+    9.892    dev 0  IN  8 bytes requested  -> ok
     9.893    dev 0  OUT (status stage, 0 bytes)  -> ok
     9.896  dev 0  SETUP OUT SET_ADDRESS wValue 0002 wIndex 0000 wLength 0  -> ok
     9.896    dev 0  IN  (status stage, 0 bytes)  -> ok
     9.898  device close dev 0
     9.898  dev 2  SETUP IN GET_DESCRIPTOR DEVICE #0 wValue 0100 wIndex 0000 wLength 18  -> ok
-    9.898    dev 2  IN  18 bytes  -> ok
+    9.898    dev 2  IN  18 bytes requested  -> ok
     9.902    dev 2  OUT (status stage, 0 bytes)  -> ok
     9.905  dev 2  SETUP IN GET_DESCRIPTOR CONFIGURATION #0 wValue 0200 wIndex 0000 wLength 9  -> ok
-    9.905    dev 2  IN  9 bytes  -> ok
+    9.905    dev 2  IN  9 bytes requested  -> ok
     9.908    dev 2  OUT (status stage, 0 bytes)  -> ok
     9.911  dev 2  SETUP IN GET_DESCRIPTOR CONFIGURATION #0 wValue 0200 wIndex 0000 wLength 106  -> ok
-    9.911    dev 2  IN  106 bytes  -> ok
+    9.911    dev 2  IN  106 bytes requested  -> ok
                ... 8 receive timeouts
     9.932    dev 2  OUT (status stage, 0 bytes)  -> ok
     9.935  dev 2  SETUP OUT SET_CONFIGURATION wValue 0001 wIndex 0000 wLength 0  -> ok
     9.935    dev 2  IN  (status stage, 0 bytes)  -> ok
-    9.937    dev 2  IN  32 bytes  (no completion)
-    9.937    dev 2  OUT 3 bytes  (no completion)
+    9.937    dev 2  IN  32 bytes requested  (no completion)
+    9.937    dev 2  OUT 3 bytes requested  (no completion)
     9.937  dev 2  SETUP OUT SET_IDLE wValue 0000 wIndex 0001 wLength 0 (class)  -> ok
     9.937    dev 2  IN  (status stage, 0 bytes)  -> ok
     9.937    dev 2  data/status OUT ep5 3 bytes -> ok
     9.937    dev 2  data/status IN  ep0 0 bytes -> ok
-    9.937    dev 2  IN  32 bytes  (no completion)
+    9.937    dev 2  IN  32 bytes requested  (no completion)
     9.937  dev 2  SETUP OUT SET_PROTOCOL wValue 0000 wIndex 0001 wLength 0 (class)  -> ok
     9.937    dev 2  IN  (status stage, 0 bytes)  -> ok
     9.938  dev 2  SETUP IN GET_DESCRIPTOR HID REPORT #0 wValue 2200 wIndex 0001 wLength 166  -> ok
-    9.938    dev 2  IN  166 bytes  -> ok
+    9.938    dev 2  IN  166 bytes requested  -> ok
     9.939    dev 2  OUT (status stage, 0 bytes)  -> ok
     9.939  HID mounted dev 2 interface 2  report descriptor 166 bytes
     9.939  dev 2  SETUP OUT SET_IDLE wValue 0000 wIndex 0002 wLength 0 (class)  -> ok
     9.939    dev 2  IN  (status stage, 0 bytes)  -> ok
-    9.940    dev 2  IN  32 bytes  -> ok
+    9.940    dev 2  IN  32 bytes requested  -> ok
     9.941  dev 2  SETUP IN GET_DESCRIPTOR HID REPORT #0 wValue 2200 wIndex 0002 wLength 33  -> ok
-    9.941    dev 2  IN  33 bytes  -> ok
-    9.942    dev 2  IN  32 bytes  -> ok
+    9.941    dev 2  IN  33 bytes requested  -> ok
+    9.942    dev 2  IN  32 bytes requested  -> ok
                ... 1 receive timeouts
     9.943    dev 2  OUT (status stage, 0 bytes)  -> ok
     9.943  HID mounted dev 2 interface 3  report descriptor 33 bytes
     9.944    dev 2  data/status IN  ep4 20 bytes -> ok
-    9.943    dev 6  IN  1 bytes  (no completion)
-    9.944    dev 2  IN  32 bytes  -> ok
-    9.945    dev 2  IN  32 bytes  -> ok
-    9.947    dev 2  IN  32 bytes  -> ok
-    9.949    dev 2  IN  32 bytes  -> ok
-    9.950    dev 2  IN  32 bytes  -> ok
-    9.952    dev 2  IN  32 bytes  -> ok
-    9.954    dev 2  IN  32 bytes  -> ok
-    9.955    dev 2  IN  32 bytes  -> ok
-    9.957    dev 2  IN  32 bytes  -> ok
+    9.943    dev 6  IN  1 bytes requested  (no completion)
+    9.944    dev 2  IN  32 bytes requested  -> ok
+    9.945    dev 2  IN  32 bytes requested  -> ok
+    9.947    dev 2  IN  32 bytes requested  -> ok
+    9.949    dev 2  IN  32 bytes requested  -> ok
+    9.950    dev 2  IN  32 bytes requested  -> ok
+    9.952    dev 2  IN  32 bytes requested  -> ok
+    9.954    dev 2  IN  32 bytes requested  -> ok
+    9.955    dev 2  IN  32 bytes requested  -> ok
+    9.957    dev 2  IN  32 bytes requested  -> ok
                ... 8 receive timeouts
-    9.959    dev 2  IN  32 bytes  -> ok
-    9.960    dev 2  IN  32 bytes  -> ok
+    9.959    dev 2  IN  32 bytes requested  -> ok
+    9.960    dev 2  IN  32 bytes requested  -> ok
                ... 1 receive timeouts
-    9.962    dev 2  IN  32 bytes  -> ok
-    9.964    dev 2  IN  32 bytes  -> ok
-    9.966    dev 2  IN  32 bytes  -> ok
-    9.967    dev 2  IN  32 bytes  -> ok
-    9.969    dev 2  IN  32 bytes  -> ok
-    9.971    dev 2  IN  32 bytes  -> ok
-    9.972    dev 2  IN  32 bytes  -> ok
+    9.962    dev 2  IN  32 bytes requested  -> ok
+    9.964    dev 2  IN  32 bytes requested  -> ok
+    9.966    dev 2  IN  32 bytes requested  -> ok
+    9.967    dev 2  IN  32 bytes requested  -> ok
+    9.969    dev 2  IN  32 bytes requested  -> ok
+    9.971    dev 2  IN  32 bytes requested  -> ok
+    9.972    dev 2  IN  32 bytes requested  -> ok
                ... 6 receive timeouts
-    9.974    dev 2  IN  32 bytes  -> ok
-    9.976    dev 2  IN  32 bytes  -> ok
-    9.977    dev 2  IN  32 bytes  -> ok
-    9.979    dev 2  IN  32 bytes  -> ok
-    9.981    dev 2  IN  32 bytes  -> ok
-    9.982    dev 2  IN  32 bytes  -> ok
-    9.984    dev 2  IN  32 bytes  -> ok
-    9.986    dev 2  IN  32 bytes  -> ok
-    9.987    dev 2  IN  32 bytes  -> ok
-    9.989    dev 2  IN  32 bytes  -> ok
-    9.991    dev 2  IN  32 bytes  -> ok
-    9.992    dev 2  IN  32 bytes  -> ok
-    9.994    dev 2  IN  32 bytes  -> ok
-    9.996    dev 2  IN  32 bytes  -> ok
-    9.997    dev 2  IN  32 bytes  -> ok
-    9.999    dev 2  IN  32 bytes  -> ok
-   10.001    dev 2  IN  32 bytes  -> ok
-   10.002    dev 2  IN  32 bytes  -> ok
-   10.004    dev 2  IN  32 bytes  -> ok
-   10.006    dev 2  IN  32 bytes  -> ok
-   10.007    dev 2  IN  32 bytes  -> ok
-   10.009    dev 2  IN  32 bytes  -> ok
-   10.011    dev 2  IN  32 bytes  -> ok
-   10.012    dev 2  IN  32 bytes  -> ok
-   10.014    dev 2  IN  32 bytes  -> ok
-   10.016    dev 2  IN  32 bytes  -> ok
-   10.018    dev 2  IN  32 bytes  -> ok
-   10.019    dev 2  IN  32 bytes  -> ok
-   10.021    dev 2  IN  32 bytes  -> ok
-   10.024    dev 2  IN  32 bytes  -> ok
-   10.025    dev 2  IN  32 bytes  -> ok
-   10.026    dev 2  IN  32 bytes  -> ok
-   10.028    dev 2  IN  32 bytes  -> ok
-   10.030    dev 2  IN  32 bytes  -> ok
-   10.031    dev 2  IN  32 bytes  -> ok
-   10.034    dev 2  IN  32 bytes  -> ok
-   10.035    dev 2  IN  32 bytes  -> ok
-   10.036    dev 2  IN  32 bytes  -> ok
-   10.038    dev 2  IN  32 bytes  -> ok
+    9.974    dev 2  IN  32 bytes requested  -> ok
+    9.976    dev 2  IN  32 bytes requested  -> ok
+    9.977    dev 2  IN  32 bytes requested  -> ok
+    9.979    dev 2  IN  32 bytes requested  -> ok
+    9.981    dev 2  IN  32 bytes requested  -> ok
+    9.982    dev 2  IN  32 bytes requested  -> ok
+    9.984    dev 2  IN  32 bytes requested  -> ok
+    9.986    dev 2  IN  32 bytes requested  -> ok
+    9.987    dev 2  IN  32 bytes requested  -> ok
+    9.989    dev 2  IN  32 bytes requested  -> ok
+    9.991    dev 2  IN  32 bytes requested  -> ok
+    9.992    dev 2  IN  32 bytes requested  -> ok
+    9.994    dev 2  IN  32 bytes requested  -> ok
+    9.996    dev 2  IN  32 bytes requested  -> ok
+    9.997    dev 2  IN  32 bytes requested  -> ok
+    9.999    dev 2  IN  32 bytes requested  -> ok
+   10.001    dev 2  IN  32 bytes requested  -> ok
+   10.002    dev 2  IN  32 bytes requested  -> ok
+   10.004    dev 2  IN  32 bytes requested  -> ok
+   10.006    dev 2  IN  32 bytes requested  -> ok
+   10.007    dev 2  IN  32 bytes requested  -> ok
+   10.009    dev 2  IN  32 bytes requested  -> ok
+   10.011    dev 2  IN  32 bytes requested  -> ok
+   10.012    dev 2  IN  32 bytes requested  -> ok
+   10.014    dev 2  IN  32 bytes requested  -> ok
+   10.016    dev 2  IN  32 bytes requested  -> ok
+   10.018    dev 2  IN  32 bytes requested  -> ok
+   10.019    dev 2  IN  32 bytes requested  -> ok
+   10.021    dev 2  IN  32 bytes requested  -> ok
+   10.024    dev 2  IN  32 bytes requested  -> ok
+   10.025    dev 2  IN  32 bytes requested  -> ok
+   10.026    dev 2  IN  32 bytes requested  -> ok
+   10.028    dev 2  IN  32 bytes requested  -> ok
+   10.030    dev 2  IN  32 bytes requested  -> ok
+   10.031    dev 2  IN  32 bytes requested  -> ok
+   10.034    dev 2  IN  32 bytes requested  -> ok
+   10.035    dev 2  IN  32 bytes requested  -> ok
+   10.036    dev 2  IN  32 bytes requested  -> ok
+   10.038    dev 2  IN  32 bytes requested  -> ok
                ... 37 receive timeouts
-   10.040    dev 2  IN  32 bytes  -> ok
-   10.041    dev 2  IN  32 bytes  -> ok
-   10.044    dev 2  IN  32 bytes  -> ok
-   10.045    dev 2  IN  32 bytes  -> ok
-   10.046    dev 2  IN  32 bytes  -> ok
-   10.048    dev 2  IN  32 bytes  -> ok
-   10.050    dev 2  IN  32 bytes  -> ok
-   10.051    dev 2  IN  32 bytes  -> ok
-   10.054    dev 2  IN  32 bytes  -> ok
-   10.055    dev 2  IN  32 bytes  -> ok
-   10.056    dev 2  IN  32 bytes  -> ok
-   10.058    dev 2  IN  32 bytes  -> ok
-   10.060    dev 2  IN  32 bytes  -> ok
-   10.061    dev 2  IN  32 bytes  -> ok
-   10.063    dev 2  IN  32 bytes  -> ok
+   10.040    dev 2  IN  32 bytes requested  -> ok
+   10.041    dev 2  IN  32 bytes requested  -> ok
+   10.044    dev 2  IN  32 bytes requested  -> ok
+   10.045    dev 2  IN  32 bytes requested  -> ok
+   10.046    dev 2  IN  32 bytes requested  -> ok
+   10.048    dev 2  IN  32 bytes requested  -> ok
+   10.050    dev 2  IN  32 bytes requested  -> ok
+   10.051    dev 2  IN  32 bytes requested  -> ok
+   10.054    dev 2  IN  32 bytes requested  -> ok
+   10.055    dev 2  IN  32 bytes requested  -> ok
+   10.056    dev 2  IN  32 bytes requested  -> ok
+   10.058    dev 2  IN  32 bytes requested  -> ok
+   10.060    dev 2  IN  32 bytes requested  -> ok
+   10.061    dev 2  IN  32 bytes requested  -> ok
+   10.063    dev 2  IN  32 bytes requested  -> ok
                ... 13 receive timeouts
-   10.065    dev 2  IN  32 bytes  -> ok
-   10.066    dev 2  IN  32 bytes  -> ok
-   10.068    dev 2  IN  32 bytes  -> ok
-   10.070    dev 2  IN  32 bytes  -> ok
-   10.071    dev 2  IN  32 bytes  -> ok
-   10.073    dev 2  IN  32 bytes  -> ok
-   10.075    dev 2  IN  32 bytes  -> ok
-   10.076    dev 2  IN  32 bytes  -> ok
-   10.078    dev 2  IN  32 bytes  -> ok
-   10.080    dev 2  IN  32 bytes  -> ok
-   10.081    dev 2  IN  32 bytes  -> ok
-   10.084    dev 2  IN  32 bytes  -> ok
-   10.085    dev 2  IN  32 bytes  -> ok
-   10.087    dev 2  IN  32 bytes  -> ok
-   10.088    dev 2  IN  32 bytes  -> ok
-   10.090    dev 2  IN  32 bytes  -> ok
-   10.092    dev 2  IN  32 bytes  -> ok
-   10.094    dev 2  IN  32 bytes  -> ok
-   10.095    dev 2  IN  32 bytes  -> ok
-   10.097    dev 2  IN  32 bytes  -> ok
-   10.098    dev 2  IN  32 bytes  -> ok
-   10.100    dev 2  IN  32 bytes  -> ok
-   10.102    dev 2  IN  32 bytes  -> ok
-   10.103    dev 2  IN  32 bytes  -> ok
-   10.105    dev 2  IN  32 bytes  -> ok
+   10.065    dev 2  IN  32 bytes requested  -> ok
+   10.066    dev 2  IN  32 bytes requested  -> ok
+   10.068    dev 2  IN  32 bytes requested  -> ok
+   10.070    dev 2  IN  32 bytes requested  -> ok
+   10.071    dev 2  IN  32 bytes requested  -> ok
+   10.073    dev 2  IN  32 bytes requested  -> ok
+   10.075    dev 2  IN  32 bytes requested  -> ok
+   10.076    dev 2  IN  32 bytes requested  -> ok
+   10.078    dev 2  IN  32 bytes requested  -> ok
+   10.080    dev 2  IN  32 bytes requested  -> ok
+   10.081    dev 2  IN  32 bytes requested  -> ok
+   10.084    dev 2  IN  32 bytes requested  -> ok
+   10.085    dev 2  IN  32 bytes requested  -> ok
+   10.087    dev 2  IN  32 bytes requested  -> ok
+   10.088    dev 2  IN  32 bytes requested  -> ok
+   10.090    dev 2  IN  32 bytes requested  -> ok
+   10.092    dev 2  IN  32 bytes requested  -> ok
+   10.094    dev 2  IN  32 bytes requested  -> ok
+   10.095    dev 2  IN  32 bytes requested  -> ok
+   10.097    dev 2  IN  32 bytes requested  -> ok
+   10.098    dev 2  IN  32 bytes requested  -> ok
+   10.100    dev 2  IN  32 bytes requested  -> ok
+   10.102    dev 2  IN  32 bytes requested  -> ok
+   10.103    dev 2  IN  32 bytes requested  -> ok
+   10.105    dev 2  IN  32 bytes requested  -> ok
                ... 24 receive timeouts
    10.133    dev 1  data/status IN  ep1 8 bytes -> ok
-   10.107    dev 2  IN  32 bytes  (no completion)
-   10.133    dev 1  IN  8 bytes  -> ok
-   10.233    dev 1  IN  8 bytes  -> ok
-   10.393    dev 1  IN  8 bytes  -> ok
-   10.403    dev 1  IN  8 bytes  -> ok
-   10.453    dev 1  IN  8 bytes  -> ok
-   10.473    dev 1  IN  8 bytes  -> ok
-   10.613    dev 1  IN  8 bytes  -> ok
+   10.107    dev 2  IN  32 bytes requested  (no completion)
+   10.133    dev 1  IN  8 bytes requested  -> ok
+   10.233    dev 1  IN  8 bytes requested  -> ok
+   10.393    dev 1  IN  8 bytes requested  -> ok
+   10.403    dev 1  IN  8 bytes requested  -> ok
+   10.453    dev 1  IN  8 bytes requested  -> ok
+   10.473    dev 1  IN  8 bytes requested  -> ok
+   10.613    dev 1  IN  8 bytes requested  -> ok
                ... 6 receive timeouts
-   10.633    dev 1  IN  8 bytes  -> ok
-   10.683    dev 1  IN  8 bytes  -> ok
+   10.633    dev 1  IN  8 bytes requested  -> ok
+   10.683    dev 1  IN  8 bytes requested  -> ok
                ... 1 receive timeouts
-   10.703    dev 1  IN  8 bytes  -> ok
-   10.843    dev 1  IN  8 bytes  -> ok
+   10.703    dev 1  IN  8 bytes requested  -> ok
+   10.843    dev 1  IN  8 bytes requested  -> ok
                ... 1 receive timeouts
-   10.933    dev 1  IN  8 bytes  -> ok
-   11.073    dev 1  IN  8 bytes  -> ok
-   11.173    dev 1  IN  8 bytes  -> ok
-   11.303    dev 1  IN  8 bytes  -> ok
+   10.933    dev 1  IN  8 bytes requested  -> ok
+   11.073    dev 1  IN  8 bytes requested  -> ok
+   11.173    dev 1  IN  8 bytes requested  -> ok
+   11.303    dev 1  IN  8 bytes requested  -> ok
                ... 1 receive timeouts
-   11.403    dev 1  IN  8 bytes  -> ok
-   11.533    dev 1  IN  8 bytes  -> ok
+   11.403    dev 1  IN  8 bytes requested  -> ok
+   11.533    dev 1  IN  8 bytes requested  -> ok
                ... 1 receive timeouts
-   11.543    dev 1  IN  8 bytes  -> ok
-   11.603    dev 1  IN  8 bytes  -> ok
+   11.543    dev 1  IN  8 bytes requested  -> ok
+   11.603    dev 1  IN  8 bytes requested  -> ok
                ... 1 receive timeouts
-   11.623    dev 1  IN  8 bytes  -> ok
-   11.783    dev 1  IN  8 bytes  -> ok
-   11.873    dev 1  IN  8 bytes  -> ok
+   11.623    dev 1  IN  8 bytes requested  -> ok
+   11.783    dev 1  IN  8 bytes requested  -> ok
+   11.873    dev 1  IN  8 bytes requested  -> ok
                ... 2 receive timeouts
-   12.003    dev 1  IN  8 bytes  -> ok
+   12.003    dev 1  IN  8 bytes requested  -> ok
    13.508    dev 6  data/status IN  ep1 1 bytes -> ok
-   12.133    dev 1  IN  8 bytes  (no completion)
+   12.133    dev 1  IN  8 bytes requested  (no completion)
    13.508  dev 6  SETUP IN request 0 wValue 0000 wIndex 0004 wLength 4 (class)  -> ok
-   13.508    dev 6  IN  4 bytes  -> ok
+   13.508    dev 6  IN  4 bytes requested  -> ok
    13.508    dev 6  OUT (status stage, 0 bytes)  -> ok
    13.508  dev 6  SETUP OUT GET_REPORT wValue 0010 wIndex 0004 wLength 0 (class)  -> ok
    13.508    dev 6  IN  (status stage, 0 bytes)  -> ok
@@ -315,9 +315,9 @@ span 34635.034 ms
    13.509  HID unmounted dev 1 interface 0
    13.509  HID unmounted dev 1 interface 1
    13.509  device close dev 1
-   13.509    dev 6  IN  1 bytes  -> ok
+   13.509    dev 6  IN  1 bytes requested  -> ok
    15.803  dev 6  SETUP IN request 0 wValue 0000 wIndex 0004 wLength 4 (class)  -> ok
-   15.803    dev 6  IN  4 bytes  -> ok
+   15.803    dev 6  IN  4 bytes requested  -> ok
    15.803    dev 6  OUT (status stage, 0 bytes)  -> ok
    15.803  dev 6  SETUP OUT GET_REPORT wValue 0010 wIndex 0004 wLength 0 (class)  -> ok
    15.803    dev 6  IN  (status stage, 0 bytes)  -> ok
@@ -325,12 +325,12 @@ span 34635.034 ms
    15.803    dev 6  IN  (status stage, 0 bytes)  -> ok
    15.804  event ATTACH dev 0  hub 6 port 4 speed 0
    16.254  dev 6  SETUP IN request 0 wValue 0000 wIndex 0004 wLength 4 (class)  -> ok
-   16.254    dev 6  IN  4 bytes  -> ok
+   16.254    dev 6  IN  4 bytes requested  -> ok
    16.254    dev 6  OUT (status stage, 0 bytes)  -> ok
    16.254  dev 6  SETUP OUT GET_REPORT wValue 0014 wIndex 0004 wLength 0 (class)  -> ok
    16.254    dev 6  IN  (status stage, 0 bytes)  -> ok
    16.254  dev 0  SETUP IN GET_DESCRIPTOR DEVICE #0 wValue 0100 wIndex 0000 wLength 8  -> ok
-   16.255    dev 0  IN  8 bytes  -> ok
+   16.255    dev 0  IN  8 bytes requested  -> ok
    16.255    dev 0  OUT (status stage, 0 bytes)  -> ok
                ... 3 receive timeouts
                ... 1 receive timeouts
@@ -345,24 +345,24 @@ span 34635.034 ms
    16.738  port reset
    16.788  port reset end
    17.238  dev 0  SETUP IN GET_DESCRIPTOR DEVICE #0 wValue 0100 wIndex 0000 wLength 8  -> ok
-   17.238    dev 0  IN  8 bytes  -> ok
+   17.238    dev 0  IN  8 bytes requested  -> ok
    17.239    dev 0  OUT (status stage, 0 bytes)  -> ok
    17.239  dev 0  SETUP OUT SET_ADDRESS wValue 0006 wIndex 0000 wLength 0  -> ok
    17.239    dev 0  IN  (status stage, 0 bytes)  -> ok
    17.241  device close dev 0
    17.241  dev 6  SETUP IN GET_DESCRIPTOR DEVICE #0 wValue 0100 wIndex 0000 wLength 18  -> ok
-   17.241    dev 6  IN  18 bytes  -> ok
+   17.241    dev 6  IN  18 bytes requested  -> ok
    17.241    dev 6  OUT (status stage, 0 bytes)  -> ok
    17.241  dev 6  SETUP IN GET_DESCRIPTOR CONFIGURATION #0 wValue 0200 wIndex 0000 wLength 9  -> ok
-   17.241    dev 6  IN  9 bytes  -> ok
+   17.241    dev 6  IN  9 bytes requested  -> ok
    17.241    dev 6  OUT (status stage, 0 bytes)  -> ok
    17.241  dev 6  SETUP IN GET_DESCRIPTOR CONFIGURATION #0 wValue 0200 wIndex 0000 wLength 25  -> ok
-   17.241    dev 6  IN  25 bytes  -> ok
+   17.241    dev 6  IN  25 bytes requested  -> ok
    17.242    dev 6  OUT (status stage, 0 bytes)  -> ok
    17.242  dev 6  SETUP OUT SET_CONFIGURATION wValue 0001 wIndex 0000 wLength 0  -> ok
    17.242    dev 6  IN  (status stage, 0 bytes)  -> ok
    17.242  dev 6  SETUP IN request 6 wValue 0000 wIndex 0000 wLength 9 (class)  -> ok
-   17.242    dev 6  IN  9 bytes  -> ok
+   17.242    dev 6  IN  9 bytes requested  -> ok
    17.242    dev 6  OUT (status stage, 0 bytes)  -> ok
    17.242  dev 6  SETUP OUT GET_PROTOCOL wValue 0008 wIndex 0001 wLength 0 (class)  -> ok
    17.242    dev 6  IN  (status stage, 0 bytes)  -> ok
@@ -372,9 +372,9 @@ span 34635.034 ms
    17.245    dev 6  IN  (status stage, 0 bytes)  -> ok
    17.247  dev 6  SETUP OUT GET_PROTOCOL wValue 0008 wIndex 0004 wLength 0 (class)  -> ok
    17.247    dev 6  IN  (status stage, 0 bytes)  -> ok
-   17.249    dev 6  IN  1 bytes  -> ok
+   17.249    dev 6  IN  1 bytes requested  -> ok
    17.496  dev 6  SETUP IN request 0 wValue 0000 wIndex 0003 wLength 4 (class)  -> ok
-   17.496    dev 6  IN  4 bytes  -> ok
+   17.496    dev 6  IN  4 bytes requested  -> ok
    17.497    dev 6  OUT (status stage, 0 bytes)  -> ok
    17.497  dev 6  SETUP OUT GET_REPORT wValue 0010 wIndex 0003 wLength 0 (class)  -> ok
    17.497    dev 6  IN  (status stage, 0 bytes)  -> ok
@@ -382,49 +382,49 @@ span 34635.034 ms
    17.497    dev 6  IN  (status stage, 0 bytes)  -> ok
    17.510  event ATTACH dev 0  hub 6 port 3 speed 0
    17.960  dev 6  SETUP IN request 0 wValue 0000 wIndex 0003 wLength 4 (class)  -> ok
-   17.960    dev 6  IN  4 bytes  -> ok
+   17.960    dev 6  IN  4 bytes requested  -> ok
    17.960    dev 6  OUT (status stage, 0 bytes)  -> ok
    17.960  dev 6  SETUP OUT GET_REPORT wValue 0014 wIndex 0003 wLength 0 (class)  -> ok
    17.960    dev 6  IN  (status stage, 0 bytes)  -> ok
    17.960  dev 0  SETUP IN GET_DESCRIPTOR DEVICE #0 wValue 0100 wIndex 0000 wLength 8  -> ok
-   17.960    dev 0  IN  8 bytes  -> ok
+   17.960    dev 0  IN  8 bytes requested  -> ok
    17.962    dev 0  OUT (status stage, 0 bytes)  -> ok
    17.964  dev 0  SETUP OUT SET_ADDRESS wValue 0001 wIndex 0000 wLength 0  -> ok
    17.964    dev 0  IN  (status stage, 0 bytes)  -> ok
    17.967  device close dev 0
    17.967  dev 1  SETUP IN GET_DESCRIPTOR DEVICE #0 wValue 0100 wIndex 0000 wLength 18  -> ok
-   17.967    dev 1  IN  18 bytes  -> ok
+   17.967    dev 1  IN  18 bytes requested  -> ok
    17.970    dev 1  OUT (status stage, 0 bytes)  -> ok
    17.974  dev 1  SETUP IN GET_DESCRIPTOR CONFIGURATION #0 wValue 0200 wIndex 0000 wLength 9  -> ok
-   17.974    dev 1  IN  9 bytes  -> ok
+   17.974    dev 1  IN  9 bytes requested  -> ok
    17.976    dev 1  OUT (status stage, 0 bytes)  -> ok
    17.980  dev 1  SETUP IN GET_DESCRIPTOR CONFIGURATION #0 wValue 0200 wIndex 0000 wLength 106  -> ok
-   17.980    dev 1  IN  106 bytes  -> ok
+   17.980    dev 1  IN  106 bytes requested  -> ok
                ... 5 receive timeouts
    18.001    dev 1  OUT (status stage, 0 bytes)  -> ok
    18.004  dev 1  SETUP OUT SET_CONFIGURATION wValue 0001 wIndex 0000 wLength 0  -> ok
    18.004    dev 1  IN  (status stage, 0 bytes)  -> ok
-   18.005    dev 1  IN  32 bytes  (no completion)
-   18.005    dev 1  OUT 3 bytes  (no completion)
+   18.005    dev 1  IN  32 bytes requested  (no completion)
+   18.005    dev 1  OUT 3 bytes requested  (no completion)
    18.005  dev 1  SETUP OUT SET_IDLE wValue 0000 wIndex 0001 wLength 0 (class)  -> ok
    18.005    dev 1  data/status OUT ep5 3 bytes -> ok
-   18.005    dev 1  IN  32 bytes  -> ok
+   18.005    dev 1  IN  32 bytes requested  -> ok
    18.005    dev 1  IN  (status stage, 0 bytes)  -> ok
    18.006  dev 1  SETUP OUT SET_PROTOCOL wValue 0000 wIndex 0001 wLength 0 (class)  -> ok
    18.006    dev 1  IN  (status stage, 0 bytes)  -> ok
    18.007  dev 1  SETUP IN GET_DESCRIPTOR HID REPORT #0 wValue 2200 wIndex 0001 wLength 166  -> ok
-   18.007    dev 1  IN  166 bytes  -> ok
+   18.007    dev 1  IN  166 bytes requested  -> ok
    18.007    dev 1  OUT (status stage, 0 bytes)  -> ok
    18.008  HID mounted dev 1 interface 0  report descriptor 166 bytes
    18.008  dev 1  SETUP OUT SET_IDLE wValue 0000 wIndex 0002 wLength 0 (class)  -> ok
    18.008    dev 1  IN  (status stage, 0 bytes)  -> ok
    18.008  dev 1  SETUP IN GET_DESCRIPTOR HID REPORT #0 wValue 2200 wIndex 0002 wLength 33  -> ok
-   18.008    dev 1  IN  33 bytes  -> ok
+   18.008    dev 1  IN  33 bytes requested  -> ok
    18.009    dev 1  OUT (status stage, 0 bytes)  -> ok
    18.010  HID mounted dev 1 interface 1  report descriptor 33 bytes
-   18.010    dev 6  IN  1 bytes  -> ok
+   18.010    dev 6  IN  1 bytes requested  -> ok
    18.261  dev 6  SETUP IN request 0 wValue 0000 wIndex 0004 wLength 4 (class)  -> ok
-   18.261    dev 6  IN  4 bytes  -> ok
+   18.261    dev 6  IN  4 bytes requested  -> ok
    18.262    dev 6  OUT (status stage, 0 bytes)  -> ok
    18.262  dev 6  SETUP OUT GET_REPORT wValue 0010 wIndex 0004 wLength 0 (class)  -> ok
    18.262    dev 6  IN  (status stage, 0 bytes)  -> ok
@@ -433,13 +433,13 @@ span 34635.034 ms
    18.262  event ATTACH dev 0  hub 6 port 4 speed 0
    18.712  dev 6  SETUP IN request 0 wValue 0000 wIndex 0004 wLength 4 (class)  (no completion)
    18.712    dev 6  data/status OUT ep0 8 bytes -> ok
-   18.712    dev 1  OUT 3 bytes  (no completion)
-   18.712    dev 6  IN  4 bytes  -> ok
+   18.712    dev 1  OUT 3 bytes requested  (no completion)
+   18.712    dev 6  IN  4 bytes requested  -> ok
    18.713    dev 6  OUT (status stage, 0 bytes)  -> ok
    18.713  dev 6  SETUP OUT GET_REPORT wValue 0014 wIndex 0004 wLength 0 (class)  -> ok
    18.713    dev 6  IN  (status stage, 0 bytes)  -> ok
    18.713  dev 0  SETUP IN GET_DESCRIPTOR DEVICE #0 wValue 0100 wIndex 0000 wLength 8  -> ok
-   18.713    dev 0  IN  8 bytes  -> ok
+   18.713    dev 0  IN  8 bytes requested  -> ok
                ... 2 receive timeouts
    18.713    dev 1  data/status OUT ep5 3 bytes -> ok
    18.713    dev 0  OUT (status stage, 0 bytes)  -> ok
@@ -456,24 +456,24 @@ span 34635.034 ms
    19.197  port reset
    19.247  port reset end
    19.697  dev 0  SETUP IN GET_DESCRIPTOR DEVICE #0 wValue 0100 wIndex 0000 wLength 8  -> ok
-   19.697    dev 0  IN  8 bytes  -> ok
+   19.697    dev 0  IN  8 bytes requested  -> ok
    19.697    dev 0  OUT (status stage, 0 bytes)  -> ok
    19.697  dev 0  SETUP OUT SET_ADDRESS wValue 0006 wIndex 0000 wLength 0  -> ok
    19.697    dev 0  IN  (status stage, 0 bytes)  -> ok
    19.699  device close dev 0
    19.699  dev 6  SETUP IN GET_DESCRIPTOR DEVICE #0 wValue 0100 wIndex 0000 wLength 18  -> ok
-   19.699    dev 6  IN  18 bytes  -> ok
+   19.699    dev 6  IN  18 bytes requested  -> ok
    19.699    dev 6  OUT (status stage, 0 bytes)  -> ok
    19.699  dev 6  SETUP IN GET_DESCRIPTOR CONFIGURATION #0 wValue 0200 wIndex 0000 wLength 9  -> ok
-   19.699    dev 6  IN  9 bytes  -> ok
+   19.699    dev 6  IN  9 bytes requested  -> ok
    19.700    dev 6  OUT (status stage, 0 bytes)  -> ok
    19.700  dev 6  SETUP IN GET_DESCRIPTOR CONFIGURATION #0 wValue 0200 wIndex 0000 wLength 25  -> ok
-   19.700    dev 6  IN  25 bytes  -> ok
+   19.700    dev 6  IN  25 bytes requested  -> ok
    19.700    dev 6  OUT (status stage, 0 bytes)  -> ok
    19.700  dev 6  SETUP OUT SET_CONFIGURATION wValue 0001 wIndex 0000 wLength 0  -> ok
    19.700    dev 6  IN  (status stage, 0 bytes)  -> ok
    19.700  dev 6  SETUP IN request 6 wValue 0000 wIndex 0000 wLength 9 (class)  -> ok
-   19.700    dev 6  IN  9 bytes  -> ok
+   19.700    dev 6  IN  9 bytes requested  -> ok
    19.700    dev 6  OUT (status stage, 0 bytes)  -> ok
    19.700  dev 6  SETUP OUT GET_PROTOCOL wValue 0008 wIndex 0001 wLength 0 (class)  -> ok
    19.700    dev 6  IN  (status stage, 0 bytes)  -> ok
@@ -483,9 +483,9 @@ span 34635.034 ms
    19.704    dev 6  IN  (status stage, 0 bytes)  -> ok
    19.706  dev 6  SETUP OUT GET_PROTOCOL wValue 0008 wIndex 0004 wLength 0 (class)  -> ok
    19.706    dev 6  IN  (status stage, 0 bytes)  -> ok
-   19.708    dev 6  IN  1 bytes  -> ok
+   19.708    dev 6  IN  1 bytes requested  -> ok
    19.955  dev 6  SETUP IN request 0 wValue 0000 wIndex 0003 wLength 4 (class)  -> ok
-   19.955    dev 6  IN  4 bytes  -> ok
+   19.955    dev 6  IN  4 bytes requested  -> ok
    19.955    dev 6  OUT (status stage, 0 bytes)  -> ok
    19.955  dev 6  SETUP OUT GET_REPORT wValue 0010 wIndex 0003 wLength 0 (class)  -> ok
    19.955    dev 6  IN  (status stage, 0 bytes)  -> ok
@@ -493,49 +493,49 @@ span 34635.034 ms
    19.955    dev 6  IN  (status stage, 0 bytes)  -> ok
    19.968  event ATTACH dev 0  hub 6 port 3 speed 0
    20.418  dev 6  SETUP IN request 0 wValue 0000 wIndex 0003 wLength 4 (class)  -> ok
-   20.418    dev 6  IN  4 bytes  -> ok
+   20.418    dev 6  IN  4 bytes requested  -> ok
    20.418    dev 6  OUT (status stage, 0 bytes)  -> ok
    20.418  dev 6  SETUP OUT GET_REPORT wValue 0014 wIndex 0003 wLength 0 (class)  -> ok
    20.418    dev 6  IN  (status stage, 0 bytes)  -> ok
    20.418  dev 0  SETUP IN GET_DESCRIPTOR DEVICE #0 wValue 0100 wIndex 0000 wLength 8  -> ok
-   20.418    dev 0  IN  8 bytes  -> ok
+   20.418    dev 0  IN  8 bytes requested  -> ok
    20.420    dev 0  OUT (status stage, 0 bytes)  -> ok
    20.423  dev 0  SETUP OUT SET_ADDRESS wValue 0001 wIndex 0000 wLength 0  -> ok
    20.423    dev 0  IN  (status stage, 0 bytes)  -> ok
    20.425  device close dev 0
    20.425  dev 1  SETUP IN GET_DESCRIPTOR DEVICE #0 wValue 0100 wIndex 0000 wLength 18  -> ok
-   20.425    dev 1  IN  18 bytes  -> ok
+   20.425    dev 1  IN  18 bytes requested  -> ok
    20.429    dev 1  OUT (status stage, 0 bytes)  -> ok
    20.432  dev 1  SETUP IN GET_DESCRIPTOR CONFIGURATION #0 wValue 0200 wIndex 0000 wLength 9  -> ok
-   20.432    dev 1  IN  9 bytes  -> ok
+   20.432    dev 1  IN  9 bytes requested  -> ok
    20.435    dev 1  OUT (status stage, 0 bytes)  -> ok
    20.438  dev 1  SETUP IN GET_DESCRIPTOR CONFIGURATION #0 wValue 0200 wIndex 0000 wLength 106  -> ok
-   20.438    dev 1  IN  106 bytes  -> ok
+   20.438    dev 1  IN  106 bytes requested  -> ok
                ... 5 receive timeouts
    20.459    dev 1  OUT (status stage, 0 bytes)  -> ok
    20.462  dev 1  SETUP OUT SET_CONFIGURATION wValue 0001 wIndex 0000 wLength 0  -> ok
    20.462    dev 1  IN  (status stage, 0 bytes)  -> ok
-   20.463    dev 1  IN  32 bytes  (no completion)
-   20.463    dev 1  OUT 3 bytes  (no completion)
+   20.463    dev 1  IN  32 bytes requested  (no completion)
+   20.463    dev 1  OUT 3 bytes requested  (no completion)
    20.463  dev 1  SETUP OUT SET_IDLE wValue 0000 wIndex 0001 wLength 0 (class)  -> ok
    20.463    dev 1  IN  (status stage, 0 bytes)  -> ok
    20.464    dev 1  data/status OUT ep5 3 bytes -> ok
-   20.464    dev 1  IN  32 bytes  -> ok
+   20.464    dev 1  IN  32 bytes requested  -> ok
    20.464  dev 1  SETUP OUT SET_PROTOCOL wValue 0000 wIndex 0001 wLength 0 (class)  -> ok
    20.464    dev 1  IN  (status stage, 0 bytes)  -> ok
    20.465  dev 1  SETUP IN GET_DESCRIPTOR HID REPORT #0 wValue 2200 wIndex 0001 wLength 166  -> ok
-   20.465    dev 1  IN  166 bytes  -> ok
+   20.465    dev 1  IN  166 bytes requested  -> ok
    20.466    dev 1  OUT (status stage, 0 bytes)  -> ok
    20.466  HID mounted dev 1 interface 0  report descriptor 166 bytes
    20.466  dev 1  SETUP OUT SET_IDLE wValue 0000 wIndex 0002 wLength 0 (class)  -> ok
    20.466    dev 1  IN  (status stage, 0 bytes)  -> ok
    20.467  dev 1  SETUP IN GET_DESCRIPTOR HID REPORT #0 wValue 2200 wIndex 0002 wLength 33  -> ok
-   20.467    dev 1  IN  33 bytes  -> ok
+   20.467    dev 1  IN  33 bytes requested  -> ok
    20.467    dev 1  OUT (status stage, 0 bytes)  -> ok
    20.468  HID mounted dev 1 interface 1  report descriptor 33 bytes
-   20.468    dev 6  IN  1 bytes  -> ok
+   20.468    dev 6  IN  1 bytes requested  -> ok
    20.720  dev 6  SETUP IN request 0 wValue 0000 wIndex 0004 wLength 4 (class)  -> ok
-   20.720    dev 6  IN  4 bytes  -> ok
+   20.720    dev 6  IN  4 bytes requested  -> ok
    20.720    dev 6  OUT (status stage, 0 bytes)  -> ok
    20.720  dev 6  SETUP OUT GET_REPORT wValue 0010 wIndex 0004 wLength 0 (class)  -> ok
    20.720    dev 6  IN  (status stage, 0 bytes)  -> ok
@@ -544,13 +544,13 @@ span 34635.034 ms
    20.721  event ATTACH dev 0  hub 6 port 4 speed 0
    21.171  dev 6  SETUP IN request 0 wValue 0000 wIndex 0004 wLength 4 (class)  (no completion)
    21.171    dev 6  data/status OUT ep0 8 bytes -> ok
-   21.171    dev 1  OUT 3 bytes  (no completion)
-   21.171    dev 6  IN  4 bytes  -> ok
+   21.171    dev 1  OUT 3 bytes requested  (no completion)
+   21.171    dev 6  IN  4 bytes requested  -> ok
    21.171    dev 6  OUT (status stage, 0 bytes)  -> ok
    21.171  dev 6  SETUP OUT GET_REPORT wValue 0014 wIndex 0004 wLength 0 (class)  -> ok
    21.171    dev 6  IN  (status stage, 0 bytes)  -> ok
    21.171  dev 0  SETUP IN GET_DESCRIPTOR DEVICE #0 wValue 0100 wIndex 0000 wLength 8  -> ok
-   21.171    dev 0  IN  8 bytes  -> ok
+   21.171    dev 0  IN  8 bytes requested  -> ok
                ... 2 receive timeouts
    21.172    dev 1  data/status OUT ep5 3 bytes -> ok
    21.171    dev 0  OUT (status stage, 0 bytes)  -> ok
@@ -568,19 +568,19 @@ span 34635.034 ms
    29.789  port reset
    29.839  port reset end
    30.289  dev 0  SETUP IN GET_DESCRIPTOR DEVICE #0 wValue 0100 wIndex 0000 wLength 8  -> ok
-   30.289    dev 0  IN  8 bytes  -> ok
+   30.289    dev 0  IN  8 bytes requested  -> ok
    30.289    dev 0  OUT (status stage, 0 bytes)  -> ok
    30.289  dev 0  SETUP OUT SET_ADDRESS wValue 0001 wIndex 0000 wLength 0  -> ok
    30.289    dev 0  IN  (status stage, 0 bytes)  -> ok
    30.292  device close dev 0
    30.292  dev 1  SETUP IN GET_DESCRIPTOR DEVICE #0 wValue 0100 wIndex 0000 wLength 18  -> ok
-   30.292    dev 1  IN  18 bytes  -> ok
+   30.292    dev 1  IN  18 bytes requested  -> ok
    30.292    dev 1  OUT (status stage, 0 bytes)  -> ok
    30.292  dev 1  SETUP IN GET_DESCRIPTOR CONFIGURATION #0 wValue 0200 wIndex 0000 wLength 9  -> ok
-   30.293    dev 1  IN  9 bytes  -> ok
+   30.293    dev 1  IN  9 bytes requested  -> ok
    30.293    dev 1  OUT (status stage, 0 bytes)  -> ok
    30.293  dev 1  SETUP IN GET_DESCRIPTOR CONFIGURATION #0 wValue 0200 wIndex 0000 wLength 59  -> ok
-   30.293    dev 1  IN  59 bytes  -> ok
+   30.293    dev 1  IN  59 bytes requested  -> ok
                ... 2 receive timeouts
    30.295    dev 1  OUT (status stage, 0 bytes)  -> ok
    30.295  dev 1  SETUP OUT SET_CONFIGURATION wValue 0001 wIndex 0000 wLength 0  -> ok
@@ -590,32 +590,32 @@ span 34635.034 ms
    30.295  dev 1  SETUP OUT SET_PROTOCOL wValue 0000 wIndex 0000 wLength 0 (class)  -> ok
    30.295    dev 1  IN  (status stage, 0 bytes)  -> ok
    30.295  dev 1  SETUP IN GET_DESCRIPTOR HID REPORT #0 wValue 2200 wIndex 0000 wLength 54  -> ok
-   30.296    dev 1  IN  54 bytes  -> ok
+   30.296    dev 1  IN  54 bytes requested  -> ok
                ... 2 receive timeouts
    30.297    dev 1  OUT (status stage, 0 bytes)  -> ok
    30.297  HID mounted dev 1 interface 0  report descriptor 54 bytes
    30.297  dev 1  SETUP OUT SET_IDLE wValue 0000 wIndex 0001 wLength 0 (class)  -> ok
    30.297    dev 1  IN  (status stage, 0 bytes)  -> ok
    30.297  dev 1  SETUP IN GET_DESCRIPTOR HID REPORT #0 wValue 2200 wIndex 0001 wLength 25  -> ok
-   30.298    dev 1  IN  25 bytes  -> ok
+   30.298    dev 1  IN  25 bytes requested  -> ok
    30.298    dev 1  OUT (status stage, 0 bytes)  -> ok
    30.298  HID mounted dev 1 interface 1  report descriptor 25 bytes
    30.498  dev 1  SETUP OUT SET_PROTOCOL wValue 0000 wIndex 0000 wLength 0 (class)  (no completion)
-   30.498    dev 1  IN  8 bytes  -> ok
+   30.498    dev 1  IN  8 bytes requested  -> ok
    30.498    dev 1  IN  (status stage, 0 bytes)  -> ok
    31.975    dev 1  data/status IN  ep1 8 bytes -> ok
-   31.975    dev 1  IN  8 bytes  -> ok
-   32.055    dev 1  IN  8 bytes  -> ok
-   33.585    dev 1  IN  8 bytes  -> ok
-   33.695    dev 1  IN  8 bytes  -> ok
-   33.865    dev 1  IN  8 bytes  -> ok
-   34.025    dev 1  IN  8 bytes  -> ok
-   34.075    dev 1  IN  8 bytes  -> ok
-   34.175    dev 1  IN  8 bytes  -> ok
-   34.225    dev 1  IN  8 bytes  -> ok
-   34.295    dev 1  IN  8 bytes  -> ok
-   34.385    dev 1  IN  8 bytes  -> ok
-   34.445    dev 1  IN  8 bytes  -> ok
-   34.485    dev 1  IN  8 bytes  -> ok
-   34.515    dev 1  IN  8 bytes  -> ok
-   34.635    dev 1  IN  8 bytes  (no completion)
+   31.975    dev 1  IN  8 bytes requested  -> ok
+   32.055    dev 1  IN  8 bytes requested  -> ok
+   33.585    dev 1  IN  8 bytes requested  -> ok
+   33.695    dev 1  IN  8 bytes requested  -> ok
+   33.865    dev 1  IN  8 bytes requested  -> ok
+   34.025    dev 1  IN  8 bytes requested  -> ok
+   34.075    dev 1  IN  8 bytes requested  -> ok
+   34.175    dev 1  IN  8 bytes requested  -> ok
+   34.225    dev 1  IN  8 bytes requested  -> ok
+   34.295    dev 1  IN  8 bytes requested  -> ok
+   34.385    dev 1  IN  8 bytes requested  -> ok
+   34.445    dev 1  IN  8 bytes requested  -> ok
+   34.485    dev 1  IN  8 bytes requested  -> ok
+   34.515    dev 1  IN  8 bytes requested  -> ok
+   34.635    dev 1  IN  8 bytes requested  (no completion)

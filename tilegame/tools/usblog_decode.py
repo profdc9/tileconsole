@@ -125,7 +125,7 @@ def brief(entries):
             res = RESULT.get(a >> 8 & 255, "?")
             line = "%s %s %d bytes -> %s" % (("data/status IN " if a & 128 else "data/status OUT")[:15], "ep%d" % (a & 15), b, "ok" if res == "SUCCESS" else res)
             if pending and (x & 255) == pending[0]:
-                out.append(pending[1].replace("@", "-> " + ("ok" if res == "SUCCESS" else res)))
+                out.append(pending[1].replace("@", "-> " + ("ok" if res == "SUCCESS" else res) ))
                 pending = None
             else:
                 flush(e)
@@ -138,7 +138,7 @@ def brief(entries):
             if typ == 4:
                 pending = (x, "%s  dev %d  SETUP %s  @" % (stamp(e), x, setup(a, b)))
             else:
-                pending = (x >> 8, "%s    dev %d  %s %s  @" % (stamp(e), x >> 8, "IN " if x & 128 else "OUT", "%d bytes" % a if a else "(status stage, 0 bytes)"))
+                pending = (x >> 8, "%s    dev %d  %s %s  @" % (stamp(e), x >> 8, "IN " if x & 128 else "OUT", "%d bytes requested" % a if a else "(status stage, 0 bytes)"))
             continue
         if typ == 5:
             continue

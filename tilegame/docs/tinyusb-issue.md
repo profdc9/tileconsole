@@ -30,9 +30,10 @@ Power is ruled out (self-powered hub, bigger supply capacitor, 252 MHz).
 ```
  1.377  ATTACH hub 6 port 3           gamepad (dev 1)       ... enumerates, mounted at 1.87
  3.405  ATTACH hub 6 port 1           keyboard
- 3.856  dev 0 GET_DESCRIPTOR 8   ok   3.857 SET_ADDRESS 2 ok   3.859 dev 2 GET_DESCRIPTOR 18 ok
-        ... 14 + 11 receive timeouts around the status stage
- 3.861  dev 2 GET_DESCRIPTOR CONFIGURATION 9  (never completes; controller re-sends the packet, ~9000 timeouts/s)
+ 3.856  dev 0 GET_DESCRIPTOR 8   ok   3.857 SET_ADDRESS 2 ok
+ 3.859  dev 2 GET_DESCRIPTOR DEVICE 18: only the first 8-byte packet arrives (13 receive timeouts, then the stage completes
+        as SUCCESS with 8 bytes; debug text: "on EP 80 with 8 bytes: OK"); the status stage times out 10 more times, then completes
+ 3.861  dev 2 GET_DESCRIPTOR CONFIGURATION 9  (the SETUP gets a receive timeout and never completes; the controller re-sends it, ~9000 timeouts/s)
  4.192  host restarted (my firmware does this after 3000 timeouts)
  5.116  ATTACH hub 6 port 1           keyboard now first    all requests ok, mounted at 5.58
  5.626  ATTACH hub 6 port 3           gamepad second        all requests ok, mounted at 6.11
