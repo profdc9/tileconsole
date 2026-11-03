@@ -174,6 +174,8 @@ void __not_in_flash_func(__wrap_hcd_event_handler)(hcd_event_t const *event, boo
 {
     uint32_t a = 0, b = 0;
     if (event->event_id == HCD_EVENT_XFER_COMPLETE) {
+        if ((event->xfer_complete.ep_addr & 0x7F) == 0)
+            usb_hid_host_ctrl_done();
         a = event->xfer_complete.ep_addr | event->xfer_complete.result << 8;
         b = event->xfer_complete.len;
     } else if (event->event_id == HCD_EVENT_DEVICE_ATTACH || event->event_id == HCD_EVENT_DEVICE_REMOVE) {
@@ -223,8 +225,10 @@ bool __wrap_hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uin
             }
     }
 #endif
-    if ((ep_addr & 0x7F) == 0)
+    if ((ep_addr & 0x7F) == 0) {
         pre_delay(dev_addr);
+        usb_hid_host_ctrl_start();
+    }
     const bool ok = port_connected() && __real_hcd_edpt_xfer(rhport, dev_addr, ep_addr, buffer, buflen);
     usblog(USBLOG_EV_XFER, (uint16_t)(dev_addr << 8 | ep_addr), buflen, ok, 0, 0);
     return ok;
@@ -234,6 +238,7 @@ extern bool __real_hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t cons
 bool __wrap_hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet[8])
 {
     pre_delay(dev_addr);
+    usb_hid_host_ctrl_start();
     const bool ok = port_connected() && __real_hcd_setup_send(rhport, dev_addr, setup_packet);
     if (dev_addr == 0)
         usb_hid_host_setup0();   /* a new device is being enumerated: the attach has gone somewhere */

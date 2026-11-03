@@ -129,6 +129,12 @@ static uint32_t last_restart_us;
 #define AUTO_RESTARTS_MAX 2          /* restarts for a stuck enumeration or a storm in a row; a device that fails the same way every */
 #define AUTO_RESTARTS_QUIET_US 30000000u   /* time is not helped by more, so the host is left alone until the root port is unplugged or 30 s pass */
 static uint32_t auto_restarts;
+#define CTRL_STUCK_US 2000000u              /* a transfer on the control endpoint that has not completed for this long (the stack has no timeout) */
+static volatile uint32_t ctrl_us;           /* when the control endpoint was last started and has not completed since, or 0 */
+extern volatile uint8_t tilegame_hub_first_port;   /* patched TinyUSB (third_party/tinyusb/README-tilegame.md): the hub port to enumerate first, once */
+
+void __not_in_flash_func(usb_hid_host_ctrl_start)(void) { ctrl_us = time_us_32() | 1; }
+void __not_in_flash_func(usb_hid_host_ctrl_done)(void) { ctrl_us = 0; }
 
 void __not_in_flash_func(usb_hid_host_event)(uint8_t event_id, uint8_t hub_addr, uint8_t hub_port)
 {
@@ -180,6 +186,8 @@ static void check_host(void)
         why = 2;
     else if (storm_us)
         why = 3;
+    else if (ctrl_us && now - ctrl_us > CTRL_STUCK_US)
+        why = 4;
     if (!why)
         return;
     if (why == 1 || now - last_restart_us > AUTO_RESTARTS_QUIET_US)
@@ -190,7 +198,9 @@ static void check_host(void)
     }
     if (why != 1)
         auto_restarts++;
-    root_removed_us = attach_us = storm_us = 0;
+    root_removed_us = attach_us = storm_us = ctrl_us = 0;
+    if (why != 1 && attach_hub != 0)
+        tilegame_hub_first_port = attach_port;   /* the device that was being enumerated (behind the hub) goes first after the restart */
     host_restarts++;
     last_restart_us = now;
     usblog(USBLOG_EV_HOST_RESTART, 0, why, host_restarts, 0, 0);
