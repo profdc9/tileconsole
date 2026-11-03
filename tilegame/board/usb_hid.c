@@ -181,18 +181,20 @@ void usb_hid_host_setup0(void)
 static void check_host(void)
 {
     const uint32_t now = time_us_32();
+    /* (each timer is read once: an interrupt can clear it between a test and the subtraction, and "now - 0" looks very old) */
+    const uint32_t root_removed = root_removed_us, attach = attach_us, storm = storm_us, ctrl = ctrl_us;
     uint32_t why = 0;
     if (host_restarts && now - last_restart_us < 1000000u)
         return;   /* (at most one a second) */
-    if (root_removed_us && now - root_removed_us > ROOT_REMOVED_SETTLE_US)
+    if (root_removed && (int32_t)(now - root_removed) > (int32_t)ROOT_REMOVED_SETTLE_US)
         why = 1;
-    else if (attach_us && now - attach_us > ATTACH_STUCK_US)
+    else if (attach && (int32_t)(now - attach) > (int32_t)ATTACH_STUCK_US)
         why = 2;
-    else if (storm_us)
+    else if (storm)
         why = 3;
     else if (tilegame_hcd_spurious)
         why = 5;   /* a completion that was dropped: the endpoint (the hub's status endpoint, usblog35) is dead */
-    else if (ctrl_us && (int32_t)(time_us_32() - ctrl_us) > (int32_t)CTRL_STUCK_US)   /* (signed: ctrl_us can be newer than `now`; unsigned it looked 70 minutes old) */
+    else if (ctrl && (int32_t)(now - ctrl) > (int32_t)CTRL_STUCK_US)
         why = 4;
     if (!why)
         return;
