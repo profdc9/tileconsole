@@ -127,7 +127,7 @@ static volatile uint32_t root_removed_us, attach_us, storm_us;   /* when, or 0 *
 static volatile uint8_t attach_hub, attach_port;                    /* where the attach was */
 static uint32_t last_restart_us;
 #define AUTO_RESTARTS_MAX 2          /* restarts for a stuck enumeration or a storm in a row; a device that fails the same way every */
-#define AUTO_RESTARTS_QUIET_US 30000000u   /* time is not helped by more, so the host is left alone until the root port is unplugged or 30 s pass */
+#define AUTO_RESTARTS_QUIET_US 10000000u   /* time is not helped by more, so the host is left alone until the root port is unplugged or 30 s pass */
 static uint32_t auto_restarts;
 #define CTRL_STUCK_US 2000000u              /* a transfer on the control endpoint that has not completed for this long (the stack has no timeout) */
 #define PENDING_STUCK_US 3000000u           /* a device that has attached and has not been mounted (enumeration complete) by then: the attach is lost */
@@ -145,7 +145,7 @@ void __not_in_flash_func(usb_hid_host_ctrl_done)(void) { ctrl_us = 0; }
 void __not_in_flash_func(usb_hid_host_event)(uint8_t event_id, uint8_t hub_addr, uint8_t hub_port)
 {
     const uint32_t now = time_us_32() | 1;
-    if (event_id == HCD_EVENT_DEVICE_ATTACH && !pending_us) {
+    if (event_id == HCD_EVENT_DEVICE_ATTACH && !pending_us && hub_addr != 0) {   /* (behind a hub: the hub itself is not tracked, usblog43 and 44 restarted at 3.0 s) */
         pending_hub = hub_addr;
         pending_port = hub_port;
         pending_us = now;
