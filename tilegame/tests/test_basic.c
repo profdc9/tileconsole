@@ -136,6 +136,8 @@ static int test_info(const char *what, char *out, size_t size)
         snprintf(out, size, "stack: peak 1234 of 4096");
     else if (!strcmp(what, "heap"))
         snprintf(out, size, "heap: 5678 free");
+    else if (!strcmp(what, "usblog"))
+        snprintf(out, size, "usblog: saved");
     else
         return 0;
     return 1;
@@ -296,12 +298,14 @@ static void test_info_commands(void)
     CHECK(go() == -1 && shows("stack: peak 1234 of 4096") && !shows("heap:"));
     type("CLS\nheap\n");
     CHECK(go() == -1 && shows("heap: 5678 free") && !shows("stack:"));
+    type("CLS\nusblog\n");
+    CHECK(go() == -1 && shows("usblog: saved") && !shows("heap:"));
     type("CLS\nHELP\n");
-    CHECK(go() == -1 && shows("STACK") && shows("HEAP"));
+    CHECK(go() == -1 && shows("STACK") && shows("HEAP") && shows("USBLOG"));
     info_on = 0;
     fresh();
     type("CLS\nSTACK\nHEAP\n");
-    CHECK(go() == -1 && shows("No stack figure") && shows("No heap figure"));
+    CHECK(go() == -1 && shows("No stack on this machine") && shows("No heap on this machine"));
     info_on = 1;
 }
 

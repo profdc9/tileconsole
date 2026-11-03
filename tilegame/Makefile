@@ -101,7 +101,8 @@ test_view: tests/test_view.c $(GAMESRC) game/game.h game/level.h game/view.h $(T
 test_hid_pad: tests/test_hid_pad.c src/hid_pad.c src/hid_mouse.c src/mouse_acc.c src/xinput.c include/mouse_acc.h include/xinput.h include/hid_pad.h include/hid_mouse.h include/platform.h
 	$(CC) $(CFLAGS) -g -fsanitize=address,undefined $(INC) tests/test_hid_pad.c src/hid_pad.c src/hid_mouse.c src/mouse_acc.c src/xinput.c -o $@
 
-check: test_pool test_devkit test_basic test_tde test_tde_san test_editsd test_sdtest test_platform_sdl test_hid_kbd test_keymap test_consdemo test_consoleio test_editor test_editdemo test_hid_pad test_game test_view
+check: test_usblog test_pool test_devkit test_basic test_tde test_tde_san test_editsd test_sdtest test_platform_sdl test_hid_kbd test_keymap test_consdemo test_consoleio test_editor test_editdemo test_hid_pad test_game test_view
+	./test_usblog
 	./test_pool
 	./test_platform_sdl
 	./test_hid_kbd
@@ -238,6 +239,9 @@ BASICSRC = basic/basic_env.c basic/my_basic/my_basic.c $(TILEGFX)/tg_console.c $
 
 tgbasic: basic/basic.c $(BASICSRC) sdl/plat_sdl.c src/mouse_acc.c include/platform.h $(TILEGFX)/tilegfx.c
 	$(CC) $(BASICFLAGS) -O2 $(INC) $(SDINC) -Ibasic basic/basic.c $(BASICSRC) sdl/plat_sdl.c src/mouse_acc.c $(TILEGFX)/tilegfx.c -o $@ $(SDL) -lm
+
+test_usblog: tests/test_usblog.c src/usblog.c src/usblog.h
+	$(CC) -std=c11 -Wall -Wextra -O1 -g -fsanitize=address,undefined -Isrc tests/test_usblog.c src/usblog.c -o $@
 
 test_pool: tests/test_pool.c src/pool.c src/pool.h third_party/dlmalloc/malloc.c
 	$(CC) -std=c11 -Wall -Wextra -O1 -g -fsanitize=address,undefined -Isrc tests/test_pool.c src/pool.c -o $@

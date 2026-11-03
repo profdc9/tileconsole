@@ -15,6 +15,8 @@
 #include "hardware/structs/usb_dpram.h"
 #include "pico/time.h"
 #include "tusb.h"
+#include "host/hcd.h"
+#include "usblog_board.h"
 
 #include "hid_kbd.h"
 #include "hid_mouse.h"
@@ -92,17 +94,111 @@ static void update_led(void)
     gpio_put(PLAT_LED_PIN, any);
 }
 
+static void start_host(void)
+{
+    tuh_init(BOARD_TUH_RHPORT);
+    /* TinyUSB's RP2040 driver panics inside its interrupt handler on a data sequence error, which a low speed device behind a hub
+     * produces (a repeated packet; the hardware has already dropped it). Do not take that interrupt; usb_hid_task counts them. */
+    usb_hw_clear->inte = USB_INTE_ERROR_DATA_SEQ_BITS;
+    usblog_usb_init();
+}
+
 void usb_hid_init(void)
 {
     mouse_acc_init(&mouse);
     gpio_init(PLAT_LED_PIN);
     gpio_set_dir(PLAT_LED_PIN, GPIO_OUT);
     gpio_put(PLAT_LED_PIN, 0);
-    tuh_init(BOARD_TUH_RHPORT);
-    /* TinyUSB's RP2040 driver panics inside its interrupt handler on a data sequence error, which a low speed device behind a hub
-     * produces (a repeated packet; the hardware has already dropped it). Do not take that interrupt; usb_hid_task counts them. */
-    usb_hw_clear->inte = USB_INTE_ERROR_DATA_SEQ_BITS;
+    start_host();
 }
+
+static uint32_t host_restarts;
+
+#if USBLOG
+/* Host recovery. TinyUSB 0.18 does not forget an enumeration that was under way when its device went away (process_removing_device
+ * has a TODO for it), so every later attach is deferred behind an enumeration that never ends, and two such attaches queued make
+ * tuh_task loop for ever (the hang in the USB log). The host is started again (tuh_deinit, tuh_init: all devices go and are found
+ * again) 300 ms after the root port is unplugged, when an attach has not led to a setup packet to address 0 within 2 seconds, and when
+ * the same receive timeout has gone on for a second (a transfer the hardware retries for ever: a device behind a hub that does not answer). */
+#define ROOT_REMOVED_SETTLE_US 300000u
+#define ATTACH_STUCK_US 2000000u
+static volatile uint32_t root_removed_us, attach_us, storm_us;   /* when, or 0 */
+static volatile uint8_t attach_hub, attach_port;                    /* where the attach was */
+static uint32_t last_restart_us;
+#define AUTO_RESTARTS_MAX 2          /* restarts for a stuck enumeration or a storm in a row; a device that fails the same way every */
+#define AUTO_RESTARTS_QUIET_US 30000000u   /* time is not helped by more, so the host is left alone until the root port is unplugged or 30 s pass */
+static uint32_t auto_restarts;
+
+void __not_in_flash_func(usb_hid_host_event)(uint8_t event_id, uint8_t hub_addr, uint8_t hub_port)
+{
+    const uint32_t now = time_us_32() | 1;
+    if (event_id == HCD_EVENT_DEVICE_REMOVE && hub_addr == 0 && hub_port == 0)
+        root_removed_us = now;
+    else if (event_id == HCD_EVENT_DEVICE_ATTACH && !attach_us) {
+        attach_us = now;
+        attach_hub = hub_addr;
+        attach_port = hub_port;
+    } else if (event_id == HCD_EVENT_DEVICE_REMOVE && attach_us && hub_addr == attach_hub && hub_port == attach_port)
+        attach_us = 0;   /* the device that was to be enumerated has gone again: nothing is stuck */
+}
+
+void __not_in_flash_func(usb_hid_host_storm)(void)
+{
+    if (!storm_us)
+        storm_us = time_us_32() | 1;
+}
+
+/* TinyUSB panics ("Invalid speed") if it is asked for the port's speed once the device has been unplugged, which happens when the root
+ * port is unplugged in the middle of an enumeration it is already carrying out (the USB log: the removal, then the panic 64 ms later).
+ * Say "full" instead: the removal that is already queued cleans up. (The driver's own calls inside a transfer are stopped by the
+ * wrappers in usblog_usb.c, which pass nothing on while the port is disconnected.) */
+extern tusb_speed_t __real_hcd_port_speed_get(uint8_t rhport);
+tusb_speed_t __wrap_hcd_port_speed_get(uint8_t rhport)
+{
+    if (!(usb_hw->sie_status & USB_SIE_STATUS_SPEED_BITS))
+        return TUSB_SPEED_FULL;
+    return __real_hcd_port_speed_get(rhport);
+}
+
+void usb_hid_host_setup0(void)
+{
+    attach_us = 0;
+}
+
+static void check_host(void)
+{
+    const uint32_t now = time_us_32();
+    uint32_t why = 0;
+    if (host_restarts && now - last_restart_us < 1000000u)
+        return;   /* (at most one a second) */
+    if (root_removed_us && now - root_removed_us > ROOT_REMOVED_SETTLE_US)
+        why = 1;
+    else if (attach_us && now - attach_us > ATTACH_STUCK_US)
+        why = 2;
+    else if (storm_us)
+        why = 3;
+    if (!why)
+        return;
+    if (why == 1 || now - last_restart_us > AUTO_RESTARTS_QUIET_US)
+        auto_restarts = 0;
+    if (why != 1 && auto_restarts >= AUTO_RESTARTS_MAX) {
+        attach_us = storm_us = 0;   /* (given up: not tried again) */
+        return;
+    }
+    if (why != 1)
+        auto_restarts++;
+    root_removed_us = attach_us = storm_us = 0;
+    host_restarts++;
+    last_restart_us = now;
+    usblog(USBLOG_EV_HOST_RESTART, 0, why, host_restarts, 0, 0);
+    tuh_deinit(BOARD_TUH_RHPORT);
+    usblog_usb_remove();
+    start_host();
+}
+
+#else
+static void check_host(void) {}
+#endif
 
 static uint32_t seq_errors, hid_mounts, last_mount_ms;
 
@@ -156,8 +252,13 @@ void usb_hid_task(void)
     if (usb_hw->sie_status & USB_SIE_STATUS_DATA_SEQ_ERROR_BITS) {
         usb_hw_clear->sie_status = USB_SIE_STATUS_DATA_SEQ_ERROR_BITS;
         seq_errors++;
+        usblog(USBLOG_EV_SEQ_ERROR, 0, seq_errors, usb_hw->sie_status, usb_hw->buf_status, usbh_dpram->epx_buf_ctrl);
     }
     tuh_task();
+#if USBLOG && USB_PAUSE_POLL
+    usblog_usb_release_held();
+#endif
+    check_host();
     xinput_poll();
     start_pending();
     static uint32_t last_tick_ms;
@@ -264,6 +365,7 @@ void usb_hid_xinput_report(uint8_t dev_addr, const uint8_t *report, uint16_t len
 
 void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t idx, const uint8_t *report_desc, uint16_t desc_len)
 {
+    usblog(USBLOG_EV_MOUNT, (uint16_t)(dev_addr << 8 | idx), desc_len, 0, 0, 0);
     if (!valid(dev_addr, idx))
         return;
     hid_mounts++;
@@ -324,6 +426,7 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t idx, const uint8_t *report_desc,
 
 void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t idx)
 {
+    usblog(USBLOG_EV_UNMOUNT, (uint16_t)(dev_addr << 8 | idx), 0, 0, 0, 0);
     if (!valid(dev_addr, idx))
         return;
     iface_t *f = &ifc[dev_addr][idx];
@@ -407,6 +510,7 @@ int usb_hid_diag(char (*lines)[41], int max)
     LINE("KBD %d MOUSE %d PAD %d XINPUT %d", kbd, mice, pads, xpads);
     LINE("OTHER %d, KEYBOARD/MOUSE IGNORED %lu", diag.nother, (unsigned long)diag.ignored);
     LINE("DATA SEQUENCE ERRORS SEEN %lu", (unsigned long)seq_errors);
+    LINE("USB HOST RESTARTS %lu", (unsigned long)host_restarts);
     /* Every device the stack has enumerated, with its vendor and product ids (the hub, the keyboard, the pad...). */
     for (int d = 1; d <= CFG_TUH_DEVICE_MAX; d += 3) {
         char row[41] = "";

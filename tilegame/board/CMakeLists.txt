@@ -22,6 +22,10 @@ option(PLAT_USB_KEYBOARD "Old name for PLAT_USB_HID" OFF)
 if(PLAT_USB_KEYBOARD)
     set(PLAT_USB_HID ON)
 endif()
+option(USBLOG "The USB event log, and the host recovery and panic guards that use its hooks (OFF: the USB driver as TinyUSB has it)" ON)
+option(USB_PAUSE_POLL "With USBLOG: hold back the polling of other devices while a new one is being enumerated" OFF)
+set(USB_FS_INT_MS 0 CACHE STRING "With USBLOG: the shortest polling interval (ms) given to a full-speed interrupt endpoint; 0: as the device asks")
+option(USBLOG_TEST_PANIC "devkit: the STACK command panics, to try the USB log on the board" OFF)
 option(DEMO_NO_MUSIC "With DEMO_AUTOPLAY: no jingle, so the effects can be heard alone" OFF)
 
 function(tilegame_board_app name source)
@@ -43,10 +47,19 @@ function(tilegame_board_app name source)
     if(PLAT_USB_HID)
         target_sources(${name} PRIVATE usb_hid.c xinput_host.c ${CMAKE_CURRENT_LIST_DIR}/../src/xinput.c ${CMAKE_CURRENT_LIST_DIR}/../src/hid_kbd.c ${CMAKE_CURRENT_LIST_DIR}/../src/keymap.c ${CMAKE_CURRENT_LIST_DIR}/../src/hid_pad.c
                        ${CMAKE_CURRENT_LIST_DIR}/../src/hid_mouse.c ${CMAKE_CURRENT_LIST_DIR}/../src/mouse_acc.c)
-        target_include_directories(${name} PRIVATE ${CMAKE_CURRENT_LIST_DIR})   # tusb_config.h and usb_hid.h
+        target_include_directories(${name} PRIVATE ${CMAKE_CURRENT_LIST_DIR} ${CMAKE_CURRENT_LIST_DIR}/../src)   # tusb_config.h, usb_hid.h and usblog.h
         target_compile_definitions(${name} PRIVATE PLAT_USB_HID=1 PLAT_STATS=0)
+        if(USBLOG)
+            target_sources(${name} PRIVATE usblog_board.c usblog_usb.c ${CMAKE_CURRENT_LIST_DIR}/../src/usblog.c)
+            target_compile_definitions(${name} PRIVATE USBLOG=1 USB_FS_INT_MS=${USB_FS_INT_MS} $<$<BOOL:${USB_PAUSE_POLL}>:USB_PAUSE_POLL=1> "USBLOG_HOT=__attribute__((section(\".time_critical.usblog\")))")
+        endif()
         target_link_libraries(${name} tinyusb_host tinyusb_board)
         target_link_options(${name} PRIVATE -Wl,--wrap=panic -Wl,--wrap=hub_edpt_status_xfer)   # a panic in the USB interrupt handler is reported after the reset
+        if(USBLOG)
+            target_link_options(${name} PRIVATE -Wl,--wrap=hcd_event_handler -Wl,--wrap=hcd_edpt_xfer -Wl,--wrap=hcd_setup_send -Wl,--wrap=hcd_edpt_open
+                -Wl,--wrap=hcd_port_reset -Wl,--wrap=hcd_port_reset_end -Wl,--wrap=hcd_device_close -Wl,--wrap=hcd_edpt_abort_xfer
+                -Wl,--wrap=hcd_edpt_clear_stall -Wl,--wrap=hcd_port_speed_get -Wl,--wrap=hcd_int_disable -Wl,--wrap=hcd_int_enable)
+        endif()
         pico_enable_stdio_usb(${name} 0)
     else()
         pico_enable_stdio_usb(${name} 1)
@@ -119,4 +132,4 @@ set_source_files_properties(${DEMO_DIR}/devkit.c PROPERTIES COMPILE_OPTIONS "-I$
 # MY-BASIC: the allocation tag is a size_t, so that its blocks are aligned; the packed structs it uses are fine on this core.
 set_source_files_properties(${BASIC_DIR}/my_basic/my_basic.c ${BASIC_DIR}/basic_env.c PROPERTIES COMPILE_OPTIONS "-w;-Dmb_mem_tag_t=size_t")
 target_link_options(devkit PRIVATE -Wl,--wrap=fopen,--wrap=stat,--wrap=chmod,--wrap=access,--wrap=utime,--wrap=unlink,--wrap=remove,--wrap=rmdir,--wrap=rename,--wrap=mkdir,--wrap=getcwd,--wrap=chdir,--wrap=realpath,--wrap=opendir,--wrap=readdir,--wrap=closedir)
-target_compile_definitions(devkit PRIVATE DEVKIT_BOARD=1 PLAT_PSRAM=1 PICO_STACK_SIZE=0x1000 PICO_CORE1_STACK_SIZE=0x800)
+target_compile_definitions(devkit PRIVATE DEVKIT_BOARD=1 PLAT_PSRAM=1 $<$<BOOL:${USBLOG_TEST_PANIC}>:USBLOG_TEST_PANIC=1> PICO_STACK_SIZE=0x1000 PICO_CORE1_STACK_SIZE=0x800)

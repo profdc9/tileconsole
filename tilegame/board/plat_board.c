@@ -34,6 +34,7 @@
 #include "tilegfx.h"
 #if PLAT_USB_HID
 #include "usb_hid.h"
+#include "usblog_board.h"
 #endif
 
 #ifndef PLAT_CPU_MHZ
@@ -78,6 +79,8 @@ void __attribute__((noreturn)) __wrap_panic(const char *fmt, ...)
     va_start(ap, fmt);
     const uint32_t arg = va_arg(ap, uint32_t);
     va_end(ap);
+    usblog(USBLOG_EV_PANIC, 0, text[0], text[1], arg, 0);
+    usblog_close_run(USBLOG_CLOSED_PANIC);
     watchdog_hw->scratch[0] = PANIC_MAGIC;
     watchdog_hw->scratch[1] = text[0];
     watchdog_hw->scratch[2] = text[1];
@@ -105,6 +108,11 @@ static void __not_in_flash_func(hang_check)(void)
     uint32_t nonzero = 0;   /* how often an interrupt is pending over a few microseconds: a storm reads nonzero every time */
     for (int i = 0; i < 1000; i++)
         nonzero += usb_hw->ints != 0;
+#if PLAT_USB_HID
+    usblog_usb_irq_state();
+    usblog(USBLOG_EV_HANG, 0, usb_hw->sie_status, usb_hw->ints, usb_hw->buf_status, nonzero);
+    usblog_close_run(USBLOG_CLOSED_HANG);
+#endif
     watchdog_hw->scratch[0] = HANG_MAGIC;
     watchdog_hw->scratch[1] = usb_hw->sie_status;
     watchdog_hw->scratch[2] = usb_hw->ints;
@@ -307,6 +315,9 @@ static void __no_inline_not_in_flash_func(set_flash_timing)(uint32_t cpu_mhz)
 
 bool plat_init(void)
 {
+#if PLAT_USB_HID
+    usblog_boot();   /* (first: the previous run's USB log is in RAM that nothing has used yet) */
+#endif
     if (PLAT_CPU_MHZ > 252) {
         vreg_disable_voltage_limit();
         vreg_set_voltage(VREG_VOLTAGE_1_65);

@@ -16,6 +16,9 @@
 #include "pool.h"
 #include "tdealloc.h"
 #include "my_basic.h"
+#if PLAT_USB_HID
+#include "usblog_board.h"
+#endif
 #include <malloc.h>
 #include <unistd.h>
 #endif
@@ -80,6 +83,10 @@ void tde_crumb(unsigned id)
 
 void devkit_fault(uint32_t *frame)
 {
+#if PLAT_USB_HID
+    usblog(USBLOG_EV_FAULT, 0, frame[6], frame[5], *(volatile uint32_t *)0xE000ED28u, 0);
+    usblog_close_run(USBLOG_CLOSED_FAULT);
+#endif
     watchdog_hw->scratch[0] = FAULT_MAGIC;
     watchdog_hw->scratch[1] = frame[6];                              /* the instruction */
     watchdog_hw->scratch[2] = frame[5];                              /* the caller */
@@ -148,6 +155,54 @@ static const char *mount_files(void)
     fs_mount("sd", &fs_ram_ops, &ram);
     return why;
 }
+
+#if PLAT_USB_HID && USBLOG && defined(DEVKIT_BOARD)
+static void write_chunk(void *ctx, const void *data, size_t size)
+{
+    int *fd = ctx;
+    if (*fd >= 0 && fs_write(*fd, data, size) != (int)size)
+        *fd = -1;
+}
+
+/* Writes a USB log to the next free /sd/usblogNN.bin (tools/usblog_decode.py reads it); returns the path, or NULL if it could not be written. */
+static const char *write_usblog(const usblog_t *ring)
+{
+    static char path[32];
+    fs_stat_t st;
+    int n = 0;
+    while (n < 100) {
+        snprintf(path, sizeof path, "/sd/usblog%02d.bin", n);
+        if (fs_stat(path, &st) != 0)
+            break;
+        n++;
+    }
+    const int fd = n < 100 ? fs_open(path, FS_WRONLY | FS_CREAT | FS_TRUNC) : -1;
+    int out = fd;
+    if (fd >= 0) {
+        usblog_serialize(ring, write_chunk, &out);
+        fs_close(fd);
+    }
+    return fd >= 0 && out >= 0 ? path : NULL;
+}
+
+/* If the previous run ended in a hang, a panic or a fault, its USB log is saved; returns a line for the screen. */
+static const char *save_usblog(void)
+{
+    const usblog_t *old = usblog_saved();
+    if (!old)
+        return NULL;
+    static char text[160];
+    static const char *const how[] = {"?", "hung", "panicked", "faulted"};
+    const char *why = old->closed < 4 ? how[old->closed] : how[0];
+    const char *path = write_usblog(old);
+    if (path)
+        snprintf(text, sizeof text, "The last run %s: its %u USB events are in %s.\n", why, (unsigned)usblog_count(old), path);
+    else
+        snprintf(text, sizeof text, "The last run %s, and its USB log could not be saved.\n", why);
+    usblog_saved_free();
+    return text;
+}
+#endif
 
 /* The editor's configuration into /sd/tde the first time (it looks there: TDEHOME). */
 static void install_config(void)
@@ -294,9 +349,23 @@ extern char __HeapLimit;
 static int board_info(const char *what, char *out, size_t size)
 {
     if (!strcmp(what, "stack")) {
+#ifdef USBLOG_TEST_PANIC
+        panic("usblog test %d\n", 42);   /* (a test build: the USB log must survive this and be saved at the next start) */
+#endif
         snprintf(out, size, "stack: peak %u of %u bytes used", (unsigned)stack_peak(), (unsigned)sizeof stack);
         return 1;
     }
+#if PLAT_USB_HID && USBLOG
+    if (!strcmp(what, "usblog")) {   /* the log as it is now, for a problem that does not end in a reset */
+        const usblog_t *live = usblog_live();
+        const char *path = write_usblog(live);
+        if (path)
+            snprintf(out, size, "USB log: %u events saved in %s", (unsigned)usblog_count(live), path);
+        else
+            snprintf(out, size, "USB log: could not be saved");
+        return 1;
+    }
+#endif
     if (!strcmp(what, "heap")) {
         const struct mallinfo mi = mallinfo();
         const long system = (long)mi.fordblks + (long)(&__HeapLimit - (char *)sbrk(0));
@@ -355,7 +424,14 @@ static void devkit(void)
     const char *note = mount_files();
     fs_chdir("/sd");
     install_config();
+#if PLAT_USB_HID && USBLOG && defined(DEVKIT_BOARD)
+    const char *usb_note = save_usblog();
+#endif
     basic_env_init(&env, &screen, &hooks);
+#if PLAT_USB_HID && USBLOG && defined(DEVKIT_BOARD)
+    if (usb_note)
+        tg_console_puts(&env.con, usb_note);
+#endif
     if (note)
         tg_console_puts(&env.con, note);
 #ifdef DEVKIT_BOARD

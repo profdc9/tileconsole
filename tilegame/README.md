@@ -54,6 +54,9 @@ Not every hub works: with one bus-powered USB 3.0 hub a low-speed keyboard stopp
 behind a second hub). Full-speed devices (XInput pads, most HID gamepads) worked behind both. A stuck main loop or a panic resets the
 board and the diagnostic screen (`padtest`) shows why.
 
+The USB event log, the host recovery, the power findings (a bus-powered hub makes the 5 V rail dip; `-DCPU_MHZ=252` keeps the board
+up) and the plug-in order that works are in `docs/usb-and-power.md`.
+
 ## Keyboard text input and the console demo
 
 `plat_getchar()` returns the next typed character (or -1): ASCII for printable keys with shift and caps lock applied, 10 for Enter, 8

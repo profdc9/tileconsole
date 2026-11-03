@@ -6,6 +6,11 @@
 
 void usb_hid_init(void);                          /* start the USB host */
 void usb_hid_task(void);                          /* call often (at least every few milliseconds) */
+/* What the USB event wrappers (usblog_usb.c) tell the host recovery in usb_hid_task: a device was attached or removed (hub 0, port 0 is the
+ * root port) and the enumeration of a new device began (a setup packet to address 0). The first is called from the interrupt handler. */
+void usb_hid_host_event(uint8_t event_id, uint8_t hub_addr, uint8_t hub_port);
+void usb_hid_host_setup0(void);
+void usb_hid_host_storm(void);   /* the same receive timeout has repeated for a second (from the interrupt handler) */
 int usb_hid_getkey(plat_key_event_t *event);                  /* the next key press with its modifiers (plat_getkey), or 0 */
 int usb_hid_getchar(void);                        /* the next typed character from the keyboards, or -1 (see keymap.h) */
 plat_buttons_t usb_hid_buttons(int player);       /* what the keyboards and gamepads for this player hold down */

@@ -442,6 +442,7 @@ static void show_help(basic_env_t *e)
     say(e, "  FILES [folder]   list a folder          KILL file        delete a file\n");
     say(e, "  CD [folder]      change folder          EDIT [file]      edit a program\n");
     say(e, "  STACK            stack used so far      HEAP             memory left\n");
+    say(e, "  USBLOG           save the USB log to the card\n");
     say(e, "  VER              version                BYE              leave\n");
     say(e, "Anything else is BASIC and runs at once, each line on its own: PRINT 2 + 2     A = 5 : PRINT A * A\n");
     say(e, "In MY-BASIC PRINT a, b stays on the line and a semicolon ends it: PRINT a; PRINT a, \" \", b;\n");
@@ -505,13 +506,13 @@ static int run_line(basic_env_t *e, char *line)
                 say(e, "Saved %s, %lu bytes.\n", target, (unsigned long)e->length);
             }
         }
-    } else if (!strcmp(word, "STACK") || !strcmp(word, "HEAP")) {
+    } else if (!strcmp(word, "STACK") || !strcmp(word, "HEAP") || !strcmp(word, "USBLOG")) {
         char text[160];
-        const char *what = word[0] == 'S' ? "stack" : "heap";
+        const char *what = word[0] == 'S' ? "stack" : word[0] == 'H' ? "heap" : "usblog";
         if (e->hooks.info && e->hooks.info(what, text, sizeof text))
             say(e, "%s\n", text);
         else
-            problem(e, "No %s figure on this machine", what);
+            problem(e, "No %s on this machine", what);
     } else if (!strcmp(word, "FILES") || !strcmp(word, "DIR") || !strcmp(word, "LS")) {
         cmd_files(e, args);
     } else if (!strcmp(word, "KILL") || !strcmp(word, "DEL")) {
