@@ -58,7 +58,18 @@ A further test set the controller's `SOF_SYNC` bit (packets start after the fram
 device behind the hub (a one-line change to `hcd_rp2040.c` in a copy of TinyUSB; usblog17). It changed where the keyboard fails,
 the same way each time: its device descriptor, `SET_ADDRESS` and the 18-byte descriptor are now read (each SETUP needing 2 to 5
 retries, one a frame), and the request for the configuration descriptor then gets timeouts until the host restart. Not enough.
-Left in the code as default-off experiments: `USB_PAD_LATE`, `USB_PAUSE_POLL`, `USB_FS_INT_MS`.
+TinyUSB master (27ed59447, Oct 2026) does not fix it either (usblog18): a receive timeout now fails the transfer at once instead of
+being retried for ever by the controller, so there is no storm, but the status stage after the keyboard's first descriptor read
+still times out and nothing retries the keyboard.
+
+What did move the failure is time between packets (`USB_PRE_DELAY_US=300`, usblog19, on master): waiting 300 us before each
+control transaction to the low-speed device makes the status stage and `SET_ADDRESS` succeed, where they failed without it. The next
+failure is the second packet of a multi-packet data stage (the 18-byte device descriptor, 8-byte packets): the controller sends the
+next IN token by itself right after the first packet, and that one times out. So the suspect is the turnaround at the hub: a
+transaction that starts too soon after the hub has relayed the keyboard's upstream packet is lost, and the RP2040/RP2350 controller
+has no register for the gap, and starts packets inside a stage on its own. Only a driver that issues each packet itself, with its own
+data toggle handling (not just a wrapper around TinyUSB's `hcd_edpt_xfer`), could add the gap. Not done.
+Left in the code as default-off experiments (`USB_PRE_DELAY_US` too): `USB_PAD_LATE`, `USB_PAUSE_POLL`, `USB_FS_INT_MS`.
 
 ## Power
 

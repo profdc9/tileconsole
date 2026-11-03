@@ -195,6 +195,18 @@ void __not_in_flash_func(__wrap_hcd_event_handler)(hcd_event_t const *event, boo
 }
 
 extern bool __real_hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *buffer, uint16_t buflen);
+/* USB_PRE_DELAY_US: wait this long before a control transaction to a low-speed device behind a full-speed hub (preamble), after the
+ * previous one ended (an experiment: the status stage after the descriptor has been lost, with no answer, in every enumeration). */
+#if USB_PRE_DELAY_US
+static void pre_delay(uint8_t dev_addr)
+{
+    if (tuh_speed_get(dev_addr) == TUSB_SPEED_LOW && (usb_hw->sie_status & USB_SIE_STATUS_SPEED_BITS) == (2u << USB_SIE_STATUS_SPEED_LSB))
+        busy_wait_us_32(USB_PRE_DELAY_US);
+}
+#else
+#define pre_delay(a) ((void)0)
+#endif
+
 bool __wrap_hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t *buffer, uint16_t buflen)
 {
 #if USB_PAUSE_POLL
@@ -211,6 +223,8 @@ bool __wrap_hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uin
             }
     }
 #endif
+    if ((ep_addr & 0x7F) == 0)
+        pre_delay(dev_addr);
     const bool ok = port_connected() && __real_hcd_edpt_xfer(rhport, dev_addr, ep_addr, buffer, buflen);
     usblog(USBLOG_EV_XFER, (uint16_t)(dev_addr << 8 | ep_addr), buflen, ok, 0, 0);
     return ok;
@@ -219,6 +233,7 @@ bool __wrap_hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uin
 extern bool __real_hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet[8]);
 bool __wrap_hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet[8])
 {
+    pre_delay(dev_addr);
     const bool ok = port_connected() && __real_hcd_setup_send(rhport, dev_addr, setup_packet);
     if (dev_addr == 0)
         usb_hid_host_setup0();   /* a new device is being enumerated: the attach has gone somewhere */
