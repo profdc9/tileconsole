@@ -101,7 +101,8 @@ test_view: tests/test_view.c $(GAMESRC) game/game.h game/level.h game/view.h $(T
 test_hid_pad: tests/test_hid_pad.c src/hid_pad.c src/hid_mouse.c src/mouse_acc.c src/xinput.c include/mouse_acc.h include/xinput.h include/hid_pad.h include/hid_mouse.h include/platform.h
 	$(CC) $(CFLAGS) -g -fsanitize=address,undefined $(INC) tests/test_hid_pad.c src/hid_pad.c src/hid_mouse.c src/mouse_acc.c src/xinput.c -o $@
 
-check: test_devkit test_basic test_tde test_tde_san test_editsd test_sdtest test_platform_sdl test_hid_kbd test_keymap test_consdemo test_consoleio test_editor test_editdemo test_hid_pad test_game test_view
+check: test_pool test_devkit test_basic test_tde test_tde_san test_editsd test_sdtest test_platform_sdl test_hid_kbd test_keymap test_consdemo test_consoleio test_editor test_editdemo test_hid_pad test_game test_view
+	./test_pool
 	./test_platform_sdl
 	./test_hid_kbd
 	./test_keymap
@@ -203,7 +204,7 @@ TDETESTSRC = tests/test_tde.c tests/test_tde_console.c src/keymap.c $(TILEGFX)/t
 
 test_tde: $(TDEOBJ) $(TDETESTSRC)
 	$(CC) -c -w -g -U_FORTIFY_SOURCE -D__UNIX__ -D__TILEGAME__ -Itde/src -Itde/os $(INC) $(SDINC) tests/test_tde_console.c -o build/tde/test_tde_console.o
-	$(CC) $(CFLAGS) -w -g -U_FORTIFY_SOURCE -D__UNIX__ -D__TILEGAME__ $(INC) $(SDINC) -Itde/os $(TDEOBJ) build/tde/test_tde_console.o $(filter-out tests/test_tde_console.c,$(TDETESTSRC)) $(TDE_WRAP) -o $@ -lm
+	$(CC) $(CFLAGS) -w -g -U_FORTIFY_SOURCE -D__UNIX__ -D__TILEGAME__ $(INC) $(SDINC) -Itde/os -Itde/src -Isrc $(TDEOBJ) build/tde/test_tde_console.o $(filter-out tests/test_tde_console.c,$(TDETESTSRC)) src/pool.c $(TDE_WRAP) -o $@ -lm
 
 # The same tests with the editor built with the compiler's checks (AddressSanitizer, UBSan; not the alignment check, as the editor's allocator makes 16-bit
 # values at odd addresses on purpose): for finding what the normal build gets away with.
@@ -223,7 +224,7 @@ build/tdes/test_tde_console.o: tests/test_tde_console.c
 	$(CC) -c $(TDESANFLAGS) $< -o $@
 
 test_tde_san: $(TDESANOBJ) tests/test_tde.c $(filter-out tests/test_tde.c tests/test_tde_console.c,$(TDETESTSRC))
-	$(CC) $(TDESANFLAGS) -fsanitize=address,undefined $(SDINC) $(TDESANOBJ) $(filter-out tests/test_tde_console.c,$(TDETESTSRC)) $(TDE_WRAP) -o $@ -lm
+	$(CC) $(TDESANFLAGS) -fsanitize=address,undefined $(SDINC) -Itde/os -Isrc $(TDESANOBJ) $(filter-out tests/test_tde_console.c,$(TDETESTSRC)) $(TDE_WRAP) src/pool.c -o $@ -lm
 
 check-san: test_tde_san
 	ASAN_OPTIONS=detect_leaks=0 ./test_tde_san
@@ -237,6 +238,9 @@ BASICSRC = basic/basic_env.c basic/my_basic/my_basic.c $(TILEGFX)/tg_console.c $
 
 tgbasic: basic/basic.c $(BASICSRC) sdl/plat_sdl.c src/mouse_acc.c include/platform.h $(TILEGFX)/tilegfx.c
 	$(CC) $(BASICFLAGS) -O2 $(INC) $(SDINC) -Ibasic basic/basic.c $(BASICSRC) sdl/plat_sdl.c src/mouse_acc.c $(TILEGFX)/tilegfx.c -o $@ $(SDL) -lm
+
+test_pool: tests/test_pool.c src/pool.c src/pool.h third_party/dlmalloc/malloc.c
+	$(CC) -std=c11 -Wall -Wextra -O1 -g -fsanitize=address,undefined -Isrc tests/test_pool.c src/pool.c -o $@
 
 test_basic: tests/test_basic.c $(BASICSRC) basic/basic_env.h $(TILEGFX)/tilegfx.c
 	$(CC) $(BASICFLAGS) -O1 -g -fsanitize=address,undefined -fno-sanitize=alignment $(INC) $(SDINC) -Ibasic tests/test_basic.c $(BASICSRC) $(TILEGFX)/tilegfx.c -o $@ -lm
