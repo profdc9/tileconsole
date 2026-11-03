@@ -54,6 +54,10 @@ second, until the host restart. What matters is only that the pad has already be
 hub; with the keyboard enumerated first, everything works. The fault is in the control transfer to the low-speed device through
 the hub (preamble packets, the hub driven at full speed). Not found: Linux, which uses the hub's transaction translator and resets
 the port a second time, does not hit it.
+A further test set the controller's `SOF_SYNC` bit (packets start after the frame marker) on control transfers to a low-speed
+device behind the hub (a one-line change to `hcd_rp2040.c` in a copy of TinyUSB; usblog17). It changed where the keyboard fails,
+the same way each time: its device descriptor, `SET_ADDRESS` and the 18-byte descriptor are now read (each SETUP needing 2 to 5
+retries, one a frame), and the request for the configuration descriptor then gets timeouts until the host restart. Not enough.
 Left in the code as default-off experiments: `USB_PAD_LATE`, `USB_PAUSE_POLL`, `USB_FS_INT_MS`.
 
 ## Power
