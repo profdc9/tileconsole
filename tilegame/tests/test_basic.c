@@ -128,6 +128,19 @@ static void type(const char *spec)
     }
 }
 
+/* what the machine says about itself (STACK and HEAP); `info_on` off gives an environment without it */
+static int info_on = 1;
+static int test_info(const char *what, char *out, size_t size)
+{
+    if (!strcmp(what, "stack"))
+        snprintf(out, size, "stack: peak 1234 of 4096");
+    else if (!strcmp(what, "heap"))
+        snprintf(out, size, "heap: 5678 free");
+    else
+        return 0;
+    return 1;
+}
+
 /* A fresh environment (the program, the screen and the files are new). */
 static void fresh(void)
 {
@@ -137,7 +150,7 @@ static void fresh(void)
     memset(&screen, 0, sizeof screen);
     tg_text_load_cp437(&screen);
     tg_text_init(&screen);
-    const basic_hooks_t hooks = {get_char, frame, millis};
+    const basic_hooks_t hooks = {get_char, frame, millis, info_on ? test_info : NULL};
     basic_env_init(&env, &screen, &hooks);
     script_len = script_pos = 0;
 }
@@ -273,6 +286,23 @@ static void test_programs(void)
     CHECK(go() == -1);
     CHECK(shows("Error:") && shows("in line 2") && !shows("Ready.") && last_row_of("]") > row_of("Error:"));
     CHECK(row_of("1") >= 0 && row_of("1") < row_of("Error:") && row_of("2") == -1);   /* the line before the error ran, the line after did not */
+}
+
+/* STACK and HEAP show what the machine's hook says; without one they say so */
+static void test_info_commands(void)
+{
+    fresh();
+    type("CLS\nSTACK\n");
+    CHECK(go() == -1 && shows("stack: peak 1234 of 4096") && !shows("heap:"));
+    type("CLS\nheap\n");
+    CHECK(go() == -1 && shows("heap: 5678 free") && !shows("stack:"));
+    type("CLS\nHELP\n");
+    CHECK(go() == -1 && shows("STACK") && shows("HEAP"));
+    info_on = 0;
+    fresh();
+    type("CLS\nSTACK\nHEAP\n");
+    CHECK(go() == -1 && shows("No stack figure") && shows("No heap figure"));
+    info_on = 1;
 }
 
 static void test_files(void)
@@ -536,6 +566,7 @@ int main(void)
     test_basics();
     test_programs();
     test_files();
+    test_info_commands();
     test_editing_keys();
     test_input_and_break();
     test_edit_and_exit();

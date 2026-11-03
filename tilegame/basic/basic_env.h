@@ -31,6 +31,9 @@ typedef struct {
     int (*getchar)(void);       /* the next typed character as plat_getchar gives it, or -1 */
     void (*frame)(void);        /* show the screen and wait for the next frame (called while waiting for a key, and now and then by a running program) */
     uint32_t (*millis)(void);
+    /* optional (NULL: not available): a line about the machine, for the commands STACK ("stack") and HEAP ("heap"); returns 0 if it has
+     * nothing to say about `what` */
+    int (*info)(const char *what, char *out, size_t size);
 } basic_hooks_t;
 
 enum { BASIC_EXIT_BYE = 0, BASIC_EXIT_EDIT = 1 };
