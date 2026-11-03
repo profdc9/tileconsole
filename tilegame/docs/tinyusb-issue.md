@@ -55,6 +55,11 @@ gamepad already being enumerated on the same hub is not understood (only the key
 - Is there a way to add an inter-packet gap or a preamble-to-packet delay (anything in `SIE_CTRL` / `ADDR_ENDP` I am missing)?
 - Would the maintainers accept a driver option that splits control stages into single-packet transactions for LS-behind-hub?
 
-Decoded logs (`usblog18`, `usblog19`) and the tool that records and decodes them are in https://github.com/profdc9/tileconsole
-(`tilegame/board/usblog_usb.c`, `tilegame/tools/usblog_decode.py`, notes in `tilegame/docs/usb-and-power.md`). I can attach the
-raw logs.
+Logs (RAM log of every SETUP/transfer call and USB interrupt, saved by the firmware and decoded on a PC), in
+https://github.com/profdc9/tileconsole/tree/main/tilegame/docs/usblogs:
+- `usblog18-brief.txt`: TinyUSB master, no delay. The keyboard attaches at 8.1 s; its status stage times out and it is never retried.
+- `usblog19-brief.txt`: master with the 300 us wait (experiment 2). Search for `hub 6 port 4`: status stage and `SET_ADDRESS` pass,
+  the 18-byte device descriptor read fails on the second packet.
+- The `.bin` files are the raw logs. `python3 -I tilegame/tools/usblog_decode.py usblog19.bin` prints every record (interrupt
+  status registers, `sie_ctrl`, `epx_buf_ctrl`); add `--brief` for the one-line-per-request form. Recording code:
+  `tilegame/board/usblog_usb.c`; notes: `tilegame/docs/usb-and-power.md`.
