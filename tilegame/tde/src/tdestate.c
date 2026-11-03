@@ -13,6 +13,42 @@
 
 tde_state_t *tde;
 
+/* where the editor's blocks come from: the C library, or what the program chose (the PSRAM pool on the board) */
+static tde_allocator_t alloc_hook;
+static int have_hook;
+
+void tde_state_set_allocator( const tde_allocator_t *a )
+{
+   if (a != NULL) {
+      alloc_hook = *a;
+      have_hook = 1;
+   } else
+      have_hook = 0;
+}
+
+long tde_state_avail( void )
+{
+   return( have_hook  &&  alloc_hook.avail != NULL ? alloc_hook.avail( ) : -1L );
+}
+
+static void *raw_alloc( size_t size )
+{
+   return( have_hook ? alloc_hook.get( size ) : malloc( size ) );
+}
+
+static void *raw_realloc( void *p, size_t size )
+{
+   return( have_hook ? alloc_hook.resize( p, size ) : realloc( p, size ) );
+}
+
+static void raw_free( void *p )
+{
+   if (have_hook)
+      alloc_hook.put( p );
+   else
+      free( p );
+}
+
 /* a block as the editor allocated it: this header, and then what it asked for */
 struct tde_alloc {
    tde_alloc *prev, *next;
@@ -47,7 +83,7 @@ void *tde_malloc( size_t size )
 
    if (tde == NULL)
       return( NULL );
-   b = malloc( sizeof(*b) + size );
+   b = raw_alloc( sizeof(*b) + size );
    if (b == NULL)
       return( NULL );
    b->size = size;
@@ -75,7 +111,7 @@ void *tde_realloc( void *p, size_t size )
       return( tde_malloc( size ) );
    b = (tde_alloc *)p - 1;
    unlink_block( b );
-   n = realloc( b, sizeof(*b) + size );
+   n = raw_realloc( b, sizeof(*b) + size );
    if (n == NULL) {
       link_block( b );
       return( NULL );
@@ -93,7 +129,7 @@ void tde_free( void *p )
       return;
    b = (tde_alloc *)p - 1;
    unlink_block( b );
-   free( b );
+   raw_free( b );
 }
 
 size_t tde_state_live_blocks( void )
@@ -127,7 +163,7 @@ void tde_state_destroy( void )
       return;
    for (b = s->blocks; b != NULL; b = next) {
       next = b->next;
-      free( b );
+      raw_free( b );
    }
    tde = NULL;
    free( s );

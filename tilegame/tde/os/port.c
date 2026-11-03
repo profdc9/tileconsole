@@ -31,6 +31,7 @@
 #include "common.h"
 #include "tdefunc.h"
 #include "define.h"
+#include "tdestate.h"
 #include <sys/types.h>
 #include <utime.h>
 #include <errno.h>
@@ -53,7 +54,12 @@ extern char __HeapLimit;
 
 long my_heapavail( void )
 {
-   struct mallinfo mi = mallinfo( );
+   struct mallinfo mi;
+   long pooled = tde_state_avail( );
+
+   if (pooled >= 0)
+      return( pooled );
+   mi = mallinfo( );
    char *top = sbrk( 0 );
 
    return( (long)mi.fordblks + (long)(&__HeapLimit - top) );
@@ -61,7 +67,9 @@ long my_heapavail( void )
 #else
 long my_heapavail( void )
 {
-   return( 16L * 1024 * 1024 );
+   long pooled = tde_state_avail( );
+
+   return( pooled >= 0 ? pooled : 16L * 1024 * 1024 );
 }
 #endif
 

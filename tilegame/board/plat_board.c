@@ -27,6 +27,9 @@
 #include "pico_hdmi/hstx_packet.h"
 #include "pico_hdmi/video_output.h"
 
+#if PLAT_PSRAM
+#include "psram.h"
+#endif
 #include "platform.h"
 #include "tilegfx.h"
 #if PLAT_USB_HID
@@ -311,6 +314,9 @@ bool plat_init(void)
     }
     set_flash_timing(PLAT_CPU_MHZ);
     set_sys_clock_khz(PLAT_CPU_MHZ * 1000, true);
+#if PLAT_PSRAM
+    psram_init(PSRAM_CS_PIN, 133);   /* (before core 1 starts: this stops flash reads for a moment) */
+#endif
     stdio_init_all();
     if (watchdog_hw->scratch[0] == HANG_MAGIC || watchdog_hw->scratch[0] == PANIC_MAGIC) {
         hung_last_run = true;

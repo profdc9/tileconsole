@@ -17,6 +17,8 @@
 #include "tde_os.h"
 #include "tg_text.h"
 #include "tilefs.h"
+#include "pool.h"
+#include "tdealloc.h"
 
 FILE *__real_fopen(const char *name, const char *mode);
 static int checks;
@@ -51,6 +53,14 @@ int plat_getkey(plat_key_event_t *e)
 bool plat_quit_requested(void) { return false; }
 
 static void finish(int code);
+
+/* The editor's blocks come from a pool, as they do on the board; after each run the pool must be as it was */
+#define EDITOR_POOL_BYTES (4 * 1024 * 1024)
+static pool_t *editor_pool;
+static void *pool_get(size_t n) { return pool_malloc(editor_pool, n); }
+static void *pool_resize(void *p, size_t n) { return pool_realloc(editor_pool, p, n); }
+static void pool_put(void *p) { pool_free(editor_pool, p); }
+static long pool_avail(void) { return (long)pool_free_bytes(editor_pool); }
 
 static void idle(void)
 {
@@ -304,7 +314,13 @@ static void child(const char *keys, const char *cmdline)
     for (char *p = strtok(buf, " "); p && n < 7; p = strtok(NULL, " "))
         args[n++] = p;
     args[n] = NULL;
+    static const tde_allocator_t from_pool = {pool_get, pool_resize, pool_put, pool_avail};
+    editor_pool = pool_create(aligned_alloc(8, EDITOR_POOL_BYTES), EDITOR_POOL_BYTES);
+    const size_t pool_fresh = pool_free_bytes(editor_pool);
+    tde_state_set_allocator(&from_pool);
     tde_main(n, args);
+    if (pool_free_bytes(editor_pool) != pool_fresh)
+        _exit(12);   /* the editor left blocks in the pool */
     if (second_keys) {   /* the editor again, with a new state: it must start as it did the first time */
         parse_keys(second_keys);
         args[0] = program;   /* (the first run left its own path in argv[0], which went with its state) */
@@ -314,6 +330,8 @@ static void child(const char *keys, const char *cmdline)
             args[n++] = p;
         args[n] = NULL;
         tde_main(n, args);
+        if (pool_free_bytes(editor_pool) != pool_fresh)
+            _exit(12);
     }
     finish(10);   /* the editor ended by itself: this is its screen, and the exit code says so */
 }

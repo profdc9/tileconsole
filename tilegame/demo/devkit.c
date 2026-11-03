@@ -11,6 +11,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef DEVKIT_BOARD
+#include "psram.h"
+#include "pool.h"
+#include "tdealloc.h"
+#include "my_basic.h"
+#include <malloc.h>
+#include <unistd.h>
+#endif
 
 #include "basic_env.h"
 #include "platform.h"
@@ -34,11 +42,20 @@ int __real_mkdir(const char *path, mode_t mode);   /* the C library's own (the e
 
 static tg_text_t screen;
 static tg_t g;
+#ifdef DEVKIT_BOARD
+static basic_env_t *env_p;   /* (in the PSRAM, with the interpreter's memory) */
+#define env (*env_p)
+#else
 static basic_env_t env;
+#endif
 #ifdef DEVKIT_BOARD
 static fs_fat_t fat;
 static fs_ram_t ram;
 #define RAM_DISK_BYTES (96 * 1024)
+static bool psram_ok;
+static uint8_t *ram_disk;
+static size_t ram_disk_bytes;
+static pool_t *pool;   /* the interpreter's and the editor's memory (the editor needs about 1 MB, and only while it runs) */
 static sd_spi_pico_t port;
 static sd_spi_t sd;
 static uint8_t stack[STACK_BYTES] __attribute__((aligned(8)));
@@ -124,9 +141,10 @@ static const char *mount_files(void)
     static char why[100];
     snprintf(why, sizeof why, "No usable SD card (%s): the files are in RAM and are lost at power off.\n", fs_strerror(e < 0 ? e : FS_EIO));
     fs_fat_done(&fat);
-    uint8_t *pool = malloc(RAM_DISK_BYTES);   /* (only taken from the heap when it is used) */
-    if (pool)
-        fs_ram_init(&ram, pool, RAM_DISK_BYTES);
+    if (ram_disk)
+        fs_ram_init(&ram, ram_disk, ram_disk_bytes);
+    else if ((ram_disk = malloc(RAM_DISK_BYTES)) != NULL)   /* (no PSRAM: taken from the heap, and only when it is used) */
+        fs_ram_init(&ram, ram_disk, RAM_DISK_BYTES);
     fs_mount("sd", &fs_ram_ops, &ram);
     return why;
 }
@@ -229,9 +247,77 @@ static void run_editor(const char *name)
     drain_keys();
 }
 
+#ifdef DEVKIT_BOARD
+static void *tde_get(size_t n) { return pool_malloc(pool, n); }
+static void *tde_resize(void *p, size_t n) { return pool_realloc(pool, p, n); }
+static void tde_put(void *p) { pool_free(pool, p); }
+static long tde_avail(void) { return (long)pool_free_bytes(pool); }
+static char *basic_get(unsigned n) { return pool_malloc(pool, n); }
+static void basic_put(char *p) { pool_free(pool, p); }
+
+/* The PSRAM, after the self-test has used it: a quarter is the RAM disk (when there is no card), the rest is one pool for the
+ * interpreter (its programs and the BASIC environment) and the editor. Without PSRAM, everything stays in the C library's heap. */
+static void setup_memory(void)
+{
+    static const tde_allocator_t from_pool = {tde_get, tde_resize, tde_put, tde_avail};
+    const size_t size = psram_ok ? psram_size() : 0;
+    if (size >= (1u << 20)) {
+        uint8_t *base = PSRAM_BASE;
+        const size_t quarter = size / 4;
+        ram_disk = base;
+        ram_disk_bytes = quarter;
+        pool = pool_create(base + quarter, size - quarter);
+        if (pool) {
+            mb_set_memory_manager(basic_get, basic_put);
+            tde_state_set_allocator(&from_pool);
+        }
+    }
+    env_p = pool ? pool_calloc(pool, 1, sizeof *env_p) : calloc(1, sizeof *env_p);
+    if (!env_p)
+        for (;;) {}
+}
+
+#define STACK_FILL 0xA5
+
+/* the most the stack has been used: the lowest byte that is no longer the fill main() painted */
+static size_t stack_peak(void)
+{
+    size_t free_bytes = 0;
+    while (free_bytes < sizeof stack && stack[free_bytes] == STACK_FILL)
+        free_bytes++;
+    return sizeof stack - free_bytes;
+}
+
+extern char __HeapLimit;
+
+/* STACK and HEAP at the BASIC prompt */
+static int board_info(const char *what, char *out, size_t size)
+{
+    if (!strcmp(what, "stack")) {
+        snprintf(out, size, "stack: peak %u of %u bytes used", (unsigned)stack_peak(), (unsigned)sizeof stack);
+        return 1;
+    }
+    if (!strcmp(what, "heap")) {
+        const struct mallinfo mi = mallinfo();
+        const long system = (long)mi.fordblks + (long)(&__HeapLimit - (char *)sbrk(0));
+        if (pool)
+            snprintf(out, size, "heap: %ld bytes free in the PSRAM pool, %ld in the system heap", (long)pool_free_bytes(pool), system);
+        else
+            snprintf(out, size, "heap: %ld bytes free in the system heap", system);
+        return 1;
+    }
+    return 0;
+}
+
+#endif
+
 static void devkit(void)
 {
-    static const basic_hooks_t hooks = {get_char, frame, plat_millis};
+    #ifdef DEVKIT_BOARD
+    static const basic_hooks_t hooks = {get_char, frame, plat_millis, board_info};
+#else
+    static const basic_hooks_t hooks = {get_char, frame, plat_millis, NULL};
+#endif
 #ifdef DEVKIT_BOARD
     static char note_copy[200];
     const char *last = last_run_note();   /* (before plat_init, which clears the hang report) */
@@ -250,6 +336,22 @@ static void devkit(void)
     tg_init(&g);
     g.mode = TG_MODE_TEXT;
     g.text = &screen;
+#ifdef DEVKIT_BOARD
+    char psram_note[120];
+    {
+        const size_t sz = psram_size();
+        if (sz) {
+            uint32_t w = 0, r = 0;
+            const uint32_t bad = psram_selftest(1, &w, &r);
+            snprintf(psram_note, sizeof psram_note, "PSRAM: %u MB, %s (%u bad), write %u KB/s, read %u KB/s\n", (unsigned)(sz >> 20),
+                     bad ? "FAILED" : "ok", (unsigned)bad, (unsigned)w, (unsigned)r);
+            psram_ok = bad == 0;   /* (a memory that does not hold what is written to it is not used) */
+        } else {
+            snprintf(psram_note, sizeof psram_note, "PSRAM: none found\n");
+        }
+    }
+    setup_memory();
+#endif
     const char *note = mount_files();
     fs_chdir("/sd");
     install_config();
@@ -260,6 +362,9 @@ static void devkit(void)
     if (note_copy[0])
         tg_console_puts(&env.con, note_copy);
 #endif
+#ifdef DEVKIT_BOARD
+    tg_console_puts(&env.con, psram_note);
+#endif
     for (;;) {
         const int r = basic_env_run(&env);
         if (r == BASIC_EXIT_EDIT) {
@@ -269,6 +374,10 @@ static void devkit(void)
             tg_console_puts(&env.con, "\n");
         } else {
 #ifdef DEVKIT_BOARD
+            char stack_line[100];
+            board_info("stack", stack_line, sizeof stack_line);
+            tg_console_puts(&env.con, stack_line);
+            tg_console_puts(&env.con, "\n");
             tg_console_puts(&env.con, "Nothing to leave to: this is the whole machine. EDIT starts the editor.\n");
 #else
             break;
@@ -284,6 +393,7 @@ int main(int argc, char **argv)
     (void)argv;
     /* the stack grows down from the top of the array; interrupt handlers use it too */
     uint8_t *top = stack + sizeof stack;
+    memset(stack, STACK_FILL, sizeof stack);   /* (main is still on the boot stack) */
     __asm volatile("msr msp, %0\n\tbx %1\n" ::"r"(top), "r"(devkit) : "memory");
     __builtin_unreachable();
 #else

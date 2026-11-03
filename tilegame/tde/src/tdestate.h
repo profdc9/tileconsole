@@ -37,6 +37,8 @@ tde_state_t *tde_state_create( void );
 void         tde_state_destroy( void );
 size_t       tde_state_live_blocks( void );  /* blocks still allocated (for tests) */
 
+#include "tdealloc.h"
+
 void *tde_malloc( size_t );
 void *tde_calloc( size_t, size_t );
 void *tde_realloc( void *, size_t );
