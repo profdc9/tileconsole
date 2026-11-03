@@ -86,3 +86,23 @@ AMS1117-3.3, the USB-A port (VBUS) and the Mini-DINs.
   detection) breaks the host port, so devices stopped working with a USB-C charger.
 - Hardware fixes (the capacitor above was the one that mattered for restarts), in order of effort: a self-powered hub; a lower barrel voltage (less dissipation in the KA78M05); a bulk
   capacitor next to J11; a switching regulator and a current-limited USB switch for VBUS; not powering from a USB-C charger.
+
+## The workaround in the firmware (vendored TinyUSB 0.18.0, `third_party/tinyusb`)
+
+What the logs showed (usblog23 to 31): a low-speed keyboard behind the hub fails (control requests lost, the controller retries for
+ever) when it is enumerated after a full-speed gamepad on the same hub, and works when it is enumerated first. A 300 us gap between
+transactions (`USB_LS_GAP_US`, one packet at a time) did not fix the failure (usblog27: the third packet of the descriptor read is
+lost, with a data sequence error, probably the controller's own ACK to the keyboard), so it is not what the workaround relies on.
+
+The workaround is to recover, and to make the recovery enumerate the keyboard first:
+- the receive timeout storm detector restarts the USB host after about 0.3 s (`usb_hid.c`, at most 2 automatic restarts in a row);
+- the hub port where the storm hit is remembered, and after a restart the vendored hub driver looks at that port first
+  (`tilegame_hub_first_port` in `third_party/tinyusb/src/host/hub.c`), whatever its number, so the keyboard is enumerated before the gamepad;
+- a control transfer that has not completed for 2 s also restarts the host (TinyUSB 0.18 has no timeout; the stall was seen on a gamepad's
+  HID report descriptor read, usblog26);
+- a buffer status for an endpoint with no transfer is ignored instead of panicking (usblog25).
+
+Result: keyboard plugged into the hub after the gamepad (usblog30, keyboard in hub port 4, gamepad in port 3): the keyboard fails once,
+the host restarts after 0.8 s, the keyboard comes up first and then the gamepad (both working about 2 s after the plug-in). Everything
+plugged in at power-up (usblog31): no restarts. The cause of the failure is still not known; the TinyUSB issue draft
+(`tinyusb-issue.md`) describes it.
