@@ -49,7 +49,7 @@ void tg_text_set_cursor_blink(tg_text_t *t, bool blink)
 
 void tg_text_set_glyph(tg_text_t *t, uint8_t ch, const uint8_t rows[TG_GLYPH_HEIGHT])
 {
-    memcpy(t->font + (size_t)ch * TG_GLYPH_HEIGHT, rows, TG_GLYPH_HEIGHT);
+    memcpy(tg_text_font(t) + (size_t)ch * TG_GLYPH_HEIGHT, rows, TG_GLYPH_HEIGHT);
 }
 
 void tg_text_clear(tg_text_t *t, uint8_t attr)

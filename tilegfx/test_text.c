@@ -38,7 +38,7 @@ static uint16_t ref_pixel(const tg_text_t *t, int x, int y, uint32_t frame)
     if ((t->cursor_flags & 1) && !blink_off && col == t->cursor_col && row == t->cursor_row && ty % 16 >= t->cursor_start &&
         ty % 16 <= t->cursor_end)
         return t->palette[fg];
-    const int bit = (t->font[ch * 16 + ty % 16] >> (7 - x % 8)) & 1;
+    const int bit = (tg_text_font(t)[ch * 16 + ty % 16] >> (7 - x % 8)) & 1;
     return t->palette[bit ? fg : bg];
 }
 
@@ -60,8 +60,8 @@ static void test_render_random(void)
     for (int round = 0; round < 60; round++) {
         for (int i = 0; i < TG_TEXT_CELLS; i++)
             screen.cells[i] = (uint16_t)rnd();
-        for (size_t i = 0; i < sizeof screen.font; i++)
-            screen.font[i] = (uint8_t)rnd();
+        for (size_t i = 0; i < TG_FONT_BYTES; i++)
+            tg_text_font(&screen)[i] = (uint8_t)rnd();
         for (int i = 0; i < 16; i++)
             screen.palette[i] = (uint16_t)rnd();
         screen.cursor_col = (int8_t)((int)(rnd() % 84) - 2);        /* often on the screen, sometimes not */
@@ -98,7 +98,7 @@ static void test_render_edges(void)
         screen.cells[i] = 0xFFFF;                   /* white on white everywhere, so that any pixel outside the text shows */
     for (int i = 0; i < 16; i++)
         screen.palette[i] = 0xFFFF;
-    memset(screen.font, 0xFF, sizeof screen.font);
+    memset(tg_text_font(&screen), 0xFF, TG_FONT_BYTES);
     g.text = &screen;
     for (int line = 0; line < 480; line++)
         check_line(&g, line);                       /* black above line 40 and from line 440, white between */
@@ -317,9 +317,10 @@ static void test_helpers(void)
 
     /* Redefining a glyph shows in the picture. */
     static const uint8_t mine[16] = {0x81, 0x42, 0x24, 0x18, 0x18, 0x24, 0x42, 0x81, 1, 2, 4, 8, 16, 32, 64, 128};
+    memset(tg_text_font(&t), 0, TG_FONT_BYTES);        /* (the table is shared with the other tests: start from blank) */
     tg_text_set_glyph(&t, 200, mine);
-    CHECK(memcmp(t.font + 200 * 16, mine, 16) == 0);
-    CHECK(t.font[199 * 16 + 15] == 0 && t.font[201 * 16] == 0);   /* its neighbours are untouched */
+    CHECK(memcmp(tg_text_font(&t) + 200 * 16, mine, 16) == 0);
+    CHECK(tg_text_font(&t)[199 * 16 + 15] == 0 && tg_text_font(&t)[201 * 16] == 0);   /* its neighbours are untouched */
     tg_text_clear(&t, TG_TEXT_ATTR(TG_TEXT_WHITE, TG_TEXT_RED));
     tg_text_put_cell(&t, 10, 10, 200, TG_TEXT_ATTR(TG_TEXT_BLACK, TG_TEXT_WHITE));
     tg_t g;
@@ -335,10 +336,41 @@ static void test_helpers(void)
     CHECK((uint16_t)out[43] == t.palette[TG_TEXT_WHITE] && (uint16_t)(out[43] >> 16) == t.palette[TG_TEXT_BLACK]);
 }
 
+/* Screens share one glyph table unless one is given a table of its own; the renderer and tg_text_set_glyph use the right one */
+static void test_font_tables(void)
+{
+    static tg_text_t a, b, c;
+    static uint8_t own[TG_FONT_BYTES];
+    CHECK(a.font == NULL && tg_text_font(&a) == tg_text_shared_font);
+    const uint8_t mine[16] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
+    tg_text_set_glyph(&a, 65, mine);
+    CHECK(memcmp(tg_text_font(&b) + 65 * 16, mine, 16) == 0);   /* b sees a's glyph: one table */
+    c.font = own;
+    CHECK(tg_text_font(&c) == own);
+    CHECK(tg_text_load_cp437(&c) == 0);
+    uint8_t full[16];
+    memset(full, 0xFF, sizeof full);
+    CHECK(memcmp(own + 0xDB * 16, full, 16) == 0);              /* the full block went into c's table */
+    CHECK(memcmp(tg_text_font(&b) + 65 * 16, mine, 16) == 0);   /* and the shared one is as it was */
+    /* a screen with its own table is drawn with it, the others with the shared one */
+    static tg_t g;
+    g.mode = TG_MODE_TEXT;
+    static uint32_t line_a[320], line_c[320];
+    a.cells[0] = c.cells[0] = TG_TEXT_CELL(0xDB, TG_TEXT_ATTR(15, 0));
+    for (int i = 0; i < 16; i++)
+        a.palette[i] = c.palette[i] = (uint16_t)(i ? 0xFFFF : 0);
+    memset(tg_text_shared_font, 0, TG_FONT_BYTES);
+    g.text = &a;
+    tg_render_display_line(&g, TG_TEXT_TOP, line_a);
+    g.text = &c;
+    tg_render_display_line(&g, TG_TEXT_TOP, line_c);
+    CHECK(line_a[0] == 0 && line_c[0] == 0xFFFFFFFFu);
+}
+
 static void test_cp437(void)
 {
     static tg_text_t t;
-    memset(&t, 0xEE, sizeof t.font);
+    memset(tg_text_font(&t), 0xEE, TG_FONT_BYTES);
     CHECK(tg_text_load_cp437(&t) == 0);
     /* Spot checks of the table. */
     CHECK(tg_cp437_to_unicode(0x41) == 'A' && tg_cp437_to_unicode(0x20) == ' ' && tg_cp437_to_unicode(0x00) == ' ');
@@ -354,7 +386,7 @@ static void test_cp437(void)
     for (int c = 0; c < 256; c++) {
         const uint8_t *g = tg_font_glyph(&tg_font_unscii16, tg_cp437_to_unicode((uint8_t)c));
         if (g)
-            CHECK(memcmp(t.font + c * 16, g, 16) == 0);
+            CHECK(memcmp(tg_text_font(&t) + c * 16, g, 16) == 0);
         else
             drawn++;
     }
@@ -363,23 +395,23 @@ static void test_cp437(void)
     for (int i = 0; i < 4; i++) {
         int set = 0;
         for (int r = 0; r < 16; r++)
-            set += t.font[four[i] * 16 + r] != 0;
+            set += tg_text_font(&t)[four[i] * 16 + r] != 0;
         CHECK(set >= 2);                                                            /* drawn, not blank */
     }
     /* Characters that must look like something, and the ones that must be blank. */
     for (int c = 0x21; c < 0x7F; c++) {
         int set = 0;
         for (int r = 0; r < 16; r++)
-            set += t.font[c * 16 + r] != 0;
+            set += tg_text_font(&t)[c * 16 + r] != 0;
         CHECK(set > 0);
     }
     for (int r = 0; r < 16; r++)
-        CHECK(t.font[0x20 * 16 + r] == 0 && t.font[r] == 0);                        /* space and NUL are blank */
+        CHECK(tg_text_font(&t)[0x20 * 16 + r] == 0 && tg_text_font(&t)[r] == 0);                        /* space and NUL are blank */
     for (int r = 0; r < 16; r++)
-        CHECK(t.font[0xDB * 16 + r] == 0xFF);                                       /* the full block */
-    CHECK(t.font[0xDC * 16 + 7] == 0 && t.font[0xDC * 16 + 8] == 0xFF);             /* lower half block: the bottom 8 rows */
-    CHECK(t.font[0xDF * 16 + 7] == 0xFF && t.font[0xDF * 16 + 8] == 0);             /* upper half block */
-    CHECK(t.font[0xDD * 16] == 0xF0 && t.font[0xDE * 16] == 0x0F);                  /* left and right half blocks */
+        CHECK(tg_text_font(&t)[0xDB * 16 + r] == 0xFF);                                       /* the full block */
+    CHECK(tg_text_font(&t)[0xDC * 16 + 7] == 0 && tg_text_font(&t)[0xDC * 16 + 8] == 0xFF);             /* lower half block: the bottom 8 rows */
+    CHECK(tg_text_font(&t)[0xDF * 16 + 7] == 0xFF && tg_text_font(&t)[0xDF * 16 + 8] == 0);             /* upper half block */
+    CHECK(tg_text_font(&t)[0xDD * 16] == 0xF0 && tg_text_font(&t)[0xDE * 16] == 0x0F);                  /* left and right half blocks */
 }
 
 int main(void)
@@ -389,6 +421,7 @@ int main(void)
     test_modes();
     test_cursor();
     test_helpers();
+    test_font_tables();
     test_cp437();
     printf("all %d checks passed\n", checks);
     return 0;

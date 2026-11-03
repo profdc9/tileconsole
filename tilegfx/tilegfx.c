@@ -3,6 +3,8 @@
 
 #include <string.h>
 
+uint8_t tg_text_shared_font[TG_FONT_BYTES];
+
 /* On a microcontroller, define TG_HOT_SECTION as a section name (a string) to keep the compositor out of flash. */
 #ifdef TG_HOT_SECTION
 #define TG_HOT __attribute__((section(TG_HOT_SECTION)))
@@ -316,7 +318,7 @@ TG_HOT static void render_text_line(const tg_t *g, int line, uint32_t out[TG_WID
         if (r >= t->cursor_start && r <= t->cursor_end && (!(t->cursor_flags & TG_CURSOR_BLINK) || (g->frame / TG_CURSOR_BLINK_FRAMES) % 2 == 0))
             cursor = t->cursor_col;
     }
-    const uint8_t *font_row = t->font + (y % TG_GLYPH_HEIGHT);
+    const uint8_t *font_row = tg_text_font(t) + (y % TG_GLYPH_HEIGHT);
     const uint16_t *pal = t->palette;
     for (int col = 0; col < TG_TEXT_COLS; col++) {
         const uint32_t c = cell[col];

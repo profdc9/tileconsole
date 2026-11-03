@@ -258,17 +258,19 @@ static uint16_t ref_text_pixel(const tg_text_t *t, int x, int y)
     if (ty < 0 || ty >= 400)
         return 0;
     const uint16_t cell = t->cells[(ty / 16) * 80 + x / 8];
-    return t->palette[((t->font[(cell & 255) * 16 + ty % 16] >> (7 - x % 8)) & 1) ? (cell >> 8) & 15 : (cell >> 12) & 15];
+    return t->palette[((tg_text_font(t)[(cell & 255) * 16 + ty % 16] >> (7 - x % 8)) & 1) ? (cell >> 8) & 15 : (cell >> 12) & 15];
 }
 
 static void test_text_mode(void)
 {
     static tg_text_t screen;
+    static uint8_t own_font[TG_FONT_BYTES];   /* (random glyphs: a table of its own, so that the shared one stays blank for the other tests) */
+    screen.font = own_font;
     srand(5);
     for (int i = 0; i < TG_TEXT_CELLS; i++)
         screen.cells[i] = (uint16_t)rand();
-    for (size_t i = 0; i < sizeof screen.font; i++)
-        screen.font[i] = (uint8_t)rand();
+    for (size_t i = 0; i < TG_FONT_BYTES; i++)
+        tg_text_font(&screen)[i] = (uint8_t)rand();
     for (int i = 0; i < 16; i++)
         screen.palette[i] = (uint16_t)(rand() | 0x0021);
     static tg_t g;

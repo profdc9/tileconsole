@@ -48,12 +48,22 @@
 
 typedef struct {
     uint16_t cells[TG_TEXT_CELLS];                 /* row by row: TG_TEXT_CELL(character, attribute) */
-    uint8_t font[256 * TG_GLYPH_HEIGHT];           /* glyph c is font[16 * c .. 16 * c + 15], top row first, leftmost pixel = bit 7 */
+    uint8_t *font;                                 /* the glyphs, if this screen has a table of its own (TG_FONT_BYTES); NULL: the shared one (tg_text_font) */
     uint16_t palette[16];                          /* RGB565 */
     int8_t cursor_col, cursor_row;                 /* the cursor's cell; outside the screen: no cursor is drawn */
     uint8_t cursor_start, cursor_end;              /* the first and last scanline (0..15) it covers; none is drawn if start > end */
     uint8_t cursor_flags;                          /* TG_CURSOR_*; all zero (the cursor is hidden) in a zeroed screen */
 } tg_text_t;
+
+/* The glyphs of text mode are 256 of 16 bytes: glyph c is font[16 * c .. 16 * c + 15], top row first, leftmost pixel = bit 7. Screens
+ * share one table by default, so that a copy of a screen (the platform layer makes one for each frame) does not carry 4 KB of glyphs
+ * with it; a screen can be given a table of its own by setting `font`. */
+#define TG_FONT_BYTES (256 * TG_GLYPH_HEIGHT)
+extern uint8_t tg_text_shared_font[TG_FONT_BYTES];
+static inline uint8_t *tg_text_font(const tg_text_t *t)
+{
+    return t->font ? t->font : tg_text_shared_font;
+}
 
 typedef enum { TG_MODE_TILES = 0, TG_MODE_TEXT } tg_mode_t;
 

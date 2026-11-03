@@ -171,8 +171,8 @@ static void test_output(void)
     /* The PC character set is loaded: the glyph of a capital A is not blank, and a box character is there. */
     int set = 0;
     for (int r = 0; r < 16; r++)
-        set += scr()->font['A' * 16 + r] != 0;
-    CHECK(set > 4 && scr()->font[0xDB * 16] == 0xFF);
+        set += tg_text_font(scr())['A' * 16 + r] != 0;
+    CHECK(set > 4 && tg_text_font(scr())[0xDB * 16] == 0xFF);
     console_puts("Hi");
     console_putch('!');
     CHECK(cell(0, 0) == 0x0748 && cell(1, 0) == 0x0769 && cell(2, 0) == 0x0721 && con->col == 3);

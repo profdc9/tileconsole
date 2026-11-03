@@ -45,7 +45,7 @@ unsigned tg_text_load_cp437(tg_text_t *t)
 {
     unsigned missing = 0;
     for (int ch = 0; ch < 256; ch++) {
-        uint8_t *dst = t->font + (size_t)ch * TG_GLYPH_HEIGHT;
+        uint8_t *dst = tg_text_font(t) + (size_t)ch * TG_GLYPH_HEIGHT;
         const uint8_t *g = tg_font_glyph(&tg_font_unscii16, cp437[ch]);
         if (g) {
             memcpy(dst, g, TG_GLYPH_HEIGHT);
