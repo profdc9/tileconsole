@@ -21,6 +21,11 @@ int usb_hid_diag(char (*lines)[41], int max_lines);
 /* The XInput class driver (xinput_host.c) reports its pads here. A device that has a gamepad interface, XInput or HID, has its
  * keyboard and mouse interfaces ignored: they are emulations or configuration channels, not what is wanted. */
 void usb_hid_task_stats(uint32_t *max_us, uint32_t *total_us);   /* the longest call and the total time in usb_hid_task since the last call */
+#ifndef USB_PAD_LATE
+#define USB_PAD_LATE 0   /* an XInput pad's endpoints are opened and polled only when no device has appeared for USB_PAD_QUIET_MS */
+#endif
+#define USB_PAD_QUIET_MS 2500
+bool usb_hid_quiet(void);   /* no device has appeared for USB_PAD_QUIET_MS */
 void xinput_poll(void);   /* repeats the LED command to a pad that has not sent a report yet */
 int xinput_debug(char (*lines)[41], int max_lines);   /* counters from the XInput driver, for the diagnostic screen */
 void usb_hid_xinput_attach(uint8_t dev_addr);

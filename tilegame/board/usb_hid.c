@@ -113,6 +113,7 @@ void usb_hid_init(void)
 }
 
 static uint32_t host_restarts;
+static volatile uint32_t last_attach_ms;   /* when a device last appeared (USBLOG builds), for usb_hid_quiet */
 
 #if USBLOG
 /* Host recovery. TinyUSB 0.18 does not forget an enumeration that was under way when its device went away (process_removing_device
@@ -132,6 +133,8 @@ static uint32_t auto_restarts;
 void __not_in_flash_func(usb_hid_host_event)(uint8_t event_id, uint8_t hub_addr, uint8_t hub_port)
 {
     const uint32_t now = time_us_32() | 1;
+    if (event_id == HCD_EVENT_DEVICE_ATTACH)
+        last_attach_ms = to_ms_since_boot(get_absolute_time());
     if (event_id == HCD_EVENT_DEVICE_REMOVE && hub_addr == 0 && hub_port == 0)
         root_removed_us = now;
     else if (event_id == HCD_EVENT_DEVICE_ATTACH && !attach_us) {
@@ -201,6 +204,12 @@ static void check_host(void) {}
 #endif
 
 static uint32_t seq_errors, hid_mounts, last_mount_ms;
+
+bool usb_hid_quiet(void)
+{
+    const uint32_t now = to_ms_since_boot(get_absolute_time());
+    return now - last_mount_ms > USB_PAD_QUIET_MS && now - last_attach_ms > USB_PAD_QUIET_MS;
+}
 
 /* TinyUSB asks the hub for its next status report with hub_edpt_status_xfer (-Wl,--wrap on it). If that ever fails, a hub stops noticing
  * devices that are plugged in, so the calls and failures are counted for the diagnostic screen. */

@@ -28,7 +28,7 @@ Capturing what Linux does with the same devices (`usbmon`, Wireshark) was the wa
   (`AUTO_RESTARTS_MAX`); a device that fails the same way each time is not helped by more, and the loop made the gamepad drop
   every 2.5 s.
 - **Control transfers in mount callbacks, data sequence panic:** see the README.
-- Experiments that did not help and are off by default: `USB_PAUSE_POLL` (hold other devices' polling during an enumeration),
+- Experiments that did not help and are off by default: `USB_PAUSE_POLL` (hold other devices' polling during an enumeration), `USB_PAD_LATE` (open and poll the pad only after the bus has been quiet),
   `USB_FS_INT_MS` (slower polling for full-speed endpoints), and a second port reset (patched TinyUSB, as Linux does).
 
 ## The keyboard behind the hub
@@ -45,9 +45,16 @@ Observed with a bus-powered USB 3.0 hub, a low-speed keyboard and a full-speed X
 Workaround: plug the keyboard in before the gamepad.
 
 It is not the supply: with a self-powered hub the keyboard fails to enumerate after a replug in the same way, and the failure
-stayed when the board's 5 V rail was made stiffer (below). What is left is the bus protocol: a low-speed device behind a hub that
-the board drives at full speed, with the gamepad's endpoints being polled by the controller at the same time. The fault is on the
-control transfer to the new device (`SET_ADDRESS` after a good first descriptor read), not on its power.
+stayed when the board's 5 V rail was made stiffer (below).
+
+It is not the gamepad's polling either. With `USB_PAD_LATE` the pad's endpoints are not even opened until the bus has been quiet
+for 2.5 s, and the log (usblog16) shows no transfer to any endpoint of the pad while the keyboard is enumerated. The keyboard still
+fails: the first 8 bytes of its device descriptor are read, then the zero-length status stage gets receive timeouts, thousands a
+second, until the host restart. What matters is only that the pad has already been enumerated (addressed and configured) on the
+hub; with the keyboard enumerated first, everything works. The fault is in the control transfer to the low-speed device through
+the hub (preamble packets, the hub driven at full speed). Not found: Linux, which uses the hub's transaction translator and resets
+the port a second time, does not hit it.
+Left in the code as default-off experiments: `USB_PAD_LATE`, `USB_PAUSE_POLL`, `USB_FS_INT_MS`.
 
 ## Power
 

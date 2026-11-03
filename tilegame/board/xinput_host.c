@@ -19,6 +19,8 @@ typedef struct {
     uint8_t ep_in, ep_out;
     uint8_t in_interval, out_interval;
     uint16_t in_mps;
+    tusb_desc_endpoint_t desc_in, desc_out;   /* USB_PAD_LATE: the endpoints are opened once the bus has been quiet for a while */
+    bool opened, want_start;
     uint32_t reports;      /* reports with data: until there is one, the LED command is repeated */
     uint32_t last_led_ms;
     uint8_t buf[32] TU_ATTR_ALIGNED(4);
@@ -41,6 +43,10 @@ static bool x_init(void)
 }
 
 static bool x_deinit(void) { return true; }
+
+#if USB_PAD_LATE
+static void open_late(uint8_t dev_addr, xdev_t *x);
+#endif
 
 static void start_receive(uint8_t dev_addr, xdev_t *x)
 {
@@ -82,6 +88,14 @@ void xinput_poll(void)
     const uint32_t now = to_ms_since_boot(get_absolute_time());
     for (uint8_t d = 1; d <= CFG_TUH_DEVICE_MAX; d++) {
         xdev_t *x = &xdev[d];
+#if USB_PAD_LATE
+        if (x->used && x->want_start && usb_hid_quiet()) {
+            open_late(d, x);
+            continue;
+        }
+        if (!x->opened)
+            continue;
+#endif
         if (x->used && x->reports == 0 && now - x->last_led_ms >= 500)
             send_led(d, x);
     }
@@ -106,8 +120,13 @@ static bool x_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_t
         const tusb_desc_endpoint_t *ep = (const tusb_desc_endpoint_t *)p;
         if (ep->bmAttributes.xfer != TUSB_XFER_INTERRUPT)
             continue;
+#if USB_PAD_LATE
+        if (tu_edpt_dir(ep->bEndpointAddress) == TUSB_DIR_IN ? !x->ep_in : !x->ep_out)
+            *(tu_edpt_dir(ep->bEndpointAddress) == TUSB_DIR_IN ? &x->desc_in : &x->desc_out) = *ep;
+#else
         if (!tuh_edpt_open(dev_addr, ep))
             return false;
+#endif
         if (tu_edpt_dir(ep->bEndpointAddress) == TUSB_DIR_IN) {
             if (!x->ep_in) {
                 x->ep_in = ep->bEndpointAddress;
@@ -127,10 +146,30 @@ static bool x_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_t
     return true;
 }
 
+#if USB_PAD_LATE
+static void open_late(uint8_t dev_addr, xdev_t *x)
+{
+    x->want_start = false;
+    if (!x->opened) {
+        if (!tuh_edpt_open(dev_addr, &x->desc_in) || (x->ep_out && !tuh_edpt_open(dev_addr, &x->desc_out)))
+            return;
+        x->opened = true;
+    }
+    start_receive(dev_addr, x);
+    send_led(dev_addr, x);
+}
+#endif
+
 static bool x_set_config(uint8_t dev_addr, uint8_t itf_num)
 {
     xdev_t *x = &xdev[dev_addr];
     dbg.configured++;
+#if USB_PAD_LATE
+    if (x->used)
+        x->want_start = true;   /* xinput_poll starts it when the bus is quiet */
+    usbh_driver_set_config_complete(dev_addr, itf_num);
+    return true;
+#endif
     if (x->used) {
         start_receive(dev_addr, x);
         /* What Linux's xpad driver does for every Xbox 360 style pad: set the LED ("player 1 on"). Some third-party pads do not
@@ -159,6 +198,12 @@ static bool x_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, u
         if (xferred_bytes)
             x->reports++;
         usb_hid_xinput_report(dev_addr, x->buf, (uint16_t)xferred_bytes);
+#if USB_PAD_LATE
+        if (!usb_hid_quiet()) {
+            x->want_start = true;   /* a device is being enumerated: the next report is asked for when it is done */
+            return true;
+        }
+#endif
         start_receive(dev_addr, x);   /* ask for the next report */
     }
     return true;
