@@ -77,6 +77,23 @@ Timing at the hub: a packet that follows the previous one too closely is lost wh
 upstream traffic and the downstream preamble traffic. The 300 us experiment supports this (it fixes exactly the steps it covers),
 and the controller has no register for the gap between packets of one stage.
 
+## A workaround that works here (for anyone hitting this)
+In my firmware (vendored TinyUSB 0.18.0, four small patches, commit given above), the keyboard now comes up every time (usblog47, usblog48:
+4 of 4 plug-ins after the gamepad, in either hub port, 2 to 4.5 s after the plug-in). It does not fix the cause. It recovers:
+- Detect the failure: 3000 receive timeouts without a completed control transfer (a storm), or a device behind the hub that attached and was not
+  mounted (`tuh_mount_cb`) within 3 s (a silent stall), or a control transfer with no completion for 2 s (0.18 has no control transfer timeout).
+- Restart the host (`tuh_deinit()` + `tuh_init()`); the hub is enumerated again from scratch.
+- Make the restart enumerate the failed device first: a one-line patch in `hub_xfer_cb()` (`hub.c`) looks at a given port first when it
+  has a status change (TinyUSB looks at the lowest port first). The device is then enumerated before the gamepad and works. Without it a
+  restart only helps if the keyboard happens to be in a lower port than the gamepad (usblog15 to 17 never recovered; usblog23 did).
+- Cost: the whole hub re-enumerates, so the gamepad is gone for about 2 s on each recovery.
+- A buffer status for an endpoint with no transfer used to panic in `hw_endpoint_xfer_continue()` (usblog25, endpoint `0x81`, the hub's
+  status endpoint, while a full-speed gamepad was enumerated). Ignoring it left the hub dead (a plugged-in device was never seen, usblog35),
+  so I restart the host instead. Possibly related to the interrupt endpoint abort handling fixed by #4177.
+
+If TinyUSB enumerated low-speed devices first, or retried a failed enumeration of a device behind a hub after a bus reset, much of this would
+not be needed. I have tested one keyboard, one gamepad and one hub setup with this workaround.
+
 ## Questions
 - Is a low-speed device behind a full-speed hub known to work on RP2040/RP2350, in any order? With which hub?
 - Is there a way to add a gap before the preamble packets that I am missing?
@@ -85,5 +102,5 @@ and the controller has no register for the gap between packets of one stage.
 
 ## Files
 https://github.com/profdc9/tileconsole/tree/main/tilegame/docs/usblogs (`usblog23.bin`, `usblog23-brief.txt`,
-`usblog23-annotated.txt`, `tusb23.txt`, `tusb23-excerpt.txt`; also 15, 16, 17 (0.18.0), 18, 19 (master, with my driver bug), 20 (master, fixed)). Decoder: `tilegame/tools/usblog_decode.py` (`--brief` for one line per
+`usblog23-annotated.txt`, `tusb23.txt`, `tusb23-excerpt.txt`; also 15, 16, 17 (0.18.0), 18, 19 (master, with my driver bug), 20 (master, fixed), 25 (the panic), 35 (hub dead) and 47, 48 (the workaround)). Decoder: `tilegame/tools/usblog_decode.py` (`--brief` for one line per
 request); recorder: `tilegame/board/usblog_usb.c`; notes: `tilegame/docs/usb-and-power.md`.
