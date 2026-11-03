@@ -42,7 +42,12 @@ Observed with a bus-powered USB 3.0 hub, a low-speed keyboard and a full-speed X
 - Linux enumerates the same keyboard through the hub's transaction translator, with a second port reset; the board talks to the
   hub at full speed and uses preamble packets for the low-speed device.
 
-Workaround: plug the keyboard in before the gamepad. The cause is not settled. The best candidate is the supply (below).
+Workaround: plug the keyboard in before the gamepad.
+
+It is not the supply: with a self-powered hub the keyboard fails to enumerate after a replug in the same way, and the failure
+stayed when the board's 5 V rail was made stiffer (below). What is left is the bus protocol: a low-speed device behind a hub that
+the board drives at full speed, with the gamepad's endpoints being polled by the controller at the same time. The fault is on the
+control transfer to the new device (`SET_ADDRESS` after a good first descriptor read), not on its power.
 
 ## Power
 
@@ -52,8 +57,10 @@ AMS1117-3.3, the USB-A port (VBUS) and the Mini-DINs.
 - Plugging in a bus-powered hub makes the supply dip (seen on a scope; the hub's VBUS was 4.65 V). At 504 MHz the core runs at
   1.65 V and draws much more, so the board restarted silently when the hub went in (no "Last run" line) or just after a game
   started. At **252 MHz** the board stays up with the hub; this is the `CPU_MHZ=252` build option (the default stays 504 MHz).
+- **Fixed by a bulk capacitor:** replacing the 220 uF capacitor with 1000 uF (5 V rail) lets a bus-powered hub be plugged in and
+  unplugged at 504 MHz without the board restarting. The keyboard enumeration failure is unchanged by it.
 - The dip does not appear when the RP2350 is held in reset, so the hub's load is what the regulator cannot supply on top.
 - **USB-C trap:** the USB-C connector's D+/D- are tied to the USB-A port's D+/D-. A charger that shorts D+ to D- (for charging
   detection) breaks the host port, so devices stopped working with a USB-C charger.
-- Hardware fixes, in order of effort: a self-powered hub; a lower barrel voltage (less dissipation in the KA78M05); a bulk
+- Hardware fixes (the capacitor above was the one that mattered for restarts), in order of effort: a self-powered hub; a lower barrel voltage (less dissipation in the KA78M05); a bulk
   capacitor next to J11; a switching regulator and a current-limited USB switch for VBUS; not powering from a USB-C charger.
