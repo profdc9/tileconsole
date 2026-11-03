@@ -24,6 +24,12 @@ extern "C" {
 #define CFG_TUH_MSC 0
 #define CFG_TUH_VENDOR 0
 
+#ifdef TUSB_LOG   /* TinyUSB's own debug output, into a RAM ring (board/tusblog.c) */
+#define CFG_TUSB_DEBUG 2
+int tusb_log_printf(const char *fmt, ...);
+#define CFG_TUSB_DEBUG_PRINTF tusb_log_printf
+#endif
+
 #define CFG_TUH_HID_EPIN_BUFSIZE 64
 #define CFG_TUH_HID_EPOUT_BUFSIZE 64
 

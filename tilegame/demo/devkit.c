@@ -18,6 +18,9 @@
 #include "my_basic.h"
 #if PLAT_USB_HID
 #include "usblog_board.h"
+#ifdef TUSB_LOG
+#include "tusblog.h"
+#endif
 #endif
 #include <malloc.h>
 #include <unistd.h>
@@ -182,6 +185,20 @@ static const char *write_usblog(const usblog_t *ring)
         usblog_serialize(ring, write_chunk, &out);
         fs_close(fd);
     }
+#ifdef TUSB_LOG
+    if (fd >= 0 && out >= 0) {   /* TinyUSB's own debug text, as /sd/tusbNN.txt with the same number */
+        char tpath[32];
+        snprintf(tpath, sizeof tpath, "/sd/tusb%02d.txt", n);
+        const int tfd = fs_open(tpath, FS_WRONLY | FS_CREAT | FS_TRUNC);
+        if (tfd >= 0) {
+            static char buf[512];
+            size_t off = 0, got;
+            while ((got = tusblog_read(off, buf, sizeof buf)) > 0 && fs_write(tfd, buf, got) == (int)got)
+                off += got;
+            fs_close(tfd);
+        }
+    }
+#endif
     return fd >= 0 && out >= 0 ? path : NULL;
 }
 

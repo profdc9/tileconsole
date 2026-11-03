@@ -1,0 +1,632 @@
+[    10601] USBH init on controller 0, speed = Full
+[    10642] sizeof(usbh_data_t) = 56
+[    10654] sizeof(usbh_device_t) = 93
+[    10662] sizeof(hcd_event_t) = 12
+[    10670] sizeof(tuh_xfer_t) = 24
+[    10677] sizeof(tu_fifo_t) = 20
+[    10685] sizeof(tu_edpt_stream_t) = 40
+[    10733] XINPUT init
+[    10744] HID init
+[    10753] sizeof(hidh_interface_t) = 14
+[    10760] HUB init
+[    10779] sizeof(hw_endpoint_t) = 20
+[  1287449] [0:] USBH Device Attach
+[  1287507] USBH schedule function after 150 ms
+[  1438010] USBH invoke scheduled function
+[  1438055] USBH schedule function after 50 ms
+[  1489003] USBH invoke scheduled function
+[  1489031] USBH schedule function after 2 ms
+[  1492001] USBH invoke scheduled function
+[  1492032] Full Speed
+[  1492055] USBH schedule function after 10 ms
+[  1503004] USBH invoke scheduled function
+[  1503034] [0:0] Open EP0 with Size = 8
+[  1503071] Get 8 byte of Device Descriptor
+[  1503118] [0:0] Get Descriptor: 80 06 00 01 00 00 08 00 
+[  1503249] [:0] on EP 00 with 8 bytes: OK
+[  1503417] [:0] on EP 80 with 8 bytes: OK
+[  1503430] [0:0] Control data:
+[  1503446]   0000:  12 01 10 02 09 00 00 40                          |.......@|
+[  1503541] [:0] on EP 00 with 0 bytes: OK
+[  1503554] 
+[  1503589] Set Address = 6
+[  1503609] [0:0] Set Address: 00 05 06 00 00 00 00 00 
+[  1503668] [:0] on EP 00 with 8 bytes: OK
+[  1503963] [:0] on EP 80 with 0 bytes: OK
+[  1503970] 
+[  1504012] USBH schedule function after 2 ms
+[  1507004] USBH invoke scheduled function
+[  1507026] [0:6] Open EP0 with Size = 64
+[  1507046] Get Device Descriptor
+[  1507063] [0:6] Get Descriptor: 80 06 00 01 00 00 12 00 
+[  1507121] [:6] on EP 00 with 8 bytes: OK
+[  1507282] [:6] on EP 80 with 18 bytes: OK
+[  1507292] [0:6] Control data:
+[  1507296]   0000:  12 01 10 02 09 00 00 40 09 21 11 28 70 90 01 02  |.......@.!.(p...|
+[  1507339]   0010:  00 01                                            |..|
+[  1507387] [:6] on EP 00 with 0 bytes: OK
+[  1507393] 
+[  1507418] [0:6] Get Descriptor: 80 06 00 03 00 00 02 00 
+[  1507467] [:6] on EP 00 with 8 bytes: OK
+[  1507802] [:6] on EP 80 with 2 bytes: OK
+[  1507809] [0:6] Control data:
+[  1507813]   0000:  04 03                                            |..|
+[  1507860] [:6] on EP 00 with 0 bytes: OK
+[  1507868] 
+[  1507885] [0:6] Get Descriptor: 80 06 00 03 00 00 04 00 
+[  1507931] [:6] on EP 00 with 8 bytes: OK
+[  1508223] [:6] on EP 80 with 4 bytes: OK
+[  1508233] [0:6] Control data:
+[  1508237]   0000:  04 03 09 04                                      |....|
+[  1508285] [:6] on EP 00 with 0 bytes: OK
+[  1508291] 
+[  1508318] [0:6] Get Descriptor: 80 06 01 03 09 04 02 00 
+[  1508380] [:6] on EP 00 with 8 bytes: OK
+[  1508627] [:6] on EP 80 with 2 bytes: OK
+[  1508636] [0:6] Control data:
+[  1508639]   0000:  30 03                                            |0.|
+[  1508686] [:6] on EP 00 with 0 bytes: OK
+[  1508694] 
+[  1508713] [0:6] Get Descriptor: 80 06 01 03 09 04 30 00 
+[  1508762] [:6] on EP 00 with 8 bytes: OK
+[  1509020] [:6] on EP 80 with 48 bytes: OK
+[  1509031] [0:6] Control data:
+[  1509035]   0000:  30 03 56 00 49 00 41 00 20 00 4C 00 61 00 62 00  |0.V.I.A. .L.a.b.|
+[  1509078]   0010:  73 00 2C 00 20 00 49 00 6E 00 63 00 2E 00 20 00  |s.,. .I.n.c... .|
+[  1509119]   0020:  20 00 20 00 20 00 20 00 20 00 20 00 20 00 20 00  | . . . . . . . .|
+[  1509175] [:6] on EP 00 with 0 bytes: OK
+[  1509182] 
+[  1509200] [0:6] Get Descriptor: 80 06 02 03 09 04 02 00 
+[  1509251] [:6] on EP 00 with 8 bytes: OK
+[  1509411] [:6] on EP 80 with 2 bytes: OK
+[  1509421] [0:6] Control data:
+[  1509425]   0000:  30 03                                            |0.|
+[  1509471] [:6] on EP 00 with 0 bytes: OK
+[  1509480] 
+[  1509498] [0:6] Get Descriptor: 80 06 02 03 09 04 30 00 
+[  1509543] [:6] on EP 00 with 8 bytes: OK
+[  1510061] [:6] on EP 80 with 48 bytes: OK
+[  1510073] [0:6] Control data:
+[  1510077]   0000:  30 03 55 00 53 00 42 00 32 00 2E 00 30 00 20 00  |0.U.S.B.2...0. .|
+[  1510116]   0010:  48 00 75 00 62 00 20 00 20 00 20 00 20 00 20 00  |H.u.b. . . . . .|
+[  1510154]   0020:  20 00 20 00 20 00 20 00 20 00 20 00 20 00 20 00  | . . . . . . . .|
+[  1510211] [:6] on EP 00 with 0 bytes: OK
+[  1510217] 
+[  1510233] Get Configuration[0] Descriptor (9 bytes)
+[  1510252] [0:6] Get Descriptor: 80 06 00 02 00 00 09 00 
+[  1510296] [:6] on EP 00 with 8 bytes: OK
+[  1510481] [:6] on EP 80 with 9 bytes: OK
+[  1510491] [0:6] Control data:
+[  1510495]   0000:  09 02 19 00 01 01 00 E0 00                       |.........|
+[  1510548] [:6] on EP 00 with 0 bytes: OK
+[  1510555] 
+[  1510572] Get Configuration[0] Descriptor
+[  1510587] [0:6] Get Descriptor: 80 06 00 02 00 00 19 00 
+[  1510633] [:6] on EP 00 with 8 bytes: OK
+[  1511071] [:6] on EP 80 with 25 bytes: OK
+[  1511083] [0:6] Control data:
+[  1511086]   0000:  09 02 19 00 01 01 00 E0 00 09 04 00 00 01 09 00  |................|
+[  1511125]   0010:  00 00 07 05 81 03 01 00 FF                       |.........|
+[  1511177] [:6] on EP 00 with 0 bytes: OK
+[  1511183] 
+[  1511201] Set Configuration = 1
+[  1511219] [0:6] Set Configuration: 00 09 01 00 00 00 00 00 
+[  1511267] [:6] on EP 00 with 8 bytes: OK
+[  1511597] [:6] on EP 80 with 0 bytes: OK
+[  1511616] [6] Aborted transfer on EP 01
+[  1511630] [6] Aborted transfer on EP 81
+[  1511637] [6] Aborted transfer on EP 02
+[  1511643] [6] Aborted transfer on EP 82
+[  1511649] [6] Aborted transfer on EP 03
+[  1511654] [6] Aborted transfer on EP 83
+[  1511660] [6] Aborted transfer on EP 04
+[  1511666] [6] Aborted transfer on EP 84
+[  1511671] [6] Aborted transfer on EP 05
+[  1511677] [6] Aborted transfer on EP 85
+[  1511683] [6] Aborted transfer on EP 06
+[  1511688] [6] Aborted transfer on EP 86
+[  1511694] [6] Aborted transfer on EP 07
+[  1511700] [6] Aborted transfer on EP 87
+[  1511706] [6] Aborted transfer on EP 08
+[  1511711] [6] Aborted transfer on EP 88
+[  1511717] [6] Aborted transfer on EP 09
+[  1511723] [6] Aborted transfer on EP 89
+[  1511728] [6] Aborted transfer on EP 0A
+[  1511734] [6] Aborted transfer on EP 8A
+[  1511740] [6] Aborted transfer on EP 0B
+[  1511745] [6] Aborted transfer on EP 8B
+[  1511751] [6] Aborted transfer on EP 0C
+[  1511757] [6] Aborted transfer on EP 8C
+[  1511762] [6] Aborted transfer on EP 0D
+[  1511768] [6] Aborted transfer on EP 8D
+[  1511774] [6] Aborted transfer on EP 0E
+[  1511780] [6] Aborted transfer on EP 8E
+[  1511785] [6] Aborted transfer on EP 0F
+[  1511791] [6] Aborted transfer on EP 8F
+[  1511795] 
+[  1511803] Device configured
+[  1511823] Parsing Configuration descriptor (wTotalLength = 25)
+[  1511868]   Open EP 81 with Size = 1
+[  1511907]   HUB opened
+[  1511945] HUB set config: itf = 0
+[  1511971] [0:6] Class Request: A0 06 00 00 00 00 09 00 
+[  1512041] [:6] on EP 00 with 8 bytes: OK
+[  1512115] [:6] on EP 80 with 9 bytes: OK
+[  1512124] [0:6] Control data:
+[  1512128]   0000:  09 29 04 E9 01 32 64 00 FF                       |.)...2d..|
+[  1512192] [:6] on EP 00 with 0 bytes: OK
+[  1512202] 
+[  1512232] HUB Set Feature: PORT_POWER, addr = 6 port = 1
+[  1512243] [0:6] Class Request: 23 03 08 00 01 00 00 00 
+[  1512291] [:6] on EP 00 with 8 bytes: OK
+[  1514002] [:6] on EP 80 with 0 bytes: OK
+[  1514009] 
+[  1514027] HUB Set Feature: PORT_POWER, addr = 6 port = 2
+[  1514036] [0:6] Class Request: 23 03 08 00 02 00 00 00 
+[  1514080] [:6] on EP 00 with 8 bytes: OK
+[  1515717] [:6] on EP 80 with 0 bytes: OK
+[  1515727] 
+[  1515742] HUB Set Feature: PORT_POWER, addr = 6 port = 3
+[  1515752] [0:6] Class Request: 23 03 08 00 03 00 00 00 
+[  1515790] [:6] on EP 00 with 8 bytes: OK
+[  1517453] [:6] on EP 80 with 0 bytes: OK
+[  1517460] 
+[  1517469] HUB Set Feature: PORT_POWER, addr = 6 port = 4
+[  1517478] [0:6] Class Request: 23 03 08 00 04 00 00 00 
+[  1517520] [:6] on EP 00 with 8 bytes: OK
+[  1519365] [:6] on EP 80 with 0 bytes: OK
+[  1519373] 
+[  1519400] [6] Claimed EP 0x81
+[  1519415]   Queue EP 81 with 1 bytes ... 
+[  1519431] OK
+[  1519448] Enumeration complete: success = 1
+[  1519464] HUB address = 6 is mounted
+[ 15791393] [:6] on EP 81 with 1 bytes: OK
+[ 15791408]   HUB xfer callback
+[ 15791426]   Hub Status Change = 0x02
+[ 15791449] HUB Get Port Status: addr = 6 port = 1
+[ 15791462] [0:6] Class Request: A3 00 00 00 01 00 04 00 
+[ 15791515] [:6] on EP 00 with 8 bytes: OK
+[ 15791684] [:6] on EP 80 with 4 bytes: OK
+[ 15791693] [0:6] Control data:
+[ 15791698]   0000:  01 03 01 00                                      |....|
+[ 15791753] [:6] on EP 00 with 0 bytes: OK
+[ 15791759] 
+[ 15791794] HUB Clear Feature: PORT_CONNECTION_CHANGE, addr = 6 port = 1
+[ 15791806] [0:6] Class Request: 23 01 10 00 01 00 00 00 
+[ 15791851] [:6] on EP 00 with 8 bytes: OK
+[ 15792139] [:6] on EP 80 with 0 bytes: OK
+[ 15792147] 
+[ 15792179] [0:] USBH Device Attach
+[ 15792193] USBH schedule function after 150 ms
+[ 15943003] USBH invoke scheduled function
+[ 15943034] HUB Get Port Status: addr = 6 port = 1
+[ 15943047] [0:6] Class Request: A3 00 00 00 01 00 04 00 
+[ 15943103] [:6] on EP 00 with 8 bytes: OK
+[ 15943292] [:6] on EP 80 with 4 bytes: OK
+[ 15943302] [0:6] Control data:
+[ 15943307]   0000:  01 03 00 00                                      |....|
+[ 15943367] [:6] on EP 00 with 0 bytes: OK
+[ 15943373] 
+[ 15943394] HUB Set Feature: PORT_RESET, addr = 6 port = 1
+[ 15943407] [0:6] Class Request: 23 03 04 00 01 00 00 00 
+[ 15943453] [:6] on EP 00 with 8 bytes: OK
+[ 15956100] [:6] on EP 80 with 0 bytes: OK
+[ 15956109] 
+[ 15956123] USBH schedule function after 20 ms
+[ 15977003] USBH invoke scheduled function
+[ 15977032] HUB Get Port Status: addr = 6 port = 1
+[ 15977043] [0:6] Class Request: A3 00 00 00 01 00 04 00 
+[ 15977094] [:6] on EP 00 with 8 bytes: OK
+[ 15977301] [:6] on EP 80 with 4 bytes: OK
+[ 15977311] [0:6] Control data:
+[ 15977316]   0000:  03 03 10 00                                      |....|
+[ 15977367] [:6] on EP 00 with 0 bytes: OK
+[ 15977374] 
+[ 15977397] HUB Clear Feature: PORT_RESET_CHANGE, addr = 6 port = 1
+[ 15977413] [0:6] Class Request: 23 01 14 00 01 00 00 00 
+[ 15977459] [:6] on EP 00 with 8 bytes: OK
+[ 15977773] [:6] on EP 80 with 0 bytes: OK
+[ 15977779] 
+[ 15977793] USBH schedule function after 10 ms
+[ 15988004] USBH invoke scheduled function
+[ 15988030] [0:0] Open EP0 with Size = 8
+[ 15988048] Get 8 byte of Device Descriptor
+[ 15988065] [0:0] Get Descriptor: 80 06 00 01 00 00 08 00 
+[ 15988218] [:0] on EP 00 with 8 bytes: OK
+[ 15988459] [:0] on EP 80 with 8 bytes: OK
+[ 15988470] [0:0] Control data:
+[ 15988474]   0000:  12 01 10 01 00 00 00 08                          |........|
+[ 15988589] [:0] on EP 00 with 0 bytes: OK
+[ 15988596] 
+[ 15988614] Set Address = 1
+[ 15988631] [0:0] Set Address: 00 05 01 00 00 00 00 00 
+[ 15988779] [:0] on EP 00 with 8 bytes: OK
+[ 15988852] [:0] on EP 80 with 0 bytes: OK
+[ 15988859] 
+[ 15988887] USBH schedule function after 2 ms
+[ 15991003] USBH invoke scheduled function
+[ 15991022] [0:1] Open EP0 with Size = 8
+[ 15991039] Get Device Descriptor
+[ 15991054] [0:1] Get Descriptor: 80 06 00 01 00 00 12 00 
+[ 15991208] [:1] on EP 00 with 8 bytes: OK
+[ 15991740] [:1] on EP 80 with 16 bytes: FAILED
+[ 15991759] [0:1] Control FAILED 1/3, retrying
+[ 15991802] [:1] on EP 00 with 8 bytes: OK
+[ 15991969] [:1] on EP 80 with 0 bytes: FAILED
+[ 15991984] [0:1] Control FAILED 2/3, retrying
+[ 15992069] [:1] on EP 00 with 8 bytes: OK
+[ 15992680] [:1] on EP 80 with 16 bytes: FAILED
+[ 15992693] [0:1] Control FAILED 3/3, retrying
+[ 15992779] [:1] on EP 00 with 8 bytes: OK
+[ 15992951] [:1] on EP 80 with 0 bytes: FAILED
+[ 15992971] [0:1] Control FAILED, xferred_bytes = 0
+[ 15992980] 80 06 00 01 00 00 12 00 
+[ 15992993] 
+[ 15993035] Enumeration failed, retry attempt 2/2
+[ 15993045] USBH schedule function after 150 ms
+[ 16144004] USBH invoke scheduled function
+[ 16144034] HUB Get Port Status: addr = 6 port = 1
+[ 16144047] [0:6] Class Request: A3 00 00 00 01 00 04 00 
+[ 16144104] [:6] on EP 00 with 8 bytes: OK
+[ 16144293] [:6] on EP 80 with 4 bytes: OK
+[ 16144303] [0:6] Control data:
+[ 16144307]   0000:  03 03 00 00                                      |....|
+[ 16144367] [:6] on EP 00 with 0 bytes: OK
+[ 16144373] 
+[ 16144391] HUB Set Feature: PORT_RESET, addr = 6 port = 1
+[ 16144404] [0:6] Class Request: 23 03 04 00 01 00 00 00 
+[ 16144453] [:6] on EP 00 with 8 bytes: OK
+[ 16156993] [:6] on EP 80 with 0 bytes: OK
+[ 16157002] 
+[ 16157016] USBH schedule function after 20 ms
+[ 16178004] USBH invoke scheduled function
+[ 16178031] HUB Get Port Status: addr = 6 port = 1
+[ 16178042] [0:6] Class Request: A3 00 00 00 01 00 04 00 
+[ 16178094] [:6] on EP 00 with 8 bytes: OK
+[ 16178311] [:6] on EP 80 with 4 bytes: OK
+[ 16178323] [0:6] Control data:
+[ 16178329]   0000:  03 03 10 00                                      |....|
+[ 16178387] [:6] on EP 00 with 0 bytes: OK
+[ 16178393] 
+[ 16178413] HUB Clear Feature: PORT_RESET_CHANGE, addr = 6 port = 1
+[ 16178429] [0:6] Class Request: 23 01 14 00 01 00 00 00 
+[ 16178475] [:6] on EP 00 with 8 bytes: OK
+[ 16178767] [:6] on EP 80 with 0 bytes: OK
+[ 16178773] 
+[ 16178788] USBH schedule function after 10 ms
+[ 16189001] USBH invoke scheduled function
+[ 16189017] [0:0] Open EP0 with Size = 8
+[ 16189029] Get 8 byte of Device Descriptor
+[ 16189043] [0:0] Get Descriptor: 80 06 00 01 00 00 08 00 
+[ 16189191] [:0] on EP 00 with 8 bytes: OK
+[ 16189460] [:0] on EP 80 with 8 bytes: OK
+[ 16189470] [0:0] Control data:
+[ 16189475]   0000:  12 01 10 01 00 00 00 08                          |........|
+[ 16189592] [:0] on EP 00 with 0 bytes: OK
+[ 16189599] 
+[ 16189616] Set Address = 1
+[ 16189631] [0:0] Set Address: 00 05 01 00 00 00 00 00 
+[ 16189780] [:0] on EP 00 with 8 bytes: OK
+[ 16189854] [:0] on EP 80 with 0 bytes: OK
+[ 16189861] 
+[ 16189888] USBH schedule function after 2 ms
+[ 16192003] USBH invoke scheduled function
+[ 16192018] [0:1] Open EP0 with Size = 8
+[ 16192029] Get Device Descriptor
+[ 16192044] [0:1] Get Descriptor: 80 06 00 01 00 00 12 00 
+[ 16192192] [:1] on EP 00 with 8 bytes: OK
+[ 16192510] [:1] on EP 80 with 8 bytes: FAILED
+[ 16192522] [0:1] Control FAILED 1/3, retrying
+[ 16192680] [:1] on EP 00 with 8 bytes: OK
+[ 16192742] [:1] on EP 80 with 0 bytes: STALLED
+[ 16192757] [0:1] Control STALLED, xferred_bytes = 0
+[ 16192765] 80 06 00 01 00 00 12 00 
+[ 16192776] 
+[ 16192791] [0:1] Get Descriptor: 80 06 00 03 00 00 02 00 
+[ 16192932] [:1] on EP 00 with 0 bytes: FAILED
+[ 16192945] [0:1] Control FAILED 1/3, retrying
+[ 16193039] [:1] on EP 00 with 0 bytes: FAILED
+[ 16193051] [0:1] Control FAILED 2/3, retrying
+[ 16193146] [:1] on EP 00 with 0 bytes: FAILED
+[ 16193157] [0:1] Control FAILED 3/3, retrying
+[ 16193254] [:1] on EP 00 with 0 bytes: FAILED
+[ 16193265] [0:1] Control FAILED, xferred_bytes = 0
+[ 16193271] 80 06 00 03 00 00 02 00 
+[ 16193281] 
+[ 16193294] Enumeration complete: success = 0
+[ 16193332] [6] Claimed EP 0x81
+[ 16193343]   Queue EP 81 with 1 bytes ... 
+[ 16193357] OK
+[ 18851389] [:6] on EP 81 with 1 bytes: OK
+[ 18851405]   HUB xfer callback
+[ 18851420]   Hub Status Change = 0x02
+[ 18851434] HUB Get Port Status: addr = 6 port = 1
+[ 18851447] [0:6] Class Request: A3 00 00 00 01 00 04 00 
+[ 18851505] [:6] on EP 00 with 8 bytes: OK
+[ 18851608] [:6] on EP 80 with 4 bytes: OK
+[ 18851617] [0:6] Control data:
+[ 18851625]   0000:  00 01 01 00                                      |....|
+[ 18851679] [:6] on EP 00 with 0 bytes: OK
+[ 18851686] 
+[ 18851700] HUB Clear Feature: PORT_CONNECTION_CHANGE, addr = 6 port = 1
+[ 18851712] [0:6] Class Request: 23 01 10 00 01 00 00 00 
+[ 18851754] [:6] on EP 00 with 8 bytes: OK
+[ 18852047] [:6] on EP 80 with 0 bytes: OK
+[ 18852055] 
+[ 18852074] [6] Claimed EP 0x81
+[ 18852084]   Queue EP 81 with 1 bytes ... 
+[ 18852092] OK
+[ 18852105] [0:6:1] USBH Device Removed
+[ 20168112] [0:0:0] USBH Device Removed
+[ 20168134] [0:0:0] unplugged address = 6
+[ 20168145]   is a HUB device 6
+[ 20168176]   HUB close addr = 6
+[ 20468156] XINPUT deinit
+[ 20468184] HID deinit
+[ 20468193] HUB deinit
+[ 20468227] USBH init on controller 0, speed = Full
+[ 20468241] sizeof(usbh_data_t) = 56
+[ 20468251] sizeof(usbh_device_t) = 93
+[ 20468259] sizeof(hcd_event_t) = 12
+[ 20468268] sizeof(tuh_xfer_t) = 24
+[ 20468276] sizeof(tu_fifo_t) = 20
+[ 20468285] sizeof(tu_edpt_stream_t) = 40
+[ 20468334] XINPUT init
+[ 20468343] HID init
+[ 20468355] sizeof(hidh_interface_t) = 14
+[ 20468359] HUB init
+[ 20468379] sizeof(hw_endpoint_t) = 20
+[ 25192893] [0:] USBH Device Attach
+[ 25192909] USBH schedule function after 150 ms
+[ 25343005] USBH invoke scheduled function
+[ 25343042] USBH schedule function after 50 ms
+[ 25394004] USBH invoke scheduled function
+[ 25394028] USBH schedule function after 2 ms
+[ 25397004] USBH invoke scheduled function
+[ 25397032] Low Speed
+[ 25397053] USBH schedule function after 10 ms
+[ 25408003] USBH invoke scheduled function
+[ 25408022] [0:0] Open EP0 with Size = 8
+[ 25408041] Get 8 byte of Device Descriptor
+[ 25408064] [0:0] Get Descriptor: 80 06 00 01 00 00 08 00 
+[ 25408234] [:0] on EP 00 with 8 bytes: OK
+[ 25408423] [:0] on EP 80 with 8 bytes: OK
+[ 25408432] [0:0] Control data:
+[ 25408438]   0000:  12 01 10 01 00 00 00 08                          |........|
+[ 25408560] [:0] on EP 00 with 0 bytes: OK
+[ 25408567] 
+[ 25408586] Set Address = 1
+[ 25408603] [0:0] Set Address: 00 05 01 00 00 00 00 00 
+[ 25408748] [:0] on EP 00 with 8 bytes: OK
+[ 25408929] [:0] on EP 80 with 0 bytes: OK
+[ 25408936] 
+[ 25408965] USBH schedule function after 2 ms
+[ 25411002] USBH invoke scheduled function
+[ 25411022] [0:1] Open EP0 with Size = 8
+[ 25411038] Get Device Descriptor
+[ 25411057] [0:1] Get Descriptor: 80 06 00 01 00 00 12 00 
+[ 25411209] [:1] on EP 00 with 8 bytes: OK
+[ 25411747] [:1] on EP 80 with 18 bytes: OK
+[ 25411758] [0:1] Control data:
+[ 25411762]   0000:  12 01 10 01 00 00 00 08 61 04 67 4E 13 01 00 01  |........a.gN....|
+[ 25411806]   0010:  00 01                                            |..|
+[ 25411945] [:1] on EP 00 with 0 bytes: OK
+[ 25411952] 
+[ 25411968] [0:1] Get Descriptor: 80 06 00 03 00 00 02 00 
+[ 25412113] [:1] on EP 00 with 8 bytes: OK
+[ 25412253] [:1] on EP 80 with 2 bytes: OK
+[ 25412264] [0:1] Control data:
+[ 25412268]   0000:  04 03                                            |..|
+[ 25412373] [:1] on EP 00 with 0 bytes: OK
+[ 25412381] 
+[ 25412394] [0:1] Get Descriptor: 80 06 00 03 00 00 04 00 
+[ 25412539] [:1] on EP 00 with 8 bytes: OK
+[ 25412689] [:1] on EP 80 with 4 bytes: OK
+[ 25412698] [0:1] Control data:
+[ 25412702]   0000:  04 03 09 04                                      |....|
+[ 25412940] [:1] on EP 00 with 0 bytes: OK
+[ 25412948] 
+[ 25412966] [0:1] Get Descriptor: 80 06 01 03 09 04 02 00 
+[ 25413113] [:1] on EP 00 with 8 bytes: OK
+[ 25413252] [:1] on EP 80 with 2 bytes: OK
+[ 25413262] [0:1] Control data:
+[ 25413266]   0000:  36 03                                            |6.|
+[ 25413370] [:1] on EP 00 with 0 bytes: OK
+[ 25413379] 
+[ 25413398] [0:1] Get Descriptor: 80 06 01 03 09 04 36 00 
+[ 25413543] [:1] on EP 00 with 8 bytes: OK
+[ 25414961] [:1] on EP 80 with 54 bytes: OK
+[ 25414972] [0:1] Control data:
+[ 25414975]   0000:  36 03 48 00 50 00 20 00 55 00 53 00 42 00 20 00  |6.H.P. .U.S.B. .|
+[ 25415017]   0010:  4D 00 75 00 6C 00 74 00 69 00 6D 00 65 00 64 00  |M.u.l.t.i.m.e.d.|
+[ 25415056]   0020:  69 00 61 00 20 00 4B 00 65 00 79 00 62 00 6F 00  |i.a. .K.e.y.b.o.|
+[ 25415097]   0030:  61 00 72 00 64 00                                |a.r.d.|
+[ 25415204] [:1] on EP 00 with 0 bytes: OK
+[ 25415213] 
+[ 25415228] Get Configuration[0] Descriptor (9 bytes)
+[ 25415243] [0:1] Get Descriptor: 80 06 00 02 00 00 09 00 
+[ 25415385] [:1] on EP 00 with 8 bytes: OK
+[ 25415681] [:1] on EP 80 with 9 bytes: OK
+[ 25415692] [0:1] Control data:
+[ 25415696]   0000:  09 02 3B 00 02 01 00 A0 31                       |..;.....1|
+[ 25415941] [:1] on EP 00 with 0 bytes: OK
+[ 25415949] 
+[ 25415961] Get Configuration[0] Descriptor
+[ 25415976] [0:1] Get Descriptor: 80 06 00 02 00 00 3B 00 
+[ 25416122] [:1] on EP 00 with 8 bytes: OK
+[ 25417664] [:1] on EP 80 with 59 bytes: OK
+[ 25417675] [0:1] Control data:
+[ 25417679]   0000:  09 02 3B 00 02 01 00 A0 31 09 04 00 00 01 03 01  |..;.....1.......|
+[ 25417717]   0010:  01 00 09 21 10 01 00 01 22 36 00 07 05 81 03 08  |...!...."6......|
+[ 25417754]   0020:  00 0A 09 04 01 00 01 03 00 00 00 09 21 10 01 00  |............!...|
+[ 25417793]   0030:  01 22 19 00 07 05 82 03 03 00 0A                 |.".........|
+[ 25417942] [:1] on EP 00 with 0 bytes: OK
+[ 25417949] 
+[ 25417968] Set Configuration = 1
+[ 25417984] [0:1] Set Configuration: 00 09 01 00 00 00 00 00 
+[ 25418125] [:1] on EP 00 with 8 bytes: OK
+[ 25418203] [:1] on EP 80 with 0 bytes: OK
+[ 25418220] [1] Aborted transfer on EP 01
+[ 25418230] [1] Aborted transfer on EP 81
+[ 25418239] [1] Aborted transfer on EP 02
+[ 25418245] [1] Aborted transfer on EP 82
+[ 25418252] [1] Aborted transfer on EP 03
+[ 25418257] [1] Aborted transfer on EP 83
+[ 25418263] [1] Aborted transfer on EP 04
+[ 25418269] [1] Aborted transfer on EP 84
+[ 25418275] [1] Aborted transfer on EP 05
+[ 25418280] [1] Aborted transfer on EP 85
+[ 25418286] [1] Aborted transfer on EP 06
+[ 25418292] [1] Aborted transfer on EP 86
+[ 25418298] [1] Aborted transfer on EP 07
+[ 25418303] [1] Aborted transfer on EP 87
+[ 25418309] [1] Aborted transfer on EP 08
+[ 25418315] [1] Aborted transfer on EP 88
+[ 25418321] [1] Aborted transfer on EP 09
+[ 25418326] [1] Aborted transfer on EP 89
+[ 25418332] [1] Aborted transfer on EP 0A
+[ 25418338] [1] Aborted transfer on EP 8A
+[ 25418344] [1] Aborted transfer on EP 0B
+[ 25418349] [1] Aborted transfer on EP 8B
+[ 25418355] [1] Aborted transfer on EP 0C
+[ 25418361] [1] Aborted transfer on EP 8C
+[ 25418367] [1] Aborted transfer on EP 0D
+[ 25418372] [1] Aborted transfer on EP 8D
+[ 25418378] [1] Aborted transfer on EP 0E
+[ 25418384] [1] Aborted transfer on EP 8E
+[ 25418390] [1] Aborted transfer on EP 0F
+[ 25418395] [1] Aborted transfer on EP 8F
+[ 25418399] 
+[ 25418407] Device configured
+[ 25418423] Parsing Configuration descriptor (wTotalLength = 59)
+[ 25418447] [1] HID opening Interface 0
+[ 25418468]   Open EP 81 with Size = 8
+[ 25418503]   HID opened
+[ 25418525] [1] HID opening Interface 1
+[ 25418534]   Open EP 82 with Size = 3
+[ 25418546]   HID opened
+[ 25418567] HID set config: itf = 0
+[ 25418588] HID Set Idle 
+[ 25418603] [0:1] Class Request: 21 0A 00 00 00 00 00 00 
+[ 25418749] [:1] on EP 00 with 8 bytes: OK
+[ 25418933] [:1] on EP 80 with 0 bytes: OK
+[ 25418941] 
+[ 25418957] HID Set Protocol = 0
+[ 25418968] [0:1] Class Request: 21 0B 00 00 00 00 00 00 
+[ 25419110] [:1] on EP 00 with 8 bytes: OK
+[ 25419183] [:1] on EP 80 with 0 bytes: OK
+[ 25419191] 
+[ 25419210] HID Get Report Descriptor
+[ 25419225] [0:1] Get Descriptor: 81 06 00 22 00 00 36 00 
+[ 25419374] [:1] on EP 00 with 8 bytes: OK
+[ 25420732] [:1] on EP 80 with 54 bytes: OK
+[ 25420745] [0:1] Control data:
+[ 25420749]   0000:  05 01 09 06 A1 01 05 08 19 01 29 03 15 00 25 01  |..........)...%.|
+[ 25420790]   0010:  75 01 95 03 91 02 95 05 91 01 05 07 19 E0 29 E7  |u.............).|
+[ 25420828]   0020:  95 08 81 02 75 08 95 01 81 01 19 00 29 DD 26 FF  |....u.......).&.|
+[ 25420865]   0030:  00 95 06 81 00 C0                                |......|
+[ 25420969] [:1] on EP 00 with 0 bytes: OK
+[ 25420975] 
+[ 25421027] HID set config: itf = 1
+[ 25421035] HID Set Idle 
+[ 25421043] [0:1] Class Request: 21 0A 00 00 01 00 00 00 
+[ 25421187] [:1] on EP 00 with 8 bytes: OK
+[ 25421263] [:1] on EP 80 with 0 bytes: OK
+[ 25421271] 
+[ 25421281] HID Get Report Descriptor
+[ 25421293] [0:1] Get Descriptor: 81 06 00 22 01 00 19 00 
+[ 25421434] [:1] on EP 00 with 8 bytes: OK
+[ 25422208] [:1] on EP 80 with 25 bytes: OK
+[ 25422218] [0:1] Control data:
+[ 25422223]   0000:  05 0C 09 01 A1 01 85 01 19 00 2A 3C 02 15 00 26  |..........*<...&|
+[ 25422264]   0010:  3C 02 95 01 75 10 81 00 C0                       |<...u....|
+[ 25422369] [:1] on EP 00 with 0 bytes: OK
+[ 25422375] 
+[ 25422456] Enumeration complete: success = 1
+[ 25622023] HID Set Protocol = 0
+[ 25622046] [0:1] Class Request: 21 0B 00 00 00 00 00 00 
+[ 25622097] [1] Claimed EP 0x81
+[ 25622117]   Queue EP 81 with 8 bytes ... 
+[ 25622130] OK
+[ 25622201] [:1] on EP 00 with 8 bytes: OK
+[ 25622283] [:1] on EP 80 with 0 bytes: OK
+[ 25622293] 
+[ 26647992] [:1] on EP 81 with 8 bytes: OK
+[ 26648005]   HID xfer callback
+[ 26648020]   [idx=0] Get Report callback
+[ 26648083] [1] Claimed EP 0x81
+[ 26648095]   Queue EP 81 with 8 bytes ... 
+[ 26648103] OK
+[ 26777988] [:1] on EP 81 with 8 bytes: OK
+[ 26778002]   HID xfer callback
+[ 26778014]   [idx=0] Get Report callback
+[ 26778031] [1] Claimed EP 0x81
+[ 26778041]   Queue EP 81 with 8 bytes ... 
+[ 26778050] OK
+[ 27927988] [:1] on EP 81 with 8 bytes: OK
+[ 27928000]   HID xfer callback
+[ 27928015]   [idx=0] Get Report callback
+[ 27928031] [1] Claimed EP 0x81
+[ 27928040]   Queue EP 81 with 8 bytes ... 
+[ 27928048] OK
+[ 27997985] [:1] on EP 81 with 8 bytes: OK
+[ 27997997]   HID xfer callback
+[ 27998009]   [idx=0] Get Report callback
+[ 27998022] [1] Claimed EP 0x81
+[ 27998030]   Queue EP 81 with 8 bytes ... 
+[ 27998039] OK
+[ 28457987] [:1] on EP 81 with 8 bytes: OK
+[ 28457998]   HID xfer callback
+[ 28458008]   [idx=0] Get Report callback
+[ 28458020] [1] Claimed EP 0x81
+[ 28458028]   Queue EP 81 with 8 bytes ... 
+[ 28458035] OK
+[ 28547988] [:1] on EP 81 with 8 bytes: OK
+[ 28547999]   HID xfer callback
+[ 28548012]   [idx=0] Get Report callback
+[ 28548026] [1] Claimed EP 0x81
+[ 28548033]   Queue EP 81 with 8 bytes ... 
+[ 28548041] OK
+[ 28987987] [:1] on EP 81 with 8 bytes: OK
+[ 28987998]   HID xfer callback
+[ 28988009]   [idx=0] Get Report callback
+[ 28988022] [1] Claimed EP 0x81
+[ 28988029]   Queue EP 81 with 8 bytes ... 
+[ 28988036] OK
+[ 29067986] [:1] on EP 81 with 8 bytes: OK
+[ 29067998]   HID xfer callback
+[ 29068012]   [idx=0] Get Report callback
+[ 29068024] [1] Claimed EP 0x81
+[ 29068033]   Queue EP 81 with 8 bytes ... 
+[ 29068042] OK
+[ 29217988] [:1] on EP 81 with 8 bytes: OK
+[ 29218000]   HID xfer callback
+[ 29218013]   [idx=0] Get Report callback
+[ 29218026] [1] Claimed EP 0x81
+[ 29218034]   Queue EP 81 with 8 bytes ... 
+[ 29218041] OK
+[ 29277988] [:1] on EP 81 with 8 bytes: OK
+[ 29277999]   HID xfer callback
+[ 29278011]   [idx=0] Get Report callback
+[ 29278025] [1] Claimed EP 0x81
+[ 29278034]   Queue EP 81 with 8 bytes ... 
+[ 29278041] OK
+[ 29557986] [:1] on EP 81 with 8 bytes: OK
+[ 29557996]   HID xfer callback
+[ 29558009]   [idx=0] Get Report callback
+[ 29558021] [1] Claimed EP 0x81
+[ 29558029]   Queue EP 81 with 8 bytes ... 
+[ 29558036] OK
+[ 29637987] [:1] on EP 81 with 8 bytes: OK
+[ 29637997]   HID xfer callback
+[ 29638010]   [idx=0] Get Report callback
+[ 29638022] [1] Claimed EP 0x81
+[ 29638030]   Queue EP 81 with 8 bytes ... 
+[ 29638038] OK
+[ 29927985] [:1] on EP 81 with 8 bytes: OK
+[ 29927994]   HID xfer callback
+[ 29928005]   [idx=0] Get Report callback
+[ 29928021] [1] Claimed EP 0x81
+[ 29928029]   Queue EP 81 with 8 bytes ... 
+[ 29928036] OK

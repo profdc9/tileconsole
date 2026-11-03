@@ -101,13 +101,25 @@ void xinput_poll(void)
     }
 }
 
-static bool x_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_t *itf, uint16_t max_len)
+/* TinyUSB 0.21 changed a class driver's open() from "bool" to "the number of descriptor bytes it took" (0 = not mine); a bool true is 1, which
+ * 0.21 and later take as a refusal: the pad's interface was then never bound to this driver. */
+#if TUSB_VERSION_NUMBER >= 2100
+typedef uint16_t x_open_t;
+#define X_OPEN_FAIL 0
+#define X_OPEN_OK(itf, end) ((uint16_t)((const uint8_t *)(end) - (const uint8_t *)(itf)))
+#else
+typedef bool x_open_t;
+#define X_OPEN_FAIL false
+#define X_OPEN_OK(itf, end) true
+#endif
+
+static x_open_t x_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_t *itf, uint16_t max_len)
 {
     (void)rhport;
     if (itf->bInterfaceClass != 0xFF || itf->bInterfaceSubClass != 0x5D || itf->bInterfaceProtocol != 0x01)
-        return false;   /* not a pad: headsets and other XInput peripherals use other protocols */
+        return X_OPEN_FAIL;   /* not a pad: headsets and other XInput peripherals use other protocols */
     if (dev_addr > CFG_TUH_DEVICE_MAX || xdev[dev_addr].used)
-        return false;
+        return X_OPEN_FAIL;
     xdev_t *x = &xdev[dev_addr];
     memset(x, 0, sizeof *x);
 
@@ -125,7 +137,7 @@ static bool x_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_t
             *(tu_edpt_dir(ep->bEndpointAddress) == TUSB_DIR_IN ? &x->desc_in : &x->desc_out) = *ep;
 #else
         if (!tuh_edpt_open(dev_addr, ep))
-            return false;
+            return X_OPEN_FAIL;
 #endif
         if (tu_edpt_dir(ep->bEndpointAddress) == TUSB_DIR_IN) {
             if (!x->ep_in) {
@@ -139,11 +151,11 @@ static bool x_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_t
         }
     }
     if (!x->ep_in)
-        return false;
+        return X_OPEN_FAIL;
     x->used = true;
     dbg.opened++;
     usb_hid_xinput_attach(dev_addr);
-    return true;
+    return X_OPEN_OK(itf, p);
 }
 
 #if USB_PAD_LATE

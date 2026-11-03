@@ -1,0 +1,2773 @@
+01
+[  2021288] [1] Aborted transfer on EP 81
+[  2021295] [1] Aborted transfer on EP 02
+[  2021300] [1] Aborted transfer on EP 82
+[  2021306] [1] Aborted transfer on EP 03
+[  2021312] [1] Aborted transfer on EP 83
+[  2021317] [1] Aborted transfer on EP 04
+[  2021323] [1] Aborted transfer on EP 84
+[  2021329] [1] Aborted transfer on EP 05
+[  2021334] [1] Aborted transfer on EP 85
+[  2021340] [1] Aborted transfer on EP 06
+[  2021346] [1] Aborted transfer on EP 86
+[  2021351] [1] Aborted transfer on EP 07
+[  2021357] [1] Aborted transfer on EP 87
+[  2021363] [1] Aborted transfer on EP 08
+[  2021369] [1] Aborted transfer on EP 88
+[  2021374] [1] Aborted transfer on EP 09
+[  2021380] [1] Aborted transfer on EP 89
+[  2021386] [1] Aborted transfer on EP 0A
+[  2021391] [1] Aborted transfer on EP 8A
+[  2021397] [1] Aborted transfer on EP 0B
+[  2021403] [1] Aborted transfer on EP 8B
+[  2021408] [1] Aborted transfer on EP 0C
+[  2021414] [1] Aborted transfer on EP 8C
+[  2021420] [1] Aborted transfer on EP 0D
+[  2021425] [1] Aborted transfer on EP 8D
+[  2021431] [1] Aborted transfer on EP 0E
+[  2021437] [1] Aborted transfer on EP 8E
+[  2021442] [1] Aborted transfer on EP 0F
+[  2021448] [1] Aborted transfer on EP 8F
+[  2021455] 
+[  2021466] Device configured
+[  2021478] Parsing Configuration descriptor (wTotalLength = 106)
+[  2021507]   Open EP 84 with Size = 32
+[  2021521] Allocate interrupt ep 1
+[  2021535]   Open EP 05 with Size = 32
+[  2021541] Allocate interrupt ep 2
+[  2021576]   XINPUT opened
+[  2021591]   Bind EP 84 to driver id 0
+[  2021597]   Bind EP 05 to driver id 0
+[  2021612] [1] HID opening Interface 1
+[  2021625]   Open EP 82 with Size = 16
+[  2021632] Allocate interrupt ep 3
+[  2021645]   HID opened
+[  2021651]   Bind EP 82 to driver id 1
+[  2021658] [1] HID opening Interface 2
+[  2021665]   Open EP 83 with Size = 64
+[  2021670] Allocate interrupt ep 4
+[  2021676]   Open EP 06 with Size = 64
+[  2021681] Allocate interrupt ep 5
+[  2021687]   HID opened
+[  2021692]   Bind EP 83 to driver id 1
+[  2021697]   Bind EP 06 to driver id 1
+[  2021715] XINPUT set config: itf = 0
+[  2021743] [1] Claimed EP 0x84
+[  2021759]   Queue EP 84 with 32 bytes ... 
+[  2021777] OK
+[  2021798] [1] Claimed EP 0x05
+[  2021811]   Queue EP 05 with 3 bytes ... 
+[  2021819] Buffer complete
+[  2021837] OK
+[  2021851] HID set config: itf = 1
+[  2021867] HID Set Idle 
+[  2021880] [0:1] Class Request: 21 0A 00 00 01 00 00 00 
+[  2021918] Transfer complete
+[  2021928] on EP 84 with 0 bytes: OK
+[  2021933] XINPUT xfer callback
+[  2021960] [1] Claimed EP 0x84
+[  2021974]   Queue EP 84 with 32 bytes ... 
+[  2021984] OK
+[  2021997] on EP 00 with 8 bytes: OK
+[  2022254] Buffer complete
+[  2022268] Transfer complete
+[  2022282] on EP 80 with 0 bytes: OK
+[  2022289] 
+[  2022311] HID Set Protocol = 0
+[  2022328] [0:1] Class Request: 21 0B 00 00 01 00 00 00 
+[  2022364] Transfer complete
+[  2022380] on EP 00 with 8 bytes: OK
+[  2022823] Buffer complete
+[  2022837] Transfer complete
+[  2022848] on EP 80 with 0 bytes: OK
+[  2022854] 
+[  2022875] HID Get Report Descriptor
+[  2022892] [0:1] Get Descriptor: 81 06 00 22 01 00 A6 00 
+[  2022917] on EP 05 with 3 bytes: OK
+[  2022925] Transfer complete
+[  2022931] XINPUT xfer callback
+[  2022940] on EP 00 with 8 bytes: OK
+[  2023818] Buffer complete
+[  2023831] Transfer complete
+[  2023844] on EP 80 with 0 bytes: OK
+[  2023857] [0:1] Control data:
+[  2023864] NULL
+[  2023880] Buffer complete
+[  2023888] Transfer complete
+[  2023899] on EP 00 with 0 bytes: OK
+[  2023905] 
+[  2023958] HID set config: itf = 2
+[  2023971] HID Set Idle 
+[  2023986] [0:1] Class Request: 21 0A 00 00 02 00 00 00 
+[  2024020] Transfer complete
+[  2024040] on EP 00 with 8 bytes: OK
+[  2024736] Buffer complete
+[  2024750] Transfer complete
+[  2024763] on EP 80 with 0 bytes: OK
+[  2024771] 
+[  2024787] HID Get Report Descriptor
+[  2024800] [0:1] Get Descriptor: 81 06 00 22 02 00 21 00 
+[  2024834] Transfer complete
+[  2024852] on EP 00 with 8 bytes: OK
+[  2026819] Buffer complete
+[  2026831] Transfer complete
+[  2026844] on EP 80 with 0 bytes: OK
+[  2026856] [0:1] Control data:
+[  2026862] NULL
+[  2027820] Buffer complete
+[  2027831] Transfer complete
+[  2027843] on EP 00 with 0 bytes: OK
+[  2027850] 
+[  2027942]   Queue EP 81 with 1 bytes ... 
+[  2027960] OK
+[  2521030] [1] Claimed EP 0x05
+[  2521049]   Queue EP 05 with 3 bytes ... 
+[  2521061] OK
+[  2521824] Buffer complete
+[  2521848] on EP 05 with 3 bytes: OK
+[  2521861] XINPUT xfer callback
+[  3021019] [1] Claimed EP 0x05
+[  3021038]   Queue EP 05 with 3 bytes ... 
+[  3021050] OK
+[  3021823] Buffer complete
+[  3021846] on EP 05 with 3 bytes: OK
+[  3021854] XINPUT xfer callback
+[  3521016] [1] Claimed EP 0x05
+[  3521033]   Queue EP 05 with 3 bytes ... 
+[  3521045] OK
+[  3521824] Buffer complete
+[  3521845] on EP 05 with 3 bytes: OK
+[  3521854] XINPUT xfer callback
+[  3563816] Buffer complete
+[  3563847] on EP 81 with 1 bytes: OK
+[  3563855] HUB xfer callback
+[  3563867]   Hub Status Change = 0x02
+[  3563883] HUB Get Port Status: addr = 6 port = 1
+[  3563895] [0:6] Class Request: A3 00 00 00 01 00 04 00 
+[  3563939] Transfer complete
+[  3563961] on EP 00 with 8 bytes: OK
+[  3564049] Buffer complete
+[  3564064] Transfer complete
+[  3564084] on EP 80 with 4 bytes: OK
+[  3564098] [0:6] Control data:
+[  3564107]   0000:  01 03 01 00                                      |....|
+[  3564154] Buffer complete
+[  3564165] Transfer complete
+[  3564181] on EP 00 with 0 bytes: OK
+[  3564188] 
+[  3564208] HUB Clear Feature: PORT_CONNECTION_CHANGE, addr = 6 port = 1
+[  3564220] [0:6] Class Request: 23 01 10 00 01 00 00 00 
+[  3564257] Transfer complete
+[  3564276] on EP 00 with 8 bytes: OK
+[  3564490] Buffer complete
+[  3564503] Transfer complete
+[  3564517] on EP 80 with 0 bytes: OK
+[  3564527] 
+[  3564546] HUB Set Feature: PORT_RESET, addr = 6 port = 1
+[  3564556] [0:6] Class Request: 23 03 04 00 01 00 00 00 
+[  3564588] Transfer complete
+[  3564609] on EP 08] Buffer complete
+[  3565832] Transfer complete
+[  3565842] on EP 80 with 0 bytes: OK
+[  3565847] 
+[  3565865] [0:] USBH Device Attach
+[  4015880] HUB Get Port Status: addr = 6 port = 1
+[  4015889] [0:6] Class Request: A3 00 00 00 01 00 04 00 
+[  4015922] Transfer complete
+[  4016082] on EP 00 with 8 bytes: OK
+[  4016105] Buffer complete
+[  4016122] Transfer complete
+[  4016143] on EP 80 with 4 bytes: OK
+[  4016159] [0:6] Control data:
+[  4016166]   0000:  03 03 10 00                                      |....|
+[  4016216] Buffer complete
+[  4016228] Transfer complete
+[  4016243] on EP 00 with 0 bytes: OK
+[  4016252] 
+[  4016275] HUB Clear Feature: PORT_RESET_CHANGE, addr = 6 port = 1
+[  4016287] [0:6] Class Request: 23 01 14 00 01 00 00 00 
+[  4016325] Transfer complete
+[  4016349] on EP 00 with 8 bytes: OK
+[  4016652] Buffer complete
+[  4016664] Transfer complete
+[  4016678] on EP 80 with 0 bytes: OK
+[  4016685] 
+[  4016701] [0:0] Open EP0 with Size = 8
+[  4016716] Get 8 byte of Device Descriptor
+[  4016727] [0:0] Get Descriptor: 80 06 00 01 00 00 08 00 
+[  4016990] Transfer complete
+[  4017014] on EP 00 with 8 bytes: OK
+[  4017182] Buffer complete
+[  4017195] Transfer complete
+[  4017210] on EP 80 with 8 bytes: OK
+[  4017221] [0:0] Control data:
+[  4017228]   0000:  12 01 10 01 00 00 00 08                          |........|
+[  4017335] Buffer complete
+[  4017347] Transfer complete
+[  4017360] on EP 00 with 0 bytes: OK
+[  4017368] 
+[  4017388] Set Address = 2
+[  4017404] [0:0] Set Address: 00 05 02 00 00 00 00 00 
+[  4017534] Transfer complete
+[  4017558] on EP 00 with 8 bytes: OK
+[  4017623] Buffer complete
+[  4017636] Transfer complete
+[  4017652] on EP 80 with 0 bytes: OK
+[  4017660] 
+[  4019686] [0:2] Open EP0 with Size = 8
+[  4019698] Get Device Descriptor
+[  4019706] [0:2] Get Descriptor: 80 06 00 01 00 00 12 00 
+[  4019989] Transfer complete
+[  4020018] on EP 00 with 8 bytes: OK
+[  4020888] Buffer complete
+[  4020903] Transfer complete
+[  4020917] on EP 80 with 8 bytes: OK
+[  4020930] [0:2] Control data:
+[  4020936]   0000:  12 01 10 01 00 00 00 08                          |........|
+[  4021021] [1] Claimed EP 0x05
+[  4021038]   Queue EP 05 with 3 bytes ... 
+[  4021048] OK
+[  4021823] Buffer complete
+[  4021847] on EP 05 with 3 bytes: OK
+[  4021854] XINPUT xfer callback
+[  4021887] Buffer complete
+[  4021898] Transfer complete
+[  4021913] on EP 00 with 0 bytes: OK
+[  4021921] 
+[  4021939] Get Configuration[0] Descriptor (9 bytes)
+[  4021953] [0:2] Get Descriptor: 80 06 00 02 00 00 09 00 
+[  4352477] [0:0:0] unplugged address = 1
+[  4352525]   HIDh close addr = 1 index = 0
+[  4352549]   HIDh close addr = 1 index = 1
+[  4352583] [0:0:0] unplugged address = 2
+[  4352602] [0:0:0] unplugged address = 6
+[  4352612]   is a HUB device 6
+[  4352619]   HUB close addr = 6
+[  4352637] XINPUT deinit
+[  4352648] HID deinit
+[  4352654] HUB deinit
+[  4352684] USBH init on controller 0, speed = Full
+[  4352697] sizeof(usbh_device_t) = 86
+[  4352704] sizeof(hcd_event_t) = 12
+[  4352712] sizeof(_ctrl_xfer) = 16
+[  4352720] sizeof(tuh_xfer_t) = 24
+[  4352727] sizeof(tu_fifo_t) = 20
+[  4352736] sizeof(tu_edpt_stream_t) = 36
+[  4352784] XINPUT init
+[  4352790] HID init
+[  4352799] sizeof(hidh_interface_t) = 14
+[  4352803] HUB init
+[  4352824] sizeof(hw_endpoint_t) = 32
+[  4502874] [0:] USBH Device Attach
+[  5002897] Full Speed
+[  5002914] [0:0] Open EP0 with Size = 8
+[  5002926] Get 8 byte of Device Descriptor
+[  5002940] [0:0] Get Descriptor: 80 06 00 01 00 00 08 00 
+[  5002985] Transfer complete
+[  5003156] on EP 00 with 8 bytes: OK
+[  5003201] Buffer complete
+[  5003225] Transfer complete
+[  5003247] on EP 80 with 8 bytes: OK
+[  5003261] [0:0] Control data:
+[  5003271]   0000:  12 01 10 02 09 00 00 40                          |.......@|
+[  5003337] Buffer complete
+[  5003351] Transfer complete
+[  5003365] on EP 00 with 0 bytes: OK
+[  5003377] 
+[  5003397] Set Address = 6
+[  5003413] [0:0] Set Address: 00 05 06 00 00 00 00 00 
+[  5003452] Transfer complete
+[  5003480] on EP 00 with 8 bytes: OK
+[  5003674] Buffer complete
+[  5003688] Transfer complete
+[  5003700] on EP 80 with 0 bytes: OK
+[  5003708] 
+[  5005728] [0:6] Open EP0 with Size = 64
+[  5005741] Get Device Descriptor
+[  5005751] [0:6] Get Descriptor: 80 06 00 01 00 00 12 00 
+[  5005788] Transfer complete
+[  5005813] on EP 00 with 8 bytes: OK
+[  5006006] Buffer complete
+[  5006025] Transfer complete
+[  5006043] on EP 80 with 18 bytes: OK
+[  5006059] [0:6] Control data:
+[  5006067]   0000:  12 01 10 02 09 00 00 40 09 21 11 28 70 90 01 02  |.......@.!.(p...|
+[  5006111]   0010:  00 01                                            |..|
+[  5006151] Buffer complete
+[  5006163] Transfer complete
+[  5006178] on EP 00 with 0 bytes: OK
+[  5006186] 
+[  5006206] Get Configuration[0] Descriptor (9 bytes)
+[  5006220] [0:6] Get Descriptor: 80 06 00 02 00 00 09 00 
+[  5006259] Transfer complete
+[  5006282] on EP 00 with 8 bytes: OK
+[  5006592] Buffer complete
+[  5006606] Transfer complete
+[  5006620] on EP 80 with 9 bytes: OK
+[  5006634] [0:6] Control data:
+[  5006641]   0000:  09 02 19 00 01 01 00 E0 00                       |.........|
+[  5006688] Buffer complete
+[  5006701] Transfer complete
+[  5006714] on EP 00 with 0 bytes: OK
+[  5006722] 
+[  5006737] Get Configuration[0] Descriptor
+[  5006747] [0:6] Get Descriptor: 80 06 00 02 00 00 19 00 
+[  5006779] Transfer complete
+[  5006800] on EP 00 with 8 bytes: OK
+[  5007208] Buffer complete
+[  5007225] Transfer complete
+[  5007244] on EP 80 with 25 bytes: OK
+[  5007254] [0:6] Control data:
+[  5007261]   0000:  09 02 19 00 01 01 00 E0 00 09 04 00 00 01 09 00  |................|
+[  5007299]   0010:  00 00 07 05 81 03 01 00 FF                       |.........|
+[  5007344] Buffer complete
+[  5007355] Transfer complete
+[  5007367] on EP 00 with 0 bytes: OK
+[  5007374] 
+[  5007389] Set Configuration = 1
+[  5007400] [0:6] Set Configuration: 00 09 01 00 00 00 00 00 
+[  5007435] Transfer complete
+[  5007454] on EP 00 with 8 bytes: OK
+[  5007625] Buffer complete
+[  5007636] Transfer complete
+[  5007649] on EP 80 with 0 bytes: OK
+[  5007665] [6] Aborted transfer on EP 01
+[  5007679] [6] Aborted transfer on EP 81
+[  5007684] [6] Aborted transfer on EP 02
+[  5007690] [6] Aborted transfer on EP 82
+[  5007696] [6] Aborted transfer on EP 03
+[  5007701] [6] Aborted transfer on EP 83
+[  5007707] [6] Aborted transfer on EP 04
+[  5007713] [6] Aborted transfer on EP 84
+[  5007718] [6] Aborted transfer on EP 05
+[  5007724] [6] Aborted transfer on EP 85
+[  5007730] [6] Aborted transfer on EP 06
+[  5007736] [6] Aborted transfer on EP 86
+[  5007741] [6] Aborted transfer on EP 07
+[  5007747] [6] Aborted transfer on EP 87
+[  5007753] [6] Aborted transfer on EP 08
+[  5007758] [6] Aborted transfer on EP 88
+[  5007764] [6] Aborted transfer on EP 09
+[  5007770] [6] Aborted transfer on EP 89
+[  5007775] [6] Aborted transfer on EP 0A
+[  5007781] [6] Aborted transfer on EP 8A
+[  5007787] [6] Aborted transfer on EP 0B
+[  5007792] [6] Aborted transfer on EP 8B
+[  5007798] [6] Aborted transfer on EP 0C
+[  5007804] [6] Aborted transfer on EP 8C
+[  5007810] [6] Aborted transfer on EP 0D
+[  5007815] [6] Aborted transfer on EP 8D
+[  5007821] [6] Aborted transfer on EP 0E
+[  5007827] [6] Aborted transfer on EP 8E
+[  5007832] [6] Aborted transfer on EP 0F
+[  5007838] [6] Aborted transfer on EP 8F
+[  5007844] 
+[  5007856] Device configured
+[  5007868] Parsing Configuration descriptor (wTotalLength = 25)
+[  5007891]   Open EP 81 with Size = 1
+[  5007906] Allocate interrupt ep 0
+[  5007915]   HUB opened
+[  5007928]   Bind EP 81 to driver id 2
+[  5007940] HUB set config: itf = 0
+[  5007955] [0:6] Class Request: A0 06 00 00 00 00 09 00 
+[  5007993] Transfer complete
+[  5008016] on EP 00 with 8 bytes: OK
+[  5008267] Buffer complete
+[  5008282] Transfer complete
+[  5008297] on EP 80 with 9 bytes: OK
+[  5008312] [0:6] Control data:
+[  5008319]   0000:  09 29 04 E9 01 32 64 00 FF                       |.)...2d..|
+[  5008370] Buffer complete
+[  5008381] Transfer complete
+[  5008389] on EP 00 with 0 bytes: OK
+[  5008395] 
+[  5008413] HUB Set Feature: PORT_POWER, addr = 6 port = 1
+[  5008423] [0:6] Class Request: 23 03 08 00 01 00 00 00 
+[  5008456] Transfer complete
+[  5008475] on EP 00 with 8 bytes: OK
+[  5010409] Buffer complete
+[  5010423] Transfer complete
+[  5010439] on EP 80 with 0 bytes: OK
+[  5010448] 
+[  5010468] HUB Set Feature: PORT_POWER, addr = 6 port = 2
+[  5010480] [0:6] Class Request: 23 03 08 00 02 00 00 00 
+[  5010514] Transfer complete
+[  5010537] on EP 00 with 8 bytes: OK
+[  5012369] Buffer complete
+[  5012388] Transfer complete
+[  5012406] on EP 80 with 0 bytes: OK
+[  5012415] 
+[  5012432] HUB Set Feature: PORT_POWER, addr = 6 port = 3
+[  5012442] [0:6] Class Request: 23 03 08 00 03 00 00 00 
+[  5012483] Transfer complete
+[  5012505] on EP 00 with 8 bytes: OK
+[  5014236] Buffer complete
+[  5014250] Transfer complete
+[  5014266] on EP 80 with 0 bytes: OK
+[  5014273] 
+[  5014289] HUB Set Feature: PORT_POWER, addr = 6 port = 4
+[  5014300] [0:6] Class Request: 23 03 08 00 04 00 00 00 
+[  5014334] Transfer complete
+[  5014353] on EP 00 with 8 bytes: OK
+[  5016082] Buffer complete
+[  5016095] Transfer complete
+[  5016112] on EP 80 with 0 bytes: OK
+[  5016121] 
+[  5016144]   Queue EP 81 with 1 bytes ... 
+[  5016159] OK
+[  5016176] HUB address = 6 is mounted
+[  5262865] Buffer complete
+[  5262905] on EP 81 with 1 bytes: OK
+[  5262915] HUB xfer callback
+[  5262925]   Hub Status Change = 0x0A
+[  5262937] HUB Get Port Status: addr = 6 port = 1
+[  5262944] [0:6] Class Request: A3 00 00 00 01 00 04 00 
+[  5262986] Transfer complete
+[  5263011] on EP 00 with 8 bytes: OK
+[  5263081] Buffer complete
+[  5263098] Transfer complete
+[  5263111] on EP 80 with 4 bytes: OK
+[  5263124] [0:6] Control data:
+[  5263129]   0000:  01 03 01 00                                      |....|
+[  5263173] Buffer complete
+[  5263187] Transfer complete
+[  5263200] on EP 00 with 0 bytes: OK
+[  5263208] 
+[  5263228] HUB Clear Feature: PORT_CONNECTION_CHANGE, addr = 6 port = 1
+[  5263239] [0:6] Class Request: 23 01 10 00 01 00 00 00 
+[  5263273] Transfer complete
+[  5263296] on EP 00 with 8 bytes: OK
+[  5263512] Buffer complete
+[  5263523] Transfer complete
+[  5263536] on EP 80 with 0 bytes: OK
+[  5263546] 
+[  5263566] HUB Set Feature: PORT_RESET, addr = 6 port = 1
+[  5263575] [0:6] Class Request: 23 03 04 00 01 00 00 00 
+[  5263608] Transfer complete
+[  5263628] on EP 00 with 8 bytes: OK
+[  5276367] Buffer complete
+[  5276380] Transfer complete
+[  5276393] on EP 80 with 0 bytes: OK
+[  5276399] 
+[  5276414] [0:] USBH Device Attach
+[  5726425] HUB Get Port Status: addr = 6 port = 1
+[  5726435] [0:6] Class Request: A3 00 00 00 01 00 04 00 
+[  5726471] Transfer complete
+[  5726641] on EP 00 with 8 bytes: OK
+[  5726666] Buffer complete
+[  5726682] Transfer complete
+[  5726698] on EP 80 with 4 bytes: OK
+[  5726710] [0:6] Control data:
+[  5726716]   0000:  03 03 10 00                                      |....|
+[  5726762] Buffer complete
+[  5726773] Transfer complete
+[  5726788] on EP 00 with 0 bytes: OK
+[  5726797] 
+[  5726819] HUB Clear Feature: PORT_RESET_CHANGE, addr = 6 port = 1
+[  5726831] [0:6] Class Request: 23 01 14 00 01 00 00 00 
+[  5726870] Transfer complete
+[  5726893] on EP 00 with 8 bytes: OK
+[  5727089] Buffer complete
+[  5727101] Transfer complete
+[  5727117] on EP 80 with 0 bytes: OK
+[  5727125] 
+[  5727142] [0:0] Open EP0 with Size = 8
+[  5727155] Get 8 byte of Device Descriptor
+[  5727165] [0:0] Get Descriptor: 80 06 00 01 00 00 08 00 
+[  5727299] Transfer complete
+[  5727321] on EP 00 with 8 bytes: OK
+[  5727486] Buffer complete
+[  5727499] Transfer complete
+[  5727511] on EP 80 with 8 bytes: OK
+[  5727521] [0:0] Control data:
+[  5727527]   0000:  12 01 10 01 00 00 00 08                          |........|
+[  5727635] Buffer complete
+[  5727647] Transfer complete
+[  5727662] on EP 00 with 0 bytes: OK
+[  5727671] 
+[  5727687] Set Address = 1
+[  5727701] [0:0] Set Address: 00 05 01 00 00 00 00 00 
+[  5727968] Transfer complete
+[  5727993] on EP 00 with 8 bytes: OK
+[  5728059] Buffer complete
+[  5728074] Transfer complete
+[  5728092] on EP 80 with 0 bytes: OK
+[  5728102] 
+[  5730123] [0:1] Open EP0 with Size = 8
+[  5730135] Get Device Descriptor
+[  5730147] [0:1] Get Descriptor: 80 06 00 01 00 00 12 00 
+[  5730278] Transfer complete
+[  5730344] on EP 00 with 8 bytes: OK
+[  5730663] Buffer complete
+[  5730921] Buffer complete
+[  5730935] Transfer complete
+[  5730943] on EP 80 with 18 bytes: OK
+[  5730951] [0:1] Control data:
+[  5730957]   0000:  12 01 10 01 00 00 00 08 61 04 67 4E 13 01 00 01  |........a.gN....|
+[  5730997]   0010:  00 01                                            |..|
+[  5731097] Buffer complete
+[  5731110] Transfer complete
+[  5731127] on EP 00 with 0 bytes: OK
+[  5731136] 
+[  5731153] Get Configuration[0] Descriptor (9 bytes)
+[  5731169] [0:1] Get Descriptor: 80 06 00 02 00 00 09 00 
+[  5731308] Transfer complete
+[  5731333] on EP 00 with 8 bytes: OK
+[  5731612] Buffer complete
+[  5731626] Transfer complete
+[  5731641] on EP 80 with 9 bytes: OK
+[  5731654] [0:1] Control data:
+[  5731660]   0000:  09 02 3B 00 02 01 00 A0 31                       |..;.....1|
+[  5731924] Buffer complete
+[  5731935] Transfer complete
+[  5731944] on EP 00 with 0 bytes: OK
+[  5731949] 
+[  5731961] Get Configuration[0] Descriptor
+[  5731972] [0:1] Get Descriptor: 80 06 00 02 00 00 3B 00 
+[  5732107] Transfer complete
+[  5732131] on EP 00 with 8 bytes: OK
+[  5732503] Buffer complete
+[  5732953] Buffer complete
+[  5733365] Buffer complete
+[  5733657] Buffer complete
+[  5733670] Transfer complete
+[  5733684] on EP 80 with 59 bytes: OK
+[  5733699] [0:1] Control data:
+[  5733705]   0000:  09 02 3B 00 02 01 00 A0 31 09 04 00 00 01 03 01  |..;.....1.......|
+[  5733745]   0010:  01 00 09 21 10 01 00 01 22 36 00 07 05 81 03 08  |...!...."6......|
+[  5733782]   0020:  00 0A 09 04 01 00 01 03 00 00 00 09 21 10 01 00  |............!...|
+[  5733819]   0030:  01 22 19 00 07 05 82 03 03 00 0A                 |.".........|
+[  5733924] Buffer complete
+[  5733934] Transfer complete
+[  5733950] on EP 00 with 0 bytes: OK
+[  5733958] 
+[  5733974] Set Configuration = 1
+[  5733983] [0:1] Set Configuration: 00 09 01 00 00 00 00 00 
+[  5734117] Transfer complete
+[  5734140] on EP 00 with 8 bytes: OK
+[  5734207] Buffer complete
+[  5734220] Transfer complete
+[  5734234] on EP 80 with 0 bytes: OK
+[  5734249] [1] Aborted transfer on EP 01
+[  5734260] [1] Aborted transfer on EP 81
+[  5734265] [1] Aborted transfer on EP 02
+[  5734271] [1] Aborted transfer on EP 82
+[  5734277] [1] Aborted transfer on EP 03
+[  5734282] [1] Aborted transfer on EP 83
+[  5734288] [1] Aborted transfer on EP 04
+[  5734294] [1] Aborted transfer on EP 84
+[  5734299] [1] Aborted transfer on EP 05
+[  5734305] [1] Aborted transfer on EP 85
+[  5734311] [1] Aborted transfer on EP 06
+[  5734316] [1] Aborted transfer on EP 86
+[  5734322] [1] Aborted transfer on EP 07
+[  5734328] [1] Aborted transfer on EP 87
+[  5734333] [1] Aborted transfer on EP 08
+[  5734339] [1] Aborted transfer on EP 88
+[  5734345] [1] Aborted transfer on EP 09
+[  5734351] [1] Aborted transfer on EP 89
+[  5734356] [1] Aborted transfer on EP 0A
+[  5734362] [1] Aborted transfer on EP 8A
+[  5734368] [1] Aborted transfer on EP 0B
+[  5734373] [1] Aborted transfer on EP 8B
+[  5734379] [1] Aborted transfer on EP 0C
+[  5734385] [1] Aborted transfer on EP 8C
+[  5734390] [1] Aborted transfer on EP 0D
+[  5734396] [1] Aborted transfer on EP 8D
+[  5734402] [1] Aborted transfer on EP 0E
+[  5734408] [1] Aborted transfer on EP 8E
+[  5734413] [1] Aborted transfer on EP 0F
+[  5734419] [1] Aborted transfer on EP 8F
+[  5734425] 
+[  5734436] Device configured
+[  5734449] Parsing Configuration descriptor (wTotalLength = 59)
+[  5734469] [1] HID opening Interface 0
+[  5734484]   Open EP 81 with Size = 8
+[  5734497] Allocate interrupt ep 1
+[  5734509]   HID opened
+[  5734519]   Bind EP 81 to driver id 1
+[  5734527] [1] HID opening Interface 1
+[  5734534]   Open EP 82 with Size = 3
+[  5734540] Allocate interrupt ep 2
+[  5734545]   HID opened
+[  5734551]   Bind EP 82 to driver id 1
+[  5734559] HID set config: itf = 0
+[  5734573] HID Set Idle 
+[  5734586] [0:1] Class Request: 21 0A 00 00 00 00 00 00 
+[  5734718] Transfer complete
+[  5734741] on EP 00 with 8 bytes: OK
+[  5734910] Buffer complete
+[  5734923] Transfer complete
+[  5734936] on EP 80 with 0 bytes: OK
+[  5734944] 
+[  5734968] HID Set Protocol = 0
+[  5734982] [0:1] Class Request: 21 0B 00 00 00 00 00 00 
+[  5735114] Transfer complete
+[  5735138] on EP 00 with 8 bytes: OK
+[  5735207] Buffer complete
+[  5735221] Transfer complete
+[  5735236] on EP 80 with 0 bytes: OK
+[  5735244] 
+[  5735262] HID Get Report Descriptor
+[  5735273] [0:1] Get Descriptor: 81 06 00 22 00 00 36 00 
+[  5735405] Transfer complete
+[  5735427] on EP 00 with 8 bytes: OK
+[  5735954] Buffer complete
+[  5736366] Buffer complete
+[  5736779] Buffer complete
+[  5736942] Buffer complete
+[  5736952] Transfer complete
+[  5736968] on EP 80 with 54 bytes: OK
+[  5736979] [0:1] Control data:
+[  5736987]   0000:  05 01 09 06 A1 01 05 08 19 01 29 03 15 00 25 01  |..........)...%.|
+[  5737029]   0010:  75 01 95 03 91 02 95 05 91 01 05 07 19 E0 29 E7  |u.............).|
+[  5737069]   0020:  95 08 81 02 75 08 95 01 81 01 19 00 29 DD 26 FF  |....u.......).&.|
+[  5737107]   0030:  00 95 06 81 00 C0                                |......|
+[  5737214] Buffer complete
+[  5737227] Transfer complete
+[  5737244] on EP 00 with 0 bytes: OK
+[  5737252] 
+[  5737311] HID set config: itf = 1
+[  5737327] HID Set Idle 
+[  5737345] [0:1] Class Request: 21 0A 00 00 01 00 00 00 
+[  5737481] Transfer complete
+[  5737499] on EP 00 with 8 bytes: OK
+[  5737568] Buffer complete
+[  5737580] Transfer complete
+[  5737590] on EP 80 with 0 bytes: OK
+[  5737597] 
+[  5737614] HID Get Report Descriptor
+[  5737627] [0:1] Get Descriptor: 81 06 00 22 01 00 19 00 
+[  5737760] Transfer complete
+[  5737775] on EP 00 with 8 bytes: OK
+[  5738161] Buffer complete
+[  5738480] Buffer complete
+[  5738492] Transfer complete
+[  5738502] on EP 80 with 25 bytes: OK
+[  5738511] [0:1] Control data:
+[  5738518]   0000:  05 0C 09 01 A1 01 85 01 19 00 2A 3C 02 15 00 26  |..........*<...&|
+[  5738555]   0010:  3C 02 95 01 75 10 81 00 C0                       |<...u....|
+[  5738662] Buffer complete
+[  5738672] Transfer complete
+[  5738682] on EP 00 with 0 bytes: OK
+[  5738689] 
+[  5738779]   Queue EP 81 with 1 bytes ... 
+[  5738796] OK
+[  5772864] Buffer complete
+[  5772896] on EP 81 with 1 bytes: OK
+[  5772906] HUB xfer callback
+[  5772919]   Hub Status Change = 0x08
+[  5772932] HUB Get Port Status: addr = 6 port = 3
+[  5772945] [0:6] Class Request: A3 00 00 00 03 00 04 00 
+[  5772985] Transfer complete
+[  5773002] on EP 00 with 8 bytes: OK
+[  5773095] Buffer complete
+[  5773111] Transfer complete
+[  5773125] on EP 80 with 4 bytes: OK
+[  5773134] [0:6] Control data:
+[  5773141]   0000:  01 01 01 00                                      |....|
+[  5773186] Buffer complete
+[  5773197] Transfer complete
+[  5773208] on EP 00 with 0 bytes: OK
+[  5773214] 
+[  5773235] HUB Clear Feature: PORT_CONNECTION_CHANGE, addr = 6 port = 3
+[  5773246] [0:6] Class Request: 23 01 10 00 03 00 00 00 
+[  5773280] Transfer complete
+[  5773296] on EP 00 with 8 bytes: OK
+[  5773665] Buffer complete
+[  5773675] Transfer complete
+[  5773687] on EP 80 with 0 bytes: OK
+[  5773693] 
+[  5773710] HUB Set Feature: PORT_RESET, addr = 6 port = 3
+[  5773719] [0:6] Class Request: 23 03 04 00 03 00 00 00 
+[  5773752] Transfer complete
+[  5773768] on EP 00 with 8 bytes: OK
+[  5786366] Buffer complete
+[  5786387] Transfer complete
+[  5786400] on EP 80 with 0 bytes: OK
+[  5786408] 
+[  5786426] [0:] USBH Device Attach
+[  6236437] HUB Get Port Status: addr = 6 port = 3
+[  6236449] [0:6] Class Request: A3 00 00 00 03 00 04 00 
+[  6236490] Transfer complete
+[  6236499] HID Set Protocol = 0
+[  6236671] on EP 00 with 8 bytes: OK
+[  6236699] Buffer complete
+[  6236715] Transfer complete
+[  6236720] HID Set Protocol = 0
+[  6236733] on EP 80 with 4 bytes: OK
+[  6236747] [0:6] Control data:
+[  6236754]   0000:  03 01 10 00                                      |....|
+[  6236803] HID Set Protocol = 0
+[  6236820] HID Set Protocol = 0
+[  6236836] HID Set Protocol = 0
+[  6236854] HID Set Protocol = 0
+[  6236864] Buffer complete
+[  6236873] Transfer complete
+[  6236884] on EP 00 with 0 bytes: OK
+[  6236892] 
+[  6236915] HUB Clear Feature: PORT_RESET_CHANGE, addr = 6 port = 3
+[  6236926] [0:6] Class Request: 23 01 14 00 03 00 00 00 
+[  6236963] HID Set Protocol = 0
+[  6236973] Transfer complete
+[  6236987] on EP 00 with 8 bytes: OK
+[  6237005] HID Set Protocol = 0
+[  6237026] HID Set Protocol = 0
+[  6237046] HID Set Protocol = 0
+[  6237065] HID Set Protocol = 0
+[  6237083] HID Set Protocol = 0
+[  6237100] HID Set Protocol = 0
+[  6237117] HID Set Protocol = 0
+[  6237135] HID Set Protocol = 0
+[  6237151] HID Set Protocol = 0
+[  6237170] HID Set Protocol = 0
+[  6237189] HID Set Protocol = 0
+[  6237201] Buffer complete
+[  6237210] Transfer complete
+[  6237220] on EP 80 with 0 bytes: OK
+[  6237227] 
+[  6237244] [0:0] Open EP0 with Size = 8
+[  6237260] Get 8 byte of Device Descriptor
+[  6237271] [0:0] Get Descriptor: 80 06 00 01 00 00 08 00 
+[  6237308] Transfer complete
+[  6237319] HID Set Protocol = 0
+[  6237331] on EP 00 with 8 bytes: OK
+[  6237349] HID Set Protocol = 0
+[  6237369] HID Set Protocol = 0
+[  6237387] HID Set Protocol = 0
+[  6237407] HID Set Protocol = 0
+[  6237423] HID Set Protocol = 0
+[  6237441] HID Set Protocol = 0
+[  6237458] HID Set Protocol = 0
+[  6237476] HID Set Protocol = 0
+[  6237493] HID Set Protocol = 0
+[  6237512] HID Set Protocol = 0
+[  6237529] HID Set Protocol = 0
+[  6237547] HID Set Protocol = 0
+[  6237565] HID Set Protocol = 0
+[  6237583] HID Set Protocol = 0
+[  6237601] HID Set Protocol = 0
+[  6237620] HID Set Protocol = 0
+[  6237634] HID Set Protocol = 0
+[  6237652] HID Set Protocol = 0
+[  6237669] HID Set Protocol = 0
+[  6237688] HID Set Protocol = 0
+[  6237704] HID Set Protocol = 0
+[  6237721] HID Set Protocol = 0
+[  6237739] HID Set Protocol = 0
+[  6237756] HID Set Protocol = 0
+[  6237774] HID Set Protocol = 0
+[  6237790] HID Set Protocol = 0
+[  6237808] HID Set Protocol = 0
+[  6237825] HID Set Protocol = 0
+[  6237842] HID Set Protocol = 0
+[  6237859] HID Set Protocol = 0
+[  6237879] HID Set Protocol = 0
+[  6237890] Buffer complete
+[  6237900] Transfer complete
+[  6237912] HID Set Protocol = 0
+[  6237925] on EP 80 with 8 bytes: OK
+[  6237936] [0:0] Control data:
+[  6237943]   0000:  12 01 00 02 00 00 00 08                          |........|
+[  6237988] HID Set Protocol = 0
+[  6238003] HID Set Protocol = 0
+[  6238025] HID Set Protocol = 0
+[  6238045] HID Set Protocol = 0
+[  6238063] HID Set Protocol = 0
+[  6238080] HID Set Protocol = 0
+[  6238098] HID Set Protocol = 0
+[  6238115] HID Set Protocol = 0
+[  6238133] HID Set Protocol = 0
+[  6238151] HID Set Protocol = 0
+[  6238171] HID Set Protocol = 0
+[  6238188] HID Set Protocol = 0
+[  6238205] HID Set Protocol = 0
+[  6238223] HID Set Protocol = 0
+[  6238242] HID Set Protocol = 0
+[  6238260] HID Set Protocol = 0
+[  6238279] HID Set Protocol = 0
+[  6238297] HID Set Protocol = 0
+[  6238312] HID Set Protocol = 0
+[  6238331] HID Set Protocol = 0
+[  6238347] HID Set Protocol = 0
+[  6238365] HID Set Protocol = 0
+[  6238382] HID Set Protocol = 0
+[  6238400] HID Set Protocol = 0
+[  6238416] HID Set Protocol = 0
+[  6238435] HID Set Protocol = 0
+[  6238453] HID Set Protocol = 0
+[  6238471] HID Set Protocol = 0
+[  6238488] HID Set Protocol = 0
+[  6238505] HID Set Protocol = 0
+[  6238520] HID Set Protocol = 0
+[  6238537] HID Set Protocol = 0
+[  6238555] HID Set Protocol = 0
+[  6238575] HID Set Protocol = 0
+[  6238591] HID Set Protocol = 0
+[  6238607] HID Set Protocol = 0
+[  6238625] HID Set Protocol = 0
+[  6238643] HID Set Protocol = 0
+[  6238659] HID Set Protocol = 0
+[  6238677] HID Set Protocol = 0
+[  6238694] HID Set Protocol = 0
+[  6238709] HID Set Protocol = 0
+[  6238726] HID Set Protocol = 0
+[  6238742] HID Set Protocol = 0
+[  6238760] HID Set Protocol = 0
+[  6238776] HID Set Protocol = 0
+[  6238794] HID Set Protocol = 0
+[  6238812] HID Set Protocol = 0
+[  6238828] HID Set Protocol = 0
+[  6238846] HID Set Protocol = 0
+[  6238864] HID Set Protocol = 0
+[  6238881] HID Set Protocol = 0
+[  6238900] HID Set Protocol = 0
+[  6238917] HID Set Protocol = 0
+[  6238933] HID Set Protocol = 0
+[  6238952] HID Set Protocol = 0
+[  6238967] HID Set Protocol = 0
+[  6238986] HID Set Protocol = 0
+[  6239002] HID Set Protocol = 0
+[  6239024] HID Set Protocol = 0
+[  6239043] HID Set Protocol = 0
+[  6239060] HID Set Protocol = 0
+[  6239079] HID Set Protocol = 0
+[  6239095] HID Set Protocol = 0
+[  6239113] HID Set Protocol = 0
+[  6239129] HID Set Protocol = 0
+[  6239148] HID Set Protocol = 0
+[  6239165] HID Set Protocol = 0
+[  6239182] HID Set Protocol = 0
+[  6239199] HID Set Protocol = 0
+[  6239216] HID Set Protocol = 0
+[  6239234] HID Set Protocol = 0
+[  6239252] HID Set Protocol = 0
+[  6239270] HID Set Protocol = 0
+[  6239286] HID Set Protocol = 0
+[  6239303] HID Set Protocol = 0
+[  6239322] HID Set Protocol = 0
+[  6239339] HID Set Protocol = 0
+[  6239357] HID Set Protocol = 0
+[  6239374] HID Set Protocol = 0
+[  6239392] HID Set Protocol = 0
+[  6239409] HID Set Protocol = 0
+[  6239427] HID Set Protocol = 0
+[  6239444] HID Set Protocol = 0
+[  6239463] HID Set Protocol = 0
+[  6239481] HID Set Protocol = 0
+[  6239497] HID Set Protocol = 0
+[  6239515] HID Set Protocol = 0
+[  6239531] HID Set Protocol = 0
+[  6239549] HID Set Protocol = 0
+[  6239567] HID Set Protocol = 0
+[  6239584] HID Set Protocol = 0
+[  6239600] HID Set Protocol = 0
+[  6239619] HID Set Protocol = 0
+[  6239637] HID Set Protocol = 0
+[  6239653] HID Set Protocol = 0
+[  6239671] HID Set Protocol = 0
+[  6239689] HID Set Protocol = 0
+[  6239706] HID Set Protocol = 0
+[  6239723] HID Set Protocol = 0
+[  6239740] HID Set Protocol = 0
+[  6239756] HID Set Protocol = 0
+[  6239774] HID Set Protocol = 0
+[  6239792] HID Set Protocol = 0
+[  6239809] HID Set Protocol = 0
+[  6239826] HID Set Protocol = 0
+[  6239844] HID Set Protocol = 0
+[  6239860] HID Set Protocol = 0
+[  6239879] HID Set Protocol = 0
+[  6239896] HID Set Protocol = 0
+[  6239913] HID Set Protocol = 0
+[  6239930] HID Set Protocol = 0
+[  6239947] HID Set Protocol = 0
+[  6239965] HID Set Protocol = 0
+[  6239984] HID Set Protocol = 0
+[  6240002] HID Set Protocol = 0
+[  6240021] HID Set Protocol = 0
+[  6240042] HID Set Protocol = 0
+[  6240060] HID Set Protocol = 0
+[  6240078] HID Set Protocol = 0
+[  6240096] HID Set Protocol = 0
+[  6240114] HID Set Protocol = 0
+[  6240132] HID Set Protocol = 0
+[  6240150] HID Set Protocol = 0
+[  6240168] HID Set Protocol = 0
+[  6240183] HID Set Protocol = 0
+[  6240199] HID Set Protocol = 0
+[  6240216] Buffer complete
+[  6240228] Transfer complete
+[  6240232] HID Set Protocol = 0
+[  6240243] on EP 00 with 0 bytes: OK
+[  6240249] 
+[  6240264] Set Address = 2
+[  6240279] [0:0] Set Address: 00 05 02 00 00 00 00 00 
+[  6240310] HID Set Protocol = 0
+[  6240318] Transfer complete
+[  6240333] on EP 00 with 8 bytes: OK
+[  6240352] Buffer complete
+[  6240361] Transfer complete
+[  6240367] HID Set Protocol = 0
+[  6240380] on EP 80 with 0 bytes: OK
+[  6240388] 
+[  6242411] [0:2] Open EP0 with Size = 8
+[  6242423] Get Device Descriptor
+[  6242432] [0:2] Get Descriptor: 80 06 00 01 00 00 12 00 
+[  6242464] Transfer complete
+[  6242472] HID Set Protocol = 0
+[  6242489] on EP 00 with 8 bytes: OK
+[  6242513] HID Set Protocol = 0
+[  6242532] HID Set Protocol = 0
+[  6242552] HID Set Protocol = 0
+[  6242569] HID Set Protocol = 0
+[  6242586] HID Set Protocol = 0
+[  6242604] HID Set Protocol = 0
+[  6242622] HID Set Protocol = 0
+[  6242639] HID Set Protocol = 0
+[  6242655] HID Set Protocol = 0
+[  6242674] HID Set Protocol = 0
+[  6242693] HID Set Protocol = 0
+[  6242709] HID Set Protocol = 0
+[  6242726] HID Set Protocol = 0
+[  6242744] HID Set Protocol = 0
+[  6242760] HID Set Protocol = 0
+[  6242779] HID Set Protocol = 0
+[  6242797] HID Set Protocol = 0
+[  6242813] HID Set Protocol = 0
+[  6242832] HID Set Protocol = 0
+[  6242849] HID Set Protocol = 0
+[  6242867] HID Set Protocol = 0
+[  6242884] HID Set Protocol = 0
+[  6242901] HID Set Protocol = 0
+[  6242922] HID Set Protocol = 0
+[  6242940] HID Set Protocol = 0
+[  6242960] HID Set Protocol = 0
+[  6242976] HID Set Protocol = 0
+[  6242996] HID Set Protocol = 0
+[  6243016] HID Set Protocol = 0
+[  6243035] HID Set Protocol = 0
+[  6243052] HID Set Protocol = 0
+[  6243068] HID Set Protocol = 0
+[  6243087] HID Set Protocol = 0
+[  6243103] HID Set Protocol = 0
+[  6243123] HID Set Protocol = 0
+[  6243138] HID Set Protocol = 0
+[  6243156] HID Set Protocol = 0
+[  6243175] HID Set Protocol = 0
+[  6243194] HID Set Protocol = 0
+[  6243211] HID Set Protocol = 0
+[  6243230] HID Set Protocol = 0
+[  6243247] HID Set Protocol = 0
+[  6243263] HID Set Protocol = 0
+[  6243282] HID Set Protocol = 0
+[  6243298] HID Set Protocol = 0
+[  6243316] HID Set Protocol = 0
+[  6243334] HID Set Protocol = 0
+[  6243352] HID Set Protocol = 0
+[  6243370] HID Set Protocol = 0
+[  6243387] HID Set Protocol = 0
+[  6243405] HID Set Protocol = 0
+[  6243421] HID Set Protocol = 0
+[  6243437] HID Set Protocol = 0
+[  6243454] HID Set Protocol = 0
+[  6243473] HID Set Protocol = 0
+[  6243489] HID Set Protocol = 0
+[  6243506] HID Set Protocol = 0
+[  6243524] HID Set Protocol = 0
+[  6243540] HID Set Protocol = 0
+[  6243557] HID Set Protocol = 0
+[  6243573] HID Set Protocol = 0
+[  6243590] HID Set Protocol = 0
+[  6243609] HID Set Protocol = 0
+[  6243626] HID Set Protocol = 0
+[  6243644] HID Set Protocol = 0
+[  6243660] HID Set Protocol = 0
+[  6243678] HID Set Protocol = 0
+[  6243696] HID Set Protocol = 0
+[  6243714] HID Set Protocol = 0
+[  6243732] HID Set Protocol = 0
+[  6243749] HID Set Protocol = 0
+[  6243767] HID Set Protocol = 0
+[  6243785] HID Set Protocol = 0
+[  6243804] HID Set Protocol = 0
+[  6243822] HID Set Protocol = 0
+[  6243839] HID Set Protocol = 0
+[  6243857] HID Set Protocol = 0
+[  6243874] HID Set Protocol = 0
+[  6243891] HID Set Protocol = 0
+[  6243908] HID Set Protocol = 0
+[  6243925] HID Set Protocol = 0
+[  6243943] HID Set Protocol = 0
+[  6243959] HID Set Protocol = 0
+[  6243978] HID Set Protocol = 0
+[  6243997] HID Set Protocol = 0
+[  6244019] HID Set Protocol = 0
+[  6244039] HID Set Protocol = 0
+[  6244057] HID Set Protocol = 0
+[  6244075] HID Set Protocol = 0
+[  6244093] HID Set Protocol = 0
+[  6244110] HID Set Protocol = 0
+[  6244126] HID Set Protocol = 0
+[  6244145] HID Set Protocol = 0
+[  6244163] HID Set Protocol = 0
+[  6244178] HID Set Protocol = 0
+[  6244196] HID Set Protocol = 0
+[  6244211] HID Set Protocol = 0
+[  6244228] HID Set Protocol = 0
+[  6244246] HID Set Protocol = 0
+[  6244265] HID Set Protocol = 0
+[  6244282] HID Set Protocol = 0
+[  6244298] HID Set Protocol = 0
+[  6244315] HID Set Protocol = 0
+[  6244334] HID Set Protocol = 0
+[  6244352] HID Set Protocol = 0
+[  6244369] HID Set Protocol = 0
+[  6244387] HID Set Protocol = 0
+[  6244405] HID Set Protocol = 0
+[  6244420] HID Set Protocol = 0
+[  6244438] HID Set Protocol = 0
+[  6244455] Buffer complete
+[  6244468] HID Set Protocol = 0
+[  6244481] HID Set Protocol = 0
+[  6244497] HID Set Protocol = 0
+[  6244515] HID Set Protocol = 0
+[  6244532] HID Set Protocol = 0
+[  6244551] HID Set Protocol = 0
+[  6244569] HID Set Protocol = 0
+[  6244587] HID Set Protocol = 0
+[  6244604] HID Set Protocol = 0
+[  6244620] HID Set Protocol = 0
+[  6244637] HID Set Protocol = 0
+[  6244655] HID Set Protocol = 0
+[  6244672] HID Set Protocol = 0
+[  6244690] HID Set Protocol = 0
+[  6244704] HID Set Protocol = 0
+[  6244722] HID Set Protocol = 0
+[  6244739] HID Set Protocol = 0
+[  6244756] HID Set Protocol = 0
+[  6244926] HID Set Protocol = 0
+[  6244945] HID Set Protocol = 0
+[  6244963] HID Set Protocol = 0
+[  6244980] HID Set Protocol = 0
+[  6244996] HID Set Protocol = 0
+[  6245016] HID Set Protocol = 0
+[  6245037] HID Set Protocol = 0
+[  6245054] HID Set Protocol = 0
+[  6245072] HID Set Protocol = 0
+[  6245089] HID Set Protocol = 0
+[  6245107] HID Set Protocol = 0
+[  6245125] HID Set Protocol = 0
+[  6245140] HID Set Protocol = 0
+[  6245158] HID Set Protocol = 0
+[  6245174] HID Set Protocol = 0
+[  6245192] HID Set Protocol = 0
+[  6245210] HID Set Protocol = 0
+[  6245230] HID Set Protocol = 0
+[  6245247] HID Set Protocol = 0
+[  6245262] HID Set Protocol = 0
+[  6245281] HID Set Protocol = 0
+[  6245298] HID Set Protocol = 0
+[  6245316] HID Set Protocol = 0
+[  6245334] HID Set Protocol = 0
+[  6245350] HID Set Protocol = 0
+[  6245369] HID Set Protocol = 0
+[  6245388] HID Set Protocol = 0
+[  6245406] HID Set Protocol = 0
+[  6245423] HID Set Protocol = 0
+[  6245441] HID Set Protocol = 0
+[  6245458] HID Set Protocol = 0
+[  6245474] HID Set Protocol = 0
+[  6245491] HID Set Protocol = 0
+[  6245509] HID Set Protocol = 0
+[  6245527] HID Set Protocol = 0
+[  6245545] HID Set Protocol = 0
+[  6245561] Buffer complete
+[  6245576] Transfer complete
+[  6245585] HID Set Protocol = 0
+[  6245600] on EP 80 with 18 bytes: OK
+[  6245612] [0:2] Control data:
+[  6245619]   0000:  12 01 00 02 00 00 00 08 C8 2D 0A 31 14 01 01 02  |.........-.1....|
+[  6245662]   0010:  03 01                                            |..|
+[  6245705] HID Set Protocol = 0
+[  6245720] HID Set Protocol = 0
+[  6245738] HID Set Protocol = 0
+[  6245755] HID Set Protocol = 0
+[  6245771] HID Set Protocol = 0
+[  6245789] HID Set Protocol = 0
+[  6245807] HID Set Protocol = 0
+[  6245825] HID Set Protocol = 0
+[  6245843] HID Set Protocol = 0
+[  6245861] HID Set Protocol = 0
+[  6245878] HID Set Protocol = 0
+[  6245894] HID Set Protocol = 0
+[  6245912] HID Set Protocol = 0
+[  6245930] HID Set Protocol = 0
+[  6245947] HID Set Protocol = 0
+[  6245965] HID Set Protocol = 0
+[  6245984] HID Set Protocol = 0
+[  6246002] HID Set Protocol = 0
+[  6246023] HID Set Protocol = 0
+[  6246044] HID Set Protocol = 0
+[  6246064] HID Set Protocol = 0
+[  6246083] HID Set Protocol = 0
+[  6246100] HID Set Protocol = 0
+[  6246118] HID Set Protocol = 0
+[  6246134] HID Set Protocol = 0
+[  6246151] HID Set Protocol = 0
+[  6246170] HID Set Protocol = 0
+[  6246188] HID Set Protocol = 0
+[  6246207] HID Set Protocol = 0
+[  6246224] HID Set Protocol = 0
+[  6246243] HID Set Protocol = 0
+[  6246258] HID Set Protocol = 0
+[  6246276] HID Set Protocol = 0
+[  6246294] HID Set Protocol = 0
+[  6246312] HID Set Protocol = 0
+[  6246329] HID Set Protocol = 0
+[  6246346] HID Set Protocol = 0
+[  6246364] HID Set Protocol = 0
+[  6246380] HID Set Protocol = 0
+[  6246398] HID Set Protocol = 0
+[  6246416] HID Set Protocol = 0
+[  6246434] HID Set Protocol = 0
+[  6246451] HID Set Protocol = 0
+[  6246469] HID Set Protocol = 0
+[  6246488] HID Set Protocol = 0
+[  6246505] HID Set Protocol = 0
+[  6246524] HID Set Protocol = 0
+[  6246543] HID Set Protocol = 0
+[  6246560] HID Set Protocol = 0
+[  6246577] HID Set Protocol = 0
+[  6246594] HID Set Protocol = 0
+[  6246613] HID Set Protocol = 0
+[  6246631] HID Set Protocol = 0
+[  6246648] HID Set Protocol = 0
+[  6246666] HID Set Protocol = 0
+[  6246683] HID Set Protocol = 0
+[  6246699] HID Set Protocol = 0
+[  6246716] HID Set Protocol = 0
+[  6246734] HID Set Protocol = 0
+[  6246750] HID Set Protocol = 0
+[  6246767] HID Set Protocol = 0
+[  6246784] HID Set Protocol = 0
+[  6246802] HID Set Protocol = 0
+[  6246820] HID Set Protocol = 0
+[  6246836] HID Set Protocol = 0
+[  6246855] HID Set Protocol = 0
+[  6246872] HID Set Protocol = 0
+[  6246889] HID Set Protocol = 0
+[  6246907] HID Set Protocol = 0
+[  6246926] HID Set Protocol = 0
+[  6246943] HID Set Protocol = 0
+[  6246961] HID Set Protocol = 0
+[  6246976] HID Set Protocol = 0
+[  6246994] HID Set Protocol = 0
+[  6247014] HID Set Protocol = 0
+[  6247033] HID Set Protocol = 0
+[  6247052] HID Set Protocol = 0
+[  6247071] HID Set Protocol = 0
+[  6247087] HID Set Protocol = 0
+[  6247102] HID Set Protocol = 0
+[  6247121] HID Set Protocol = 0
+[  6247136] HID Set Protocol = 0
+[  6247154] HID Set Protocol = 0
+[  6247171] HID Set Protocol = 0
+[  6247189] HID Set Protocol = 0
+[  6247207] HID Set Protocol = 0
+[  6247224] HID Set Protocol = 0
+[  6247242] HID Set Protocol = 0
+[  6247259] HID Set Protocol = 0
+[  6247277] HID Set Protocol = 0
+[  6247296] HID Set Protocol = 0
+[  6247310] HID Set Protocol = 0
+[  6247328] HID Set Protocol = 0
+[  6247346] HID Set Protocol = 0
+[  6247364] HID Set Protocol = 0
+[  6247381] HID Set Protocol = 0
+[  6247399] HID Set Protocol = 0
+[  6247419] HID Set Protocol = 0
+[  6247436] HID Set Protocol = 0
+[  6247454] HID Set Protocol = 0
+[  6247471] HID Set Protocol = 0
+[  6247486] HID Set Protocol = 0
+[  6247503] HID Set Protocol = 0
+[  6247520] HID Set Protocol = 0
+[  6247538] HID Set Protocol = 0
+[  6247546] Buffer complete
+[  6247552] Transfer complete
+[  6247564] on EP 00 with 0 bytes: OK
+[  6247572] 
+[  6247589] Get Configuration[0] Descriptor (9 bytes)
+[  6247602] [0:2] Get Descriptor: 80 06 00 02 00 00 09 00 
+[  6247642] HID Set Protocol = 0
+[  6247653] Transfer complete
+[  6247671] on EP 00 with 8 bytes: OK
+[  6247691] HID Set Protocol = 0
+[  6247709] HID Set Protocol = 0
+[  6247727] HID Set Protocol = 0
+[  6247743] HID Set Protocol = 0
+[  6247760] HID Set Protocol = 0
+[  6247776] HID Set Protocol = 0
+[  6247794] HID Set Protocol = 0
+[  6247812] HID Set Protocol = 0
+[  6247829] HID Set Protocol = 0
+[  6247848] HID Set Protocol = 0
+[  6247864] HID Set Protocol = 0
+[  6247881] HID Set Protocol = 0
+[  6247900] HID Set Protocol = 0
+[  6247918] HID Set Protocol = 0
+[  6247935] HID Set Protocol = 0
+[  6247952] HID Set Protocol = 0
+[  6247971] HID Set Protocol = 0
+[  6247990] HID Set Protocol = 0
+[  6248005] HID Set Protocol = 0
+[  6248026] HID Set Protocol = 0
+[  6248045] HID Set Protocol = 0
+[  6248061] HID Set Protocol = 0
+[  6248079] HID Set Protocol = 0
+[  6248098] HID Set Protocol = 0
+[  6248117] HID Set Protocol = 0
+[  6248135] HID Set Protocol = 0
+[  6248152] HID Set Protocol = 0
+[  6248170] HID Set Protocol = 0
+[  6248187] HID Set Protocol = 0
+[  6248205] HID Set Protocol = 0
+[  6248221] HID Set Protocol = 0
+[  6248238] HID Set Protocol = 0
+[  6248256] HID Set Protocol = 0
+[  6248274] HID Set Protocol = 0
+[  6248291] HID Set Protocol = 0
+[  6248307] HID Set Protocol = 0
+[  6248325] HID Set Protocol = 0
+[  6248343] HID Set Protocol = 0
+[  6248359] HID Set Protocol = 0
+[  6248375] HID Set Protocol = 0
+[  6248393] HID Set Protocol = 0
+[  6248410] HID Set Protocol = 0
+[  6248427] HID Set Protocol = 0
+[  6248444] HID Set Protocol = 0
+[  6248460] HID Set Protocol = 0
+[  6248475] HID Set Protocol = 0
+[  6248494] HID Set Protocol = 0
+[  6248512] HID Set Protocol = 0
+[  6248528] HID Set Protocol = 0
+[  6248546] HID Set Protocol = 0
+[  6248564] HID Set Protocol = 0
+[  6248580] HID Set Protocol = 0
+[  6248598] HID Set Protocol = 0
+[  6248616] HID Set Protocol = 0
+[  6248632] HID Set Protocol = 0
+[  6248650] HID Set Protocol = 0
+[  6248666] HID Set Protocol = 0
+[  6248684] HID Set Protocol = 0
+[  6248700] HID Set Protocol = 0
+[  6248718] HID Set Protocol = 0
+[  6248735] HID Set Protocol = 0
+[  6248751] HID Set Protocol = 0
+[  6248770] HID Set Protocol = 0
+[  6248789] HID Set Protocol = 0
+[  6248805] HID Set Protocol = 0
+[  6248823] HID Set Protocol = 0
+[  6248840] HID Set Protocol = 0
+[  6248856] HID Set Protocol = 0
+[  6248874] HID Set Protocol = 0
+[  6248893] HID Set Protocol = 0
+[  6248911] HID Set Protocol = 0
+[  6248929] HID Set Protocol = 0
+[  6248944] HID Set Protocol = 0
+[  6248961] HID Set Protocol = 0
+[  6248978] HID Set Protocol = 0
+[  6248996] HID Set Protocol = 0
+[  6249017] HID Set Protocol = 0
+[  6249036] HID Set Protocol = 0
+[  6249054] HID Set Protocol = 0
+[  6249070] HID Set Protocol = 0
+[  6249086] HID Set Protocol = 0
+[  6249105] HID Set Protocol = 0
+[  6249123] HID Set Protocol = 0
+[  6249141] HID Set Protocol = 0
+[  6249157] HID Set Protocol = 0
+[  6249175] HID Set Protocol = 0
+[  6249193] HID Set Protocol = 0
+[  6249210] HID Set Protocol = 0
+[  6249227] HID Set Protocol = 0
+[  6249246] HID Set Protocol = 0
+[  6249264] HID Set Protocol = 0
+[  6249280] HID Set Protocol = 0
+[  6249300] HID Set Protocol = 0
+[  6249317] HID Set Protocol = 0
+[  6249332] HID Set Protocol = 0
+[  6249349] HID Set Protocol = 0
+[  6249367] HID Set Protocol = 0
+[  6249383] HID Set Protocol = 0
+[  6249398] HID Set Protocol = 0
+[  6249415] HID Set Protocol = 0
+[  6249433] HID Set Protocol = 0
+[  6249451] HID Set Protocol = 0
+[  6249468] HID Set Protocol = 0
+[  6249485] HID Set Protocol = 0
+[  6249502] HID Set Protocol = 0
+[  6249520] HID Set Protocol = 0
+[  6249539] HID Set Protocol = 0
+[  6249557] HID Set Protocol = 0
+[  6249574] HID Set Protocol = 0
+[  6249591] HID Set Protocol = 0
+[  6249608] HID Set Protocol = 0
+[  6249626] HID Set Protocol = 0
+[  6249644] HID Set Protocol = 0
+[  6249662] HID Set Protocol = 0
+[  6249680] HID Set Protocol = 0
+[  6249698] HID Set Protocol = 0
+[  6249714] HID Set Protocol = 0
+[  6249732] HID Set Protocol = 0
+[  6249750] HID Set Protocol = 0
+[  6249766] HID Set Protocol = 0
+[  6249785] HID Set Protocol = 0
+[  6249804] HID Set Protocol = 0
+[  6249820] HID Set Protocol = 0
+[  6249837] HID Set Protocol = 0
+[  6249854] HID Set Protocol = 0
+[  6249873] HID Set Protocol = 0
+[  6249889] HID Set Protocol = 0
+[  6249908] Buffer complete
+[  6249921] Transfer complete
+[  6249928] HID Set Protocol = 0
+[  6249940] on EP 80 with 9 bytes: OK
+[  6249954] [0:2] Control data:
+[  6249960]   0000:  09 02 6A 00 03 01 00 80 FA                       |..j......|
+[  6250006] HID Set Protocol = 0
+[  6250026] HID Set Protocol = 0
+[  6250048] HID Set Protocol = 0
+[  6250068] HID Set Protocol = 0
+[  6250083] HID Set Protocol = 0
+[  6250102] HID Set Protocol = 0
+[  6250119] HID Set Protocol = 0
+[  6250137] HID Set Protocol = 0
+[  6250155] HID Set Protocol = 0
+[  6250172] HID Set Protocol = 0
+[  6250190] HID Set Protocol = 0
+[  6250208] HID Set Protocol = 0
+[  6250225] HID Set Protocol = 0
+[  6250244] HID Set Protocol = 0
+[  6250262] HID Set Protocol = 0
+[  6250277] HID Set Protocol = 0
+[  6250296] HID Set Protocol = 0
+[  6250311] HID Set Protocol = 0
+[  6250329] HID Set Protocol = 0
+[  6250345] HID Set Protocol = 0
+[  6250362] HID Set Protocol = 0
+[  6250381] HID Set Protocol = 0
+[  6250399] HID Set Protocol = 0
+[  6250418] HID Set Protocol = 0
+[  6250436] HID Set Protocol = 0
+[  6250453] HID Set Protocol = 0
+[  6250472] HID Set Protocol = 0
+[  6250490] HID Set Protocol = 0
+[  6250507] HID Set Protocol = 0
+[  6250526] HID Set Protocol = 0
+[  6250541] HID Set Protocol = 0
+[  6250560] HID Set Protocol = 0
+[  6250579] HID Set Protocol = 0
+[  6250595] HID Set Protocol = 0
+[  6250613] HID Set Protocol = 0
+[  6250631] HID Set Protocol = 0
+[  6250648] HID Set Protocol = 0
+[  6250666] HID Set Protocol = 0
+[  6250683] HID Set Protocol = 0
+[  6250699] HID Set Protocol = 0
+[  6250718] HID Set Protocol = 0
+[  6250735] HID Set Protocol = 0
+[  6250751] HID Set Protocol = 0
+[  6250767] HID Set Protocol = 0
+[  6250784] HID Set Protocol = 0
+[  6250803] HID Set Protocol = 0
+[  6250821] HID Set Protocol = 0
+[  6250838] HID Set Protocol = 0
+[  6250855] HID Set Protocol = 0
+[  6250872] HID Set Protocol = 0
+[  6250891] HID Set Protocol = 0
+[  6250909] HID Set Protocol = 0
+[  6250926] HID Set Protocol = 0
+[  6250943] HID Set Protocol = 0
+[  6250961] HID Set Protocol = 0
+[  6250976] HID Set Protocol = 0
+[  6250993] HID Set Protocol = 0
+[  6251014] HID Set Protocol = 0
+[  6251034] HID Set Protocol = 0
+[  6251052] HID Set Protocol = 0
+[  6251068] HID Set Protocol = 0
+[  6251085] HID Set Protocol = 0
+[  6251103] HID Set Protocol = 0
+[  6251119] HID Set Protocol = 0
+[  6251136] HID Set Protocol = 0
+[  6251153] HID Set Protocol = 0
+[  6251171] HID Set Protocol = 0
+[  6251188] HID Set Protocol = 0
+[  6251204] HID Set Protocol = 0
+[  6251223] HID Set Protocol = 0
+[  6251241] HID Set Protocol = 0
+[  6251258] HID Set Protocol = 0
+[  6251276] HID Set Protocol = 0
+[  6251292] HID Set Protocol = 0
+[  6251312] HID Set Protocol = 0
+[  6251329] HID Set Protocol = 0
+[  6251346] HID Set Protocol = 0
+[  6251362] HID Set Protocol = 0
+[  6251379] HID Set Protocol = 0
+[  6251396] HID Set Protocol = 0
+[  6251412] HID Set Protocol = 0
+[  6251430] HID Set Protocol = 0
+[  6251449] HID Set Protocol = 0
+[  6251465] HID Set Protocol = 0
+[  6251482] HID Set Protocol = 0
+[  6251498] HID Set Protocol = 0
+[  6251515] HID Set Protocol = 0
+[  6251532] HID Set Protocol = 0
+[  6251550] HID Set Protocol = 0
+[  6251567] HID Set Protocol = 0
+[  6251585] HID Set Protocol = 0
+[  6251601] HID Set Protocol = 0
+[  6251619] HID Set Protocol = 0
+[  6251638] HID Set Protocol = 0
+[  6251654] HID Set Protocol = 0
+[  6251672] HID Set Protocol = 0
+[  6251688] HID Set Protocol = 0
+[  6251705] HID Set Protocol = 0
+[  6251723] HID Set Protocol = 0
+[  6251741] HID Set Protocol = 0
+[  6251760] HID Set Protocol = 0
+[  6251779] HID Set Protocol = 0
+[  6251795] HID Set Protocol = 0
+[  6251812] HID Set Protocol = 0
+[  6251830] HID Set Protocol = 0
+[  6251848] HID Set Protocol = 0
+[  6251866] HID Set Protocol = 0
+[  6251883] HID Set Protocol = 0
+[  6251901] HID Set Protocol = 0
+[  6251914] Buffer complete
+[  6251925] Transfer complete
+[  6251934] HID Set Protocol = 0
+[  6251946] on EP 00 with 0 bytes: OK
+[  6251955] 
+[  6251970] Get Configuration[0] Descriptor
+[  6251982] [0:2] Get Descriptor: 80 06 00 02 00 00 6A 00 
+[  6252012] HID Set Protocol = 0
+[  6252019] Transfer complete
+[  6252035] on EP 00 with 8 bytes: OK
+[  6252055] HID Set Protocol = 0
+[  6252073] HID Set Protocol = 0
+[  6252093] HID Set Protocol = 0
+[  6252112] HID Set Protocol = 0
+[  6252129] HID Set Protocol = 0
+[  6252147] HID Set Protocol = 0
+[  6252163] HID Set Protocol = 0
+[  6252181] HID Set Protocol = 0
+[  6252196] HID Set Protocol = 0
+[  6252215] HID Set Protocol = 0
+[  6252233] HID Set Protocol = 0
+[  6252249] HID Set Protocol = 0
+[  6252267] HID Set Protocol = 0
+[  6252285] HID Set Protocol = 0
+[  6252302] HID Set Protocol = 0
+[  6252320] HID Set Protocol = 0
+[  6252337] HID Set Protocol = 0
+[  6252354] HID Set Protocol = 0
+[  6252373] HID Set Protocol = 0
+[  6252388] HID Set Protocol = 0
+[  6252404] HID Set Protocol = 0
+[  6252423] HID Set Protocol = 0
+[  6252439] HID Set Protocol = 0
+[  6252458] HID Set Protocol = 0
+[  6252475] HID Set Protocol = 0
+[  6252494] HID Set Protocol = 0
+[  6252510] HID Set Protocol = 0
+[  6252527] HID Set Protocol = 0
+[  6252544] HID Set Protocol = 0
+[  6252562] HID Set Protocol = 0
+[  6252578] HID Set Protocol = 0
+[  6252595] HID Set Protocol = 0
+[  6252614] HID Set Protocol = 0
+[  6252632] HID Set Protocol = 0
+[  6252648] HID Set Protocol = 0
+[  6252667] HID Set Protocol = 0
+[  6252684] HID Set Protocol = 0
+[  6252704] HID Set Protocol = 0
+[  6252720] HID Set Protocol = 0
+[  6252738] HID Set Protocol = 0
+[  6252756] HID Set Protocol = 0
+[  6252774] HID Set Protocol = 0
+[  6252791] HID Set Protocol = 0
+[  6252809] HID Set Protocol = 0
+[  6252826] HID Set Protocol = 0
+[  6252844] HID Set Protocol = 0
+[  6252861] HID Set Protocol = 0
+[  6252878] HID Set Protocol = 0
+[  6252896] HID Set Protocol = 0
+[  6252911] HID Set Protocol = 0
+[  6252930] HID Set Protocol = 0
+[  6252948] HID Set Protocol = 0
+[  6252966] HID Set Protocol = 0
+[  6252983] HID Set Protocol = 0
+[  6253000] HID Set Protocol = 0
+[  6253021] HID Set Protocol = 0
+[  6253041] HID Set Protocol = 0
+[  6253060] HID Set Protocol = 0
+[  6253078] HID Set Protocol = 0
+[  6253097] HID Set Protocol = 0
+[  6253114] HID Set Protocol = 0
+[  6253132] HID Set Protocol = 0
+[  6253148] HID Set Protocol = 0
+[  6253166] HID Set Protocol = 0
+[  6253184] HID Set Protocol = 0
+[  6253203] HID Set Protocol = 0
+[  6253222] HID Set Protocol = 0
+[  6253239] HID Set Protocol = 0
+[  6253257] HID Set Protocol = 0
+[  6253274] HID Set Protocol = 0
+[  6253290] HID Set Protocol = 0
+[  6253308] HID Set Protocol = 0
+[  6253325] HID Set Protocol = 0
+[  6253344] HID Set Protocol = 0
+[  6253361] HID Set Protocol = 0
+[  6253379] HID Set Protocol = 0
+[  6253396] HID Set Protocol = 0
+[  6253414] HID Set Protocol = 0
+[  6253430] HID Set Protocol = 0
+[  6253448] HID Set Protocol = 0
+[  6253464] HID Set Protocol = 0
+[  6253481] HID Set Protocol = 0
+[  6253499] HID Set Protocol = 0
+[  6253517] HID Set Protocol = 0
+[  6253535] HID Set Protocol = 0
+[  6253553] HID Set Protocol = 0
+[  6253569] HID Set Protocol = 0
+[  6253586] HID Set Protocol = 0
+[  6253602] HID Set Protocol = 0
+[  6253621] HID Set Protocol = 0
+[  6253639] HID Set Protocol = 0
+[  6253657] HID Set Protocol = 0
+[  6253674] HID Set Protocol = 0
+[  6253692] HID Set Protocol = 0
+[  6253709] HID Set Protocol = 0
+[  6253727] HID Set Protocol = 0
+[  6253745] HID Set Protocol = 0
+[  6253763] HID Set Protocol = 0
+[  6253781] HID Set Protocol = 0
+[  6253800] HID Set Protocol = 0
+[  6253817] HID Set Protocol = 0
+[  6253834] HID Set Protocol = 0
+[  6253850] HID Set Protocol = 0
+[  6253868] HID Set Protocol = 0
+[  6253883] HID Set Protocol = 0
+[  6253902] HID Set Protocol = 0
+[  6253921] HID Set Protocol = 0
+[  6253939] HID Set Protocol = 0
+[  6253957] Buffer complete
+[  6253969] HID Set Protocol = 0
+[  6253983] HID Set Protocol = 0
+[  6254000] HID Set Protocol = 0
+[  6254020] HID Set Protocol = 0
+[  6254040] HID Set Protocol = 0
+[  6254056] HID Set Protocol = 0
+[  6254074] HID Set Protocol = 0
+[  6254091] HID Set Protocol = 0
+[  6254108] HID Set Protocol = 0
+[  6254126] HID Set Protocol = 0
+[  6254143] HID Set Protocol = 0
+[  6254162] HID Set Protocol = 0
+[  6254180] HID Set Protocol = 0
+[  6254196] HID Set Protocol = 0
+[  6254214] HID Set Protocol = 0
+[  6254233] HID Set Protocol = 0
+[  6254252] HID Set Protocol = 0
+[  6254268] HID Set Protocol = 0
+[  6254284] HID Set Protocol = 0
+[  6254302] HID Set Protocol = 0
+[  6254318] HID Set Protocol = 0
+[  6254338] HID Set Protocol = 0
+[  6254355] HID Set Protocol = 0
+[  6254371] HID Set Protocol = 0
+[  6254389] HID Set Protocol = 0
+[  6254407] HID Set Protocol = 0
+[  6254425] HID Set Protocol = 0
+[  6254442] HID Set Protocol = 0
+[  6254459] HID Set Protocol = 0
+[  6254475] HID Set Protocol = 0
+[  6254492] HID Set Protocol = 0
+[  6254512] HID Set Protocol = 0
+[  6254528] HID Set Protocol = 0
+[  6254546] HID Set Protocol = 0
+[  6254563] HID Set Protocol = 0
+[  6254579] HID Set Protocol = 0
+[  6254596] HID Set Protocol = 0
+[  6254612] HID Set Protocol = 0
+[  6254630] HID Set Protocol = 0
+[  6254648] HID Set Protocol = 0
+[  6254665] HID Set Protocol = 0
+[  6254683] HID Set Protocol = 0
+[  6254701] HID Set Protocol = 0
+[  6254719] HID Set Protocol = 0
+[  6254736] HID Set Protocol = 0
+[  6254753] HID Set Protocol = 0
+[  6254770] HID Set Protocol = 0
+[  6254788] HID Set Protocol = 0
+[  6254805] HID Set Protocol = 0
+[  6254820] HID Set Protocol = 0
+[  6254839] HID Set Protocol = 0
+[  6254856] HID Set Protocol = 0
+[  6254873] HID Set Protocol = 0
+[  6254890] HID Set Protocol = 0
+[  6254907] HID Set Protocol = 0
+[  6254924] HID Set Protocol = 0
+[  6254942] HID Set Protocol = 0
+[  6254961] HID Set Protocol = 0
+[  6254978] HID Set Protocol = 0
+[  6254994] HID Set Protocol = 0
+[  6255013] HID Set Protocol = 0
+[  6255033] HID Set Protocol = 0
+[  6255054] HID Set Protocol = 0
+[  6255070] HID Set Protocol = 0
+[  6255088] HID Set Protocol = 0
+[  6255106] HID Set Protocol = 0
+[  6255123] HID Set Protocol = 0
+[  6255139] HID Set Protocol = 0
+[  6255156] HID Set Protocol = 0
+[  6255174] HID Set Protocol = 0
+[  6255192] HID Set Protocol = 0
+[  6255209] HID Set Protocol = 0
+[  6255227] HID Set Protocol = 0
+[  6255243] HID Set Protocol = 0
+[  6255261] HID Set Protocol = 0
+[  6255278] HID Set Protocol = 0
+[  6255296] HID Set Protocol = 0
+[  6255313] HID Set Protocol = 0
+[  6255329] HID Set Protocol = 0
+[  6255345] HID Set Protocol = 0
+[  6255363] HID Set Protocol = 0
+[  6255380] HID Set Protocol = 0
+[  6255397] HID Set Protocol = 0
+[  6255415] HID Set Protocol = 0
+[  6255433] HID Set Protocol = 0
+[  6255449] HID Set Protocol = 0
+[  6255468] HID Set Protocol = 0
+[  6255485] HID Set Protocol = 0
+[  6255503] HID Set Protocol = 0
+[  6255520] HID Set Protocol = 0
+[  6255537] HID Set Protocol = 0
+[  6255554] HID Set Protocol = 0
+[  6255572] HID Set Protocol = 0
+[  6255589] HID Set Protocol = 0
+[  6255606] HID Set Protocol = 0
+[  6255625] HID Set Protocol = 0
+[  6255642] HID Set Protocol = 0
+[  6255658] HID Set Protocol = 0
+[  6255675] HID Set Protocol = 0
+[  6255692] HID Set Protocol = 0
+[  6255710] HID Set Protocol = 0
+[  6255728] HID Set Protocol = 0
+[  6255744] HID Set Protocol = 0
+[  6255761] HID Set Protocol = 0
+[  6255779] HID Set Protocol = 0
+[  6255796] HID Set Protocol = 0
+[  6255815] HID Set Protocol = 0
+[  6255832] HID Set Protocol = 0
+[  6255849] HID Set Protocol = 0
+[  6255865] HID Set Protocol = 0
+[  6255882] HID Set Protocol = 0
+[  6255901] HID Set Protocol = 0
+[  6255918] HID Set Protocol = 0
+[  6255934] HID Set Protocol = 0
+[  6255951] HID Set Protocol = 0
+[  6255967] HID Set Protocol = 0
+[  6255985] HID Set Protocol = 0
+[  6256001] HID Set Protocol = 0
+[  6256022] HID Set Protocol = 0
+[  6256043] HID Set Protocol = 0
+[  6256062] HID Set Protocol = 0
+[  6256080] HID Set Protocol = 0
+[  6256098] HID Set Protocol = 0
+[  6256114] HID Set Protocol = 0
+[  6256130] HID Set Protocol = 0
+[  6256149] HID Set Protocol = 0
+[  6256166] HID Set Protocol = 0
+[  6256185] HID Set Protocol = 0
+[  6256200] HID Set Protocol = 0
+[  6256215] HID Set Protocol = 0
+[  6256234] HID Set Protocol = 0
+[  6256250] HID Set Protocol = 0
+[  6256269] HID Set Protocol = 0
+[  6256288] HID Set Protocol = 0
+[  6256303] Buffer complete
+[  6256314] HID Set Protocol = 0
+[  6256329] HID Set Protocol = 0
+[  6256346] HID Set Protocol = 0
+[  6256364] HID Set Protocol = 0
+[  6256382] HID Set Protocol = 0
+[  6256399] HID Set Protocol = 0
+[  6256415] HID Set Protocol = 0
+[  6256432] HID Set Protocol = 0
+[  6256448] HID Set Protocol = 0
+[  6256465] HID Set Protocol = 0
+[  6256483] HID Set Protocol = 0
+[  6256500] HID Set Protocol = 0
+[  6256519] HID Set Protocol = 0
+[  6256538] HID Set Protocol = 0
+[  6256554] HID Set Protocol = 0
+[  6256569] HID Set Protocol = 0
+[  6256587] HID Set Protocol = 0
+[  6256603] HID Set Protocol = 0
+[  6256620] HID Set Protocol = 0
+[  6256638] HID Set Protocol = 0
+[  6256657] HID Set Protocol = 0
+[  6256673] HID Set Protocol = 0
+[  6256690] HID Set Protocol = 0
+[  6256709] HID Set Protocol = 0
+[  6256725] HID Set Protocol = 0
+[  6256743] HID Set Protocol = 0
+[  6256759] HID Set Protocol = 0
+[  6256778] HID Set Protocol = 0
+[  6256794] HID Set Protocol = 0
+[  6256813] HID Set Protocol = 0
+[  6256830] HID Set Protocol = 0
+[  6256849] HID Set Protocol = 0
+[  6256868] HID Set Protocol = 0
+[  6256885] HID Set Protocol = 0
+[  6256902] HID Set Protocol = 0
+[  6256920] HID Set Protocol = 0
+[  6256936] HID Set Protocol = 0
+[  6256952] HID Set Protocol = 0
+[  6256971] HID Set Protocol = 0
+[  6256987] HID Set Protocol = 0
+[  6257005] HID Set Protocol = 0
+[  6257028] HID Set Protocol = 0
+[  6257048] HID Set Protocol = 0
+[  6257066] HID Set Protocol = 0
+[  6257085] HID Set Protocol = 0
+[  6257101] HID Set Protocol = 0
+[  6257117] HID Set Protocol = 0
+[  6257133] HID Set Protocol = 0
+[  6257151] HID Set Protocol = 0
+[  6257170] HID Set Protocol = 0
+[  6257186] HID Set Protocol = 0
+[  6257203] HID Set Protocol = 0
+[  6257220] HID Set Protocol = 0
+[  6257238] HID Set Protocol = 0
+[  6257254] HID Set Protocol = 0
+[  6257272] HID Set Protocol = 0
+[  6257289] HID Set Protocol = 0
+[  6257306] HID Set Protocol = 0
+[  6257324] HID Set Protocol = 0
+[  6257341] HID Set Protocol = 0
+[  6257359] HID Set Protocol = 0
+[  6257377] HID Set Protocol = 0
+[  6257397] HID Set Protocol = 0
+[  6257415] HID Set Protocol = 0
+[  6257432] HID Set Protocol = 0
+[  6257449] HID Set Protocol = 0
+[  6257467] HID Set Protocol = 0
+[  6257486] HID Set Protocol = 0
+[  6257504] HID Set Protocol = 0
+[  6257520] HID Set Protocol = 0
+[  6257539] HID Set Protocol = 0
+[  6257556] HID Set Protocol = 0
+[  6257572] HID Set Protocol = 0
+[  6257589] HID Set Protocol = 0
+[  6257608] HID Set Protocol = 0
+[  6257626] HID Set Protocol = 0
+[  6257643] HID Set Protocol = 0
+[  6257659] HID Set Protocol = 0
+[  6257677] HID Set Protocol = 0
+[  6257694] HID Set Protocol = 0
+[  6257711] HID Set Protocol = 0
+[  6257729] HID Set Protocol = 0
+[  6257747] HID Set Protocol = 0
+[  6257764] HID Set Protocol = 0
+[  6257781] HID Set Protocol = 0
+[  6257799] HID Set Protocol = 0
+[  6257817] HID Set Protocol = 0
+[  6257835] HID Set Protocol = 0
+[  6257851] HID Set Protocol = 0
+[  6257870] HID Set Protocol = 0
+[  6257885] HID Set Protocol = 0
+[  6257903] HID Set Protocol = 0
+[  6257921] HID Set Protocol = 0
+[  6257938] HID Set Protocol = 0
+[  6257955] HID Set Protocol = 0
+[  6257974] HID Set Protocol = 0
+[  6257992] HID Set Protocol = 0
+[  6258010] HID Set Protocol = 0
+[  6258031] HID Set Protocol = 0
+[  6258053] HID Set Protocol = 0
+[  6258071] HID Set Protocol = 0
+[  6258087] HID Set Protocol = 0
+[  6258105] HID Set Protocol = 0
+[  6258124] HID Set Protocol = 0
+[  6258140] HID Set Protocol = 0
+[  6258156] HID Set Protocol = 0
+[  6258174] HID Set Protocol = 0
+[  6258192] HID Set Protocol = 0
+[  6258211] HID Set Protocol = 0
+[  6258227] HID Set Protocol = 0
+[  6258244] HID Set Protocol = 0
+[  6258260] HID Set Protocol = 0
+[  6258278] HID Set Protocol = 0
+[  6258295] HID Set Protocol = 0
+[  6258302] Buffer complete
+[  6258319] HID Set Protocol = 0
+[  6258335] HID Set Protocol = 0
+[  6258352] HID Set Protocol = 0
+[  6258370] HID Set Protocol = 0
+[  6258387] HID Set Protocol = 0
+[  6258404] HID Set Protocol = 0
+[  6258421] HID Set Protocol = 0
+[  6258438] HID Set Protocol = 0
+[  6258456] HID Set Protocol = 0
+[  6258474] HID Set Protocol = 0
+[  6258490] HID Set Protocol = 0
+[  6258509] HID Set Protocol = 0
+[  6258526] HID Set Protocol = 0
+[  6258543] HID Set Protocol = 0
+[  6258560] HID Set Protocol = 0
+[  6258579] HID Set Protocol = 0
+[  6258597] HID Set Protocol = 0
+[  6258615] HID Set Protocol = 0
+[  6258632] HID Set Protocol = 0
+[  6258648] HID Set Protocol = 0
+[  6258666] HID Set Protocol = 0
+[  6258684] HID Set Protocol = 0
+[  6258701] HID Set Protocol = 0
+[  6258718] HID Set Protocol = 0
+[  6258737] HID Set Protocol = 0
+[  6258757] HID Set Protocol = 0
+[  6258775] HID Set Protocol = 0
+[  6258793] HID Set Protocol = 0
+[  6258812] HID Set Protocol = 0
+[  6258829] HID Set Protocol = 0
+[  6258846] HID Set Protocol = 0
+[  6258862] HID Set Protocol = 0
+[  6258880] HID Set Protocol = 0
+[  6258898] HID Set Protocol = 0
+[  6258914] HID Set Protocol = 0
+[  6258931] HID Set Protocol = 0
+[  6258949] HID Set Protocol = 0
+[  6258968] HID Set Protocol = 0
+[  6258985] HID Set Protocol = 0
+[  6259002] HID Set Protocol = 0
+[  6259023] HID Set Protocol = 0
+[  6259039] HID Set Protocol = 0
+[  6259059] HID Set Protocol = 0
+[  6259074] HID Set Protocol = 0
+[  6259093] HID Set Protocol = 0
+[  6259112] HID Set Protocol = 0
+[  6259130] HID Set Protocol = 0
+[  6259148] HID Set Protocol = 0
+[  6259167] HID Set Protocol = 0
+[  6259184] HID Set Protocol = 0
+[  6259202] HID Set Protocol = 0
+[  6259220] HID Set Protocol = 0
+[  6259236] HID Set Protocol = 0
+[  6259254] HID Set Protocol = 0
+[  6259273] HID Set Protocol = 0
+[  6259289] HID Set Protocol = 0
+[  6259309] HID Set Protocol = 0
+[  6259325] HID Set Protocol = 0
+[  6259342] HID Set Protocol = 0
+[  6259360] HID Set Protocol = 0
+[  6259377] HID Set Protocol = 0
+[  6259395] HID Set Protocol = 0
+[  6259412] HID Set Protocol = 0
+[  6259430] HID Set Protocol = 0
+[  6259447] HID Set Protocol = 0
+[  6259464] HID Set Protocol = 0
+[  6259483] HID Set Protocol = 0
+[  6259501] HID Set Protocol = 0
+[  6259518] HID Set Protocol = 0
+[  6259534] HID Set Protocol = 0
+[  6259554] HID Set Protocol = 0
+[  6259572] HID Set Protocol = 0
+[  6259589] HID Set Protocol = 0
+[  6259607] HID Set Protocol = 0
+[  6259625] HID Set Protocol = 0
+[  6259643] HID Set Protocol = 0
+[  6259661] HID Set Protocol = 0
+[  6259679] HID Set Protocol = 0
+[  6259695] HID Set Protocol = 0
+[  6259713] HID Set Protocol = 0
+[  6259732] HID Set Protocol = 0
+[  6259749] HID Set Protocol = 0
+[  6259768] HID Set Protocol = 0
+[  6259783] HID Set Protocol = 0
+[  6259802] HID Set Protocol = 0
+[  6259818] HID Set Protocol = 0
+[  6259835] HID Set Protocol = 0
+[  6259852] HID Set Protocol = 0
+[  6259870] HID Set Protocol = 0
+[  6259887] HID Set Protocol = 0
+[  6259904] HID Set Protocol = 0
+[  6259922] HID Set Protocol = 0
+[  6259939] HID Set Protocol = 0
+[  6259955] HID Set Protocol = 0
+[  6259972] HID Set Protocol = 0
+[  6259989] HID Set Protocol = 0
+[  6260009] HID Set Protocol = 0
+[  6260028] HID Set Protocol = 0
+[  6260049] HID Set Protocol = 0
+[  6260066] HID Set Protocol = 0
+[  6260084] HID Set Protocol = 0
+[  6260102] HID Set Protocol = 0
+[  6260119] HID Set Protocol = 0
+[  6260135] HID Set Protocol = 0
+[  6260152] HID Set Protocol = 0
+[  6260171] HID Set Protocol = 0
+[  6260189] HID Set Protocol = 0
+[  6260206] HID Set Protocol = 0
+[  6260222] HID Set Protocol = 0
+[  6260239] HID Set Protocol = 0
+[  6260257] HID Set Protocol = 0
+[  6260274] HID Set Protocol = 0
+[  6260293] HID Set Protocol = 0
+[  6260311] HID Set Protocol = 0
+[  6260328] HID Set Protocol = 0
+[  6260347] HID Set Protocol = 0
+[  6260366] HID Set Protocol = 0
+[  6260383] HID Set Protocol = 0
+[  6260401] HID Set Protocol = 0
+[  6260416] HID Set Protocol = 0
+[  6260434] HID Set Protocol = 0
+[  6260450] HID Set Protocol = 0
+[  6260467] HID Set Protocol = 0
+[  6260485] HID Set Protocol = 0
+[  6260503] HID Set Protocol = 0
+[  6260520] HID Set Protocol = 0
+[  6260539] HID Set Protocol = 0
+[  6260558] HID Set Protocol = 0
+[  6260576] HID Set Protocol = 0
+[  6260595] HID Set Protocol = 0
+[  6260612] HID Set Protocol = 0
+[  6260629] Buffer complete
+[  6260641] HID Set Protocol = 0
+[  6260655] HID Set Protocol = 0
+[  6260672] HID Set Protocol = 0
+[  6260690] HID Set Protocol = 0
+[  6260707] HID Set Protocol = 0
+[  6260725] HID Set Protocol = 0
+[  6260742] HID Set Protocol = 0
+[  6260759] HID Set Protocol = 0
+[  6260778] HID Set Protocol = 0
+[  6260795] HID Set Protocol = 0
+[  6260812] HID Set Protocol = 0
+[  6260829] HID Set Protocol = 0
+[  6260847] HID Set Protocol = 0
+[  6260864] HID Set Protocol = 0
+[  6260880] HID Set Protocol = 0
+[  6260898] HID Set Protocol = 0
+[  6260918] HID Set Protocol = 0
+[  6260934] HID Set Protocol = 0
+[  6260952] HID Set Protocol = 0
+[  6260969] HID Set Protocol = 0
+[  6260986] HID Set Protocol = 0
+[  6261005] HID Set Protocol = 0
+[  6261026] HID Set Protocol = 0
+[  6261047] HID Set Protocol = 0
+[  6261064] HID Set Protocol = 0
+[  6261081] HID Set Protocol = 0
+[  6261096] HID Set Protocol = 0
+[  6261115] HID Set Protocol = 0
+[  6261133] HID Set Protocol = 0
+[  6261150] HID Set Protocol = 0
+[  6261167] HID Set Protocol = 0
+[  6261185] HID Set Protocol = 0
+[  6261202] HID Set Protocol = 0
+[  6261218] HID Set Protocol = 0
+[  6261236] HID Set Protocol = 0
+[  6261253] HID Set Protocol = 0
+[  6261272] HID Set Protocol = 0
+[  6261289] HID Set Protocol = 0
+[  6261306] HID Set Protocol = 0
+[  6261324] HID Set Protocol = 0
+[  6261342] HID Set Protocol = 0
+[  6261359] HID Set Protocol = 0
+[  6261376] HID Set Protocol = 0
+[  6261395] HID Set Protocol = 0
+[  6261412] HID Set Protocol = 0
+[  6261429] HID Set Protocol = 0
+[  6261597] HID Set Protocol = 0
+[  6261618] HID Set Protocol = 0
+[  6261636] HID Set Protocol = 0
+[  6261654] HID Set Protocol = 0
+[  6261671] HID Set Protocol = 0
+[  6261688] HID Set Protocol = 0
+[  6261705] HID Set Protocol = 0
+[  6261722] HID Set Protocol = 0
+[  6261739] HID Set Protocol = 0
+[  6261757] HID Set Protocol = 0
+[  6261776] HID Set Protocol = 0
+[  6261794] HID Set Protocol = 0
+[  6261812] HID Set Protocol = 0
+[  6261830] HID Set Protocol = 0
+[  6261846] HID Set Protocol = 0
+[  6261864] HID Set Protocol = 0
+[  6261879] HID Set Protocol = 0
+[  6261896] HID Set Protocol = 0
+[  6261916] HID Set Protocol = 0
+[  6261932] HID Set Protocol = 0
+[  6261951] HID Set Protocol = 0
+[  6261968] HID Set Protocol = 0
+[  6261988] HID Set Protocol = 0
+[  6262005] HID Set Protocol = 0
+[  6262027] HID Set Protocol = 0
+[  6262045] HID Set Protocol = 0
+[  6262063] HID Set Protocol = 0
+[  6262081] HID Set Protocol = 0
+[  6262100] HID Set Protocol = 0
+[  6262118] HID Set Protocol = 0
+[  6262136] HID Set Protocol = 0
+[  6262153] HID Set Protocol = 0
+[  6262171] HID Set Protocol = 0
+[  6262189] HID Set Protocol = 0
+[  6262206] HID Set Protocol = 0
+[  6262225] HID Set Protocol = 0
+[  6262245] HID Set Protocol = 0
+[  6262262] HID Set Protocol = 0
+[  6262279] HID Set Protocol = 0
+[  6262297] HID Set Protocol = 0
+[  6262315] HID Set Protocol = 0
+[  6262331] HID Set Protocol = 0
+[  6262350] HID Set Protocol = 0
+[  6262368] HID Set Protocol = 0
+[  6262385] HID Set Protocol = 0
+[  6262403] HID Set Protocol = 0
+[  6262420] HID Set Protocol = 0
+[  6262438] HID Set Protocol = 0
+[  6262456] HID Set Protocol = 0
+[  6262474] HID Set Protocol = 0
+[  6262492] HID Set Protocol = 0
+[  6262508] HID Set Protocol = 0
+[  6262527] HID Set Protocol = 0
+[  6262545] HID Set Protocol = 0
+[  6262564] HID Set Protocol = 0
+[  6262582] HID Set Protocol = 0
+[  6262601] HID Set Protocol = 0
+[  6262618] HID Set Protocol = 0
+[  6262636] HID Set Protocol = 0
+[  6262654] HID Set Protocol = 0
+[  6262671] HID Set Protocol = 0
+[  6262688] HID Set Protocol = 0
+[  6262698] Buffer complete
+[  6262723] HID Set Protocol = 0
+[  6262742] HID Set Protocol = 0
+[  6262758] HID Set Protocol = 0
+[  6262776] HID Set Protocol = 0
+[  6262794] HID Set Protocol = 0
+[  6262814] HID Set Protocol = 0
+[  6262829] HID Set Protocol = 0
+[  6262849] HID Set Protocol = 0
+[  6262867] HID Set Protocol = 0
+[  6262883] HID Set Protocol = 0
+[  6262900] HID Set Protocol = 0
+[  6262917] HID Set Protocol = 0
+[  6262935] HID Set Protocol = 0
+[  6262953] HID Set Protocol = 0
+[  6262970] HID Set Protocol = 0
+[  6262988] HID Set Protocol = 0
+[  6263005] HID Set Protocol = 0
+[  6263025] HID Set Protocol = 0
+[  6263046] HID Set Protocol = 0
+[  6263064] HID Set Protocol = 0
+[  6263082] HID Set Protocol = 0
+[  6263100] HID Set Protocol = 0
+[  6263117] HID Set Protocol = 0
+[  6263134] HID Set Protocol = 0
+[  6263153] HID Set Protocol = 0
+[  6263170] HID Set Protocol = 0
+[  6263188] HID Set Protocol = 0
+[  6263205] HID Set Protocol = 0
+[  6263222] HID Set Protocol = 0
+[  6263239] HID Set Protocol = 0
+[  6263256] HID Set Protocol = 0
+[  6263274] HID Set Protocol = 0
+[  6263293] HID Set Protocol = 0
+[  6263310] HID Set Protocol = 0
+[  6263327] HID Set Protocol = 0
+[  6263343] HID Set Protocol = 0
+[  6263361] HID Set Protocol = 0
+[  6263379] HID Set Protocol = 0
+[  6263396] HID Set Protocol = 0
+[  6263414] HID Set Protocol = 0
+[  6263433] HID Set Protocol = 0
+[  6263452] HID Set Protocol = 0
+[  6263468] HID Set Protocol = 0
+[  6263484] HID Set Protocol = 0
+[  6263503] HID Set Protocol = 0
+[  6263519] HID Set Protocol = 0
+[  6263537] HID Set Protocol = 0
+[  6263556] HID Set Protocol = 0
+[  6263576] HID Set Protocol = 0
+[  6263590] HID Set Protocol = 0
+[  6263609] HID Set Protocol = 0
+[  6263627] HID Set Protocol = 0
+[  6263644] HID Set Protocol = 0
+[  6263662] HID Set Protocol = 0
+[  6263679] HID Set Protocol = 0
+[  6263697] HID Set Protocol = 0
+[  6263714] HID Set Protocol = 0
+[  6263731] HID Set Protocol = 0
+[  6263749] HID Set Protocol = 0
+[  6263767] HID Set Protocol = 0
+[  6263783] HID Set Protocol = 0
+[  6263798] HID Set Protocol = 0
+[  6263816] HID Set Protocol = 0
+[  6263834] HID Set Protocol = 0
+[  6263852] HID Set Protocol = 0
+[  6263871] HID Set Protocol = 0
+[  6263887] HID Set Protocol = 0
+[  6263903] HID Set Protocol = 0
+[  6263921] HID Set Protocol = 0
+[  6263937] HID Set Protocol = 0
+[  6263956] HID Set Protocol = 0
+[  6263974] HID Set Protocol = 0
+[  6263990] HID Set Protocol = 0
+[  6264008] HID Set Protocol = 0
+[  6264030] HID Set Protocol = 0
+[  6264050] HID Set Protocol = 0
+[  6264068] HID Set Protocol = 0
+[  6264085] HID Set Protocol = 0
+[  6264102] HID Set Protocol = 0
+[  6264119] HID Set Protocol = 0
+[  6264136] HID Set Protocol = 0
+[  6264152] HID Set Protocol = 0
+[  6264171] HID Set Protocol = 0
+[  6264187] HID Set Protocol = 0
+[  6264202] HID Set Protocol = 0
+[  6264222] HID Set Protocol = 0
+[  6264239] HID Set Protocol = 0
+[  6264256] HID Set Protocol = 0
+[  6264274] HID Set Protocol = 0
+[  6264292] HID Set Protocol = 0
+[  6264309] HID Set Protocol = 0
+[  6264326] HID Set Protocol = 0
+[  6264341] HID Set Protocol = 0
+[  6264358] HID Set Protocol = 0
+[  6264375] HID Set Protocol = 0
+[  6264392] HID Set Protocol = 0
+[  6264412] HID Set Protocol = 0
+[  6264431] HID Set Protocol = 0
+[  6264449] HID Set Protocol = 0
+[  6264465] HID Set Protocol = 0
+[  6264484] HID Set Protocol = 0
+[  6264501] HID Set Protocol = 0
+[  6264519] HID Set Protocol = 0
+[  6264536] HID Set Protocol = 0
+[  6264555] HID Set Protocol = 0
+[  6264573] HID Set Protocol = 0
+[  6264591] HID Set Protocol = 0
+[  6264609] HID Set Protocol = 0
+[  6264627] HID Set Protocol = 0
+[  6264643] HID Set Protocol = 0
+[  6264660] HID Set Protocol = 0
+[  6264677] HID Set Protocol = 0
+[  6264694] Buffer complete
+[  6264707] HID Set Protocol = 0
+[  6264721] HID Set Protocol = 0
+[  6264740] HID Set Protocol = 0
+[  6264758] HID Set Protocol = 0
+[  6264774] HID Set Protocol = 0
+[  6264791] HID Set Protocol = 0
+[  6264810] HID Set Protocol = 0
+[  6264828] HID Set Protocol = 0
+[  6264843] HID Set Protocol = 0
+[  6264862] HID Set Protocol = 0
+[  6264878] HID Set Protocol = 0
+[  6264895] HID Set Protocol = 0
+[  6264913] HID Set Protocol = 0
+[  6264930] HID Set Protocol = 0
+[  6264947] HID Set Protocol = 0
+[  6264965] HID Set Protocol = 0
+[  6264982] HID Set Protocol = 0
+[  6264999] HID Set Protocol = 0
+[  6265020] HID Set Protocol = 0
+[  6265038] HID Set Protocol = 0
+[  6265057] HID Set Protocol = 0
+[  6265076] HID Set Protocol = 0
+[  6265094] HID Set Protocol = 0
+[  6265112] HID Set Protocol = 0
+[  6265130] HID Set Protocol = 0
+[  6265148] HID Set Protocol = 0
+[  6265165] HID Set Protocol = 0
+[  6265184] HID Set Protocol = 0
+[  6265202] HID Set Protocol = 0
+[  6265218] HID Set Protocol = 0
+[  6265235] HID Set Protocol = 0
+[  6265253] HID Set Protocol = 0
+[  6265270] HID Set Protocol = 0
+[  6265287] HID Set Protocol = 0
+[  6265307] HID Set Protocol = 0
+[  6265323] HID Set Protocol = 0
+[  6265341] HID Set Protocol = 0
+[  6265357] HID Set Protocol = 0
+[  6265376] HID Set Protocol = 0
+[  6265394] HID Set Protocol = 0
+[  6265410] HID Set Protocol = 0
+[  6265428] HID Set Protocol = 0
+[  6265443] HID Set Protocol = 0
+[  6265460] HID Set Protocol = 0
+[  6265477] HID Set Protocol = 0
+[  6265493] HID Set Protocol = 0
+[  6265510] HID Set Protocol = 0
+[  6265529] HID Set Protocol = 0
+[  6265545] HID Set Protocol = 0
+[  6265561] HID Set Protocol = 0
+[  6265578] HID Set Protocol = 0
+[  6265597] HID Set Protocol = 0
+[  6265615] HID Set Protocol = 0
+[  6265633] HID Set Protocol = 0
+[  6265652] HID Set Protocol = 0
+[  6265669] HID Set Protocol = 0
+[  6265687] HID Set Protocol = 0
+[  6265705] HID Set Protocol = 0
+[  6265723] HID Set Protocol = 0
+[  6265739] HID Set Protocol = 0
+[  6265757] HID Set Protocol = 0
+[  6265773] HID Set Protocol = 0
+[  6265790] HID Set Protocol = 0
+[  6265807] HID Set Protocol = 0
+[  6265824] HID Set Protocol = 0
+[  6265841] HID Set Protocol = 0
+[  6265859] HID Set Protocol = 0
+[  6265875] HID Set Protocol = 0
+[  6265892] HID Set Protocol = 0
+[  6265908] HID Set Protocol = 0
+[  6265927] HID Set Protocol = 0
+[  6265945] HID Set Protocol = 0
+[  6265962] HID Set Protocol = 0
+[  6265978] HID Set Protocol = 0
+[  6265994] HID Set Protocol = 0
+[  6266016] HID Set Protocol = 0
+[  6266037] HID Set Protocol = 0
+[  6266055] HID Set Protocol = 0
+[  6266072] HID Set Protocol = 0
+[  6266089] HID Set Protocol = 0
+[  6266105] HID Set Protocol = 0
+[  6266123] HID Set Protocol = 0
+[  6266142] HID Set Protocol = 0
+[  6266160] HID Set Protocol = 0
+[  6266177] HID Set Protocol = 0
+[  6266193] HID Set Protocol = 0
+[  6266212] HID Set Protocol = 0
+[  6266230] HID Set Protocol = 0
+[  6266249] HID Set Protocol = 0
+[  6266265] HID Set Protocol = 0
+[  6266282] HID Set Protocol = 0
+[  6266298] HID Set Protocol = 0
+[  6266317] HID Set Protocol = 0
+[  6266334] HID Set Protocol = 0
+[  6266353] HID Set Protocol = 0
+[  6266370] HID Set Protocol = 0
+[  6266389] HID Set Protocol = 0
+[  6266409] HID Set Protocol = 0
+[  6266427] HID Set Protocol = 0
+[  6266445] HID Set Protocol = 0
+[  6266463] HID Set Protocol = 0
+[  6266478] HID Set Protocol = 0
+[  6266495] HID Set Protocol = 0
+[  6266513] HID Set Protocol = 0
+[  6266531] HID Set Protocol = 0
+[  6266549] HID Set Protocol = 0
+[  6266566] HID Set Protocol = 0
+[  6266583] HID Set Protocol = 0
+[  6266602] HID Set Protocol = 0
+[  6266620] HID Set Protocol = 0
+[  6266638] HID Set Protocol = 0
+[  6266656] HID Set Protocol = 0
+[  6266672] HID Set Protocol = 0
+[  6266690] HID Set Protocol = 0
+[  6266707] HID Set Protocol = 0
+[  6266724] HID Set Protocol = 0
+[  6266741] HID Set Protocol = 0
+[  6266758] HID Set Protocol = 0
+[  6266775] HID Set Protocol = 0
+[  6266792] HID Set Protocol = 0
+[  6266808] HID Set Protocol = 0
+[  6266825] HID Set Protocol = 0
+[  6266843] HID Set Protocol = 0
+[  6266860] HID Set Protocol = 0
+[  6266878] HID Set Protocol = 0
+[  6266898] HID Set Protocol = 0
+[  6266915] HID Set Protocol = 0
+[  6266932] HID Set Protocol = 0
+[  6266949] HID Set Protocol = 0
+[  6266967] HID Set Protocol = 0
+[  6266984] HID Set Protocol = 0
+[  6267004] HID Set Protocol = 0
+[  6267026] HID Set Protocol = 0
+[  6267038] Buffer complete
+[  6267049] Transfer complete
+[  6267059] HID Set Protocol = 0
+[  6267074] on EP 80 with 106 bytes: OK
+[  6267087] [0:2] Control data:
+[  6267094]   0000:  09 02 6A 00 03 01 00 80 FA 09 04 00 00 02 FF 5D  |..j............]|
+[  6267136]   0010:  01 00 11 21 00 01 01 25 84 14 00 00 00 00 13 05  |...!...%........|
+[  6267172]   0020:  08 00 00 07 05 84 03 20 00 01 07 05 05 03 20 00  |....... ...... .|
+[  6267209]   0030:  01 09 04 01 00 01 03 01 01 00 09 21 11 01 00 01  |...........!....|
+[  6267245]   0040:  22 A6 00 07 05 82 03 10 00 08 09 04 02 00 02 03  |"...............|
+[  6267282]   0050:  00 00 00 09 21 11 01 00 01 22 21 00 07 05 83 03  |....!...."!.....|
+[  6267318]   0060:  40 00 01 07 05 06 03 40 00 01                    |@......@..|
+[  6267364] HID Set Protocol = 0
+[  6267381] HID Set Protocol = 0
+[  6267397] HID Set Protocol = 0
+[  6267416] HID Set Protocol = 0
+[  6267432] HID Set Protocol = 0
+[  6267452] HID Set Protocol = 0
+[  6267470] HID Set Protocol = 0
+[  6267489] HID Set Protocol = 0
+[  6267505] HID Set Protocol = 0
+[  6267523] HID Set Protocol = 0
+[  6267541] HID Set Protocol = 0
+[  6267560] HID Set Protocol = 0
+[  6267578] HID Set Protocol = 0
+[  6267596] HID Set Protocol = 0
+[  6267614] HID Set Protocol = 0
+[  6267631] HID Set Protocol = 0
+[  6267649] HID Set Protocol = 0
+[  6267667] HID Set Protocol = 0
+[  6267687] HID Set Protocol = 0
+[  6267705] HID Set Protocol = 0
+[  6267723] HID Set Protocol = 0
+[  6267739] HID Set Protocol = 0
+[  6267757] HID Set Protocol = 0
+[  6267775] HID Set Protocol = 0
+[  6267792] HID Set Protocol = 0
+[  6267808] HID Set Protocol = 0
+[  6267828] HID Set Protocol = 0
+[  6267844] HID Set Protocol = 0
+[  6267863] HID Set Protocol = 0
+[  6267881] HID Set Protocol = 0
+[  6267897] HID Set Protocol = 0
+[  6267914] HID Set Protocol = 0
+[  6267929] HID Set Protocol = 0
+[  6267945] HID Set Protocol = 0
+[  6267962] HID Set Protocol = 0
+[  6267981] HID Set Protocol = 0
+[  6267998] HID Set Protocol = 0
+[  6268020] HID Set Protocol = 0
+[  6268041] HID Set Protocol = 0
+[  6268058] HID Set Protocol = 0
+[  6268077] HID Set Protocol = 0
+[  6268094] HID Set Protocol = 0
+[  6268111] HID Set Protocol = 0
+[  6268129] HID Set Protocol = 0
+[  6268145] HID Set Protocol = 0
+[  6268162] HID Set Protocol = 0
+[  6268181] HID Set Protocol = 0
+[  6268199] HID Set Protocol = 0
+[  6268217] HID Set Protocol = 0
+[  6268234] HID Set Protocol = 0
+[  6268252] HID Set Protocol = 0
+[  6268271] HID Set Protocol = 0
+[  6268287] HID Set Protocol = 0
+[  6268305] HID Set Protocol = 0
+[  6268323] HID Set Protocol = 0
+[  6268341] HID Set Protocol = 0
+[  6268358] HID Set Protocol = 0
+[  6268376] HID Set Protocol = 0
+[  6268393] HID Set Protocol = 0
+[  6268410] HID Set Protocol = 0
+[  6268428] HID Set Protocol = 0
+[  6268446] HID Set Protocol = 0
+[  6268464] HID Set Protocol = 0
+[  6268482] HID Set Protocol = 0
+[  6268499] HID Set Protocol = 0
+[  6268516] HID Set Protocol = 0
+[  6268532] HID Set Protocol = 0
+[  6268549] HID Set Protocol = 0
+[  6268567] HID Set Protocol = 0
+[  6268585] HID Set Protocol = 0
+[  6268603] HID Set Protocol = 0
+[  6268620] HID Set Protocol = 0
+[  6268640] HID Set Protocol = 0
+[  6268657] HID Set Protocol = 0
+[  6268674] HID Set Protocol = 0
+[  6268692] HID Set Protocol = 0
+[  6268709] HID Set Protocol = 0
+[  6268725] HID Set Protocol = 0
+[  6268742] HID Set Protocol = 0
+[  6268759] HID Set Protocol = 0
+[  6268776] HID Set Protocol = 0
+[  6268794] HID Set Protocol = 0
+[  6268811] HID Set Protocol = 0
+[  6268829] HID Set Protocol = 0
+[  6268845] HID Set Protocol = 0
+[  6268863] HID Set Protocol = 0
+[  6268880] HID Set Protocol = 0
+[  6268897] HID Set Protocol = 0
+[  6268915] HID Set Protocol = 0
+[  6268934] HID Set Protocol = 0
+[  6268953] HID Set Protocol = 0
+[  6268970] HID Set Protocol = 0
+[  6268987] HID Set Protocol = 0
+[  6268996] Buffer complete
+[  6269005] Transfer complete
+[  6269020] on EP 00 with 0 bytes: OK
+[  6269028] 
+[  6269042] Set Configuration = 1
+[  6269052] [0:2] Set Configuration: 00 09 01 00 00 00 00 00 
+[  6269092] HID Set Protocol = 0
+[  6269100] Transfer complete
+[  6269113] on EP 00 with 8 bytes: OK
+[  6269132] HID Set Protocol = 0
+[  6269148] HID Set Protocol = 0
+[  6269165] HID Set Protocol = 0
+[  6269182] HID Set Protocol = 0
+[  6269199] HID Set Protocol = 0
+[  6269216] HID Set Protocol = 0
+[  6269235] HID Set Protocol = 0
+[  6269252] HID Set Protocol = 0
+[  6269269] HID Set Protocol = 0
+[  6269285] HID Set Protocol = 0
+[  6269302] HID Set Protocol = 0
+[  6269320] HID Set Protocol = 0
+[  6269337] HID Set Protocol = 0
+[  6269354] HID Set Protocol = 0
+[  6269371] HID Set Protocol = 0
+[  6269388] HID Set Protocol = 0
+[  6269404] HID Set Protocol = 0
+[  6269424] HID Set Protocol = 0
+[  6269441] HID Set Protocol = 0
+[  6269458] HID Set Protocol = 0
+[  6269475] HID Set Protocol = 0
+[  6269491] HID Set Protocol = 0
+[  6269508] HID Set Protocol = 0
+[  6269526] HID Set Protocol = 0
+[  6269544] HID Set Protocol = 0
+[  6269561] HID Set Protocol = 0
+[  6269578] HID Set Protocol = 0
+[  6269598] HID Set Protocol = 0
+[  6269615] HID Set Protocol = 0
+[  6269632] HID Set Protocol = 0
+[  6269649] HID Set Protocol = 0
+[  6269666] HID Set Protocol = 0
+[  6269685] HID Set Protocol = 0
+[  6269703] HID Set Protocol = 0
+[  6269720] HID Set Protocol = 0
+[  6269737] HID Set Protocol = 0
+[  6269755] HID Set Protocol = 0
+[  6269771] HID Set Protocol = 0
+[  6269789] HID Set Protocol = 0
+[  6269806] HID Set Protocol = 0
+[  6269823] HID Set Protocol = 0
+[  6269841] HID Set Protocol = 0
+[  6269859] HID Set Protocol = 0
+[  6269876] HID Set Protocol = 0
+[  6269894] HID Set Protocol = 0
+[  6269913] HID Set Protocol = 0
+[  6269930] HID Set Protocol = 0
+[  6269946] HID Set Protocol = 0
+[  6269965] HID Set Protocol = 0
+[  6269974] Buffer complete
+[  6269980] Transfer complete
+[  6269992] on EP 80 with 0 bytes: OK
+[  6270004] [2] Aborted transfer on EP 01
+[  6270015] [2] Aborted transfer on EP 81
+[  6270020] [2] Aborted transfer on EP 02
+[  6270026] [2] Aborted transfer on EP 82
+[  6270032] [2] Aborted transfer on EP 03
+[  6270038] [2] Aborted transfer on EP 83
+[  6270043] [2] Aborted transfer on EP 04
+[  6270049] [2] Aborted transfer on EP 84
+[  6270055] [2] Aborted transfer on EP 05
+[  6270060] [2] Aborted transfer on EP 85
+[  6270066] [2] Aborted transfer on EP 06
+[  6270072] [2] Aborted transfer on EP 86
+[  6270077] [2] Aborted transfer on EP 07
+[  6270083] [2] Aborted transfer on EP 87
+[  6270089] [2] Aborted transfer on EP 08
+[  6270094] [2] Aborted transfer on EP 88
+[  6270100] [2] Aborted transfer on EP 09
+[  6270106] [2] Aborted transfer on EP 89
+[  6270111] [2] Aborted transfer on EP 0A
+[  6270117] [2] Aborted transfer on EP 8A
+[  6270123] [2] Aborted transfer on EP 0B
+[  6270129] [2] Aborted transfer on EP 8B
+[  6270134] [2] Aborted transfer on EP 0C
+[  6270140] [2] Aborted transfer on EP 8C
+[  6270146] [2] Aborted transfer on EP 0D
+[  6270151] [2] Aborted transfer on EP 8D
+[  6270157] [2] Aborted transfer on EP 0E
+[  6270163] [2] Aborted transfer on EP 8E
+[  6270168] [2] Aborted transfer on EP 0F
+[  6270174] [2] Aborted transfer on EP 8F
+[  6270180] 
+[  6270192] Device configured
+[  6270205] Parsing Configuration descriptor (wTotalLength = 106)
+[  6270230]   Open EP 84 with Size = 32
+[  6270242] Allocate interrupt ep 3
+[  6270253]   Open EP 05 with Size = 32
+[  6270260] Allocate interrupt ep 4
+[  6270289]   XINPUT opened
+[  6270302]   Bind EP 84 to driver id 0
+[  6270309]   Bind EP 05 to driver id 0
+[  6270321] [2] HID opening Interface 1
+[  6270329]   Open EP 82 with Size = 16
+[  6270335] Allocate interrupt ep 5
+[  6270344]   HID opened
+[  6270350]   Bind EP 82 to driver id 1
+[  6270357] [2] HID opening Interface 2
+[  6270362]   Open EP 83 with Size = 64
+[  6270368] Allocate interrupt ep 6
+[  6270373]   Open EP 06 with Size = 64
+[  6270379] Allocate interrupt ep 7
+[  6270383]   HID opened
+[  6270388]   Bind EP 83 to driver id 1
+[  6270393]   Bind EP 06 to driver id 1
+[  6270407] XINPUT set config: itf = 0
+[  6270430] [2] Claimed EP 0x84
+[  6270445]   Queue EP 84 with 32 bytes ... 
+[  6270460] OK
+[  6270481] [2] Claimed EP 0x05
+[  6270494]   Queue EP 05 with 3 bytes ... 
+[  6270506] OK
+[  6270523] HID set config: itf = 1
+[  6270536] HID Set Idle 
+[  6270550] [0:2] Class Request: 21 0A 00 00 01 00 00 00 
+[  6270586] Transfer complete
+[  6270612] on EP 00 with 8 bytes: OK
+[  6270863] Buffer complete
+[  6270879] Buffer complete
+[  6270888] Transfer complete
+[  6270897] on EP 84 with 0 bytes: OK
+[  6270903] XINPUT xfer callback
+[  6270925] [2] Claimed EP 0x84
+[  6270938]   Queue EP 84 with 32 bytes ... 
+[  6270948] OK
+[  6270959] on EP 80 with 0 bytes: OK
+[  6270964] 
+[  6270983] HID Set Protocol = 0
+[  6270998] [0:2] Class Request: 21 0B 00 00 01 00 00 00 
+[  6271028] on EP 05 with 3 bytes: OK
+[  6271036] Transfer complete
+[  6271042] XINPUT xfer callback
+[  6271050] on EP 00 with 8 bytes: OK
+[  6271327] Buffer complete
+[  6271343] Transfer complete
+[  6271357] on EP 80 with 0 bytes: OK
+[  6271364] 
+[  6271385] HID Get Report Descriptor
+[  6271401] [0:2] Get Descriptor: 81 06 00 22 01 00 A6 00 
+[  6271436] Transfer complete
+[  6271450] on EP 00 with 8 bytes: OK
+[  6271866] Buffer complete
+[  6271877] Transfer complete
+[  6271888] on EP 80 with 0 bytes: OK
+[  6271897] [0:2] Control data:
+[  6271907] NULL
+[  6272477] Buffer complete
+[  6272487] Transfer complete
+[  6272498] on EP 00 with 0 bytes: OK
+[  6272505] 
+[  6272552] HID set config: itf = 2
+[  6272565] HID Set Idle 
+[  6272580] [0:2] Class Request: 21 0A 00 00 02 00 00 00 
+[  6272616] Transfer complete
+[  6272634] on EP 00 with 8 bytes: OK
+[  6272866] Buffer complete
+[  6272877] Transfer complete
+[  6272889] on EP 80 with 0 bytes: OK
+[  6272895] 
+[  6272909] HID Get Report Descriptor
+[  6272921] [0:2] Get Descriptor: 81 06 00 22 02 00 21 00 
+[  6272956] Transfer complete
+[  6272970] on EP 00 with 8 bytes: OK
+[  6273866] Buffer complete
+[  6273879] Transfer complete
+[  6273896] on EP 80 with 8 bytes: OK
+[  6273906] [0:2] Control data:
+[  6273915]   0000:  06 7A FF 09 01 A1 01 85                          |.z......|
+[  6273965] Buffer complete
+[  6273973] Transfer complete
+[  6273985] on EP 00 with 0 bytes: OK
+[  6273992] 
+[  6274057]   Queue EP 81 with 1 bytes ... 
+[  6274072] OK
+[  6474017] HID Set Protocol = 0
+[  6474034] [0:1] Class Request: 21 0B 00 00 00 00 00 00 
+[  6474099] [1] Claimed EP 0x81
+[  6474122]   Queue EP 81 with 8 bytes ... 
+[  6474137] OK
+[  6474178] Transfer complete
+[  6474202] on EP 00 with 8 bytes: OK
+[  6474273] Buffer complete
+[  6474287] Transfer complete
+[  6474302] on EP 80 with 0 bytes: OK
+[  6474309] 
+[  6483954] Buffer complete
+[  6483990] on EP 81 with 8 bytes: OK
+[  6483998] HID xfer callback
+[  6484015]   Get Report callback (1, 0)
+[  6484062] [1] Claimed EP 0x81
+[  6484077]   Queue EP 81 with 8 bytes ... 
+[  6484091] OK
+[  6770022] [2] Claimed EP 0x05
+[  6770040]   Queue EP 05 with 3 bytes ... 
+[  6770052] OK
+[  6770873] Buffer complete
+[  6770894] on EP 05 with 3 bytes: OK
+[  6770902] XINPUT xfer callback
+[  7270021] [2] Claimed EP 0x05
+[  7270040]   Queue EP 05 with 3 bytes ... 
+[  7270053] OK
+[  7270873] Buffer complete
+[  7270897] on EP 05 with 3 bytes: OK
+[  7270905] XINPUT xfer callback
+[  7770018] [2] Claimed EP 0x05
+[  7770037]   Queue EP 05 with 3 bytes ... 
+[  7770052] OK
+[  7770872] Buffer complete
+[  7770897] on EP 05 with 3 bytes: OK
+[  7770905] XINPUT xfer callback
+[  8270018] [2] Claimed EP 0x05
+[  8270034]   Queue EP 05 with 3 bytes ... 
+[  8270047] OK
+[  8270872] Buffer complete
+[  8270894] on EP 05 with 3 bytes: OK
+[  8270902] XINPUT xfer callback
+[  8553955] Buffer complete
+[  8553985] on EP 81 with 8 bytes: OK
+[  8553995] HID xfer callback
+[  8554004]   Get Report callback (1, 0)
+[  8554047] [1] Claimed EP 0x81
+[  8554061]   Queue EP 81 with 8 bytes ... 
+[  8554074] OK
+[  8673958] Buffer complete
+[  8673996] on EP 81 with 8 bytes: OK
+[  8674002] HID xfer callback
+[  8674008]   Get Report callback (1, 0)
+[  8674028] [1] Claimed EP 0x81
+[  8674042]   Queue EP 81 with 8 bytes ... 
+[  8674054] OK
+[  8770021] [2] Claimed EP 0x05
+[  8770041]   Queue EP 05 with 3 bytes ... 
+[  8770055] OK
+[  8770872] Buffer complete
+[  8770897] on EP 05 with 3 bytes: OK
+[  8770905] XINPUT xfer callback
+[  9270017] [2] Claimed EP 0x05
+[  9270036]   Queue EP 05 with 3 bytes ... 
+[  9270048] OK
+[  9270872] Buffer complete
+[  9270894] on EP 05 with 3 bytes: OK
+[  9270904] XINPUT xfer callback
+[  9353955] Buffer complete
+[  9353986] on EP 81 with 8 bytes: OK
+[  9353996] HID xfer callback
+[  9354004]   Get Report callback (1, 0)
+[  9354028] [1] Claimed EP 0x81
+[  9354042]   Queue EP 81 with 8 bytes ... 
+[  9354053] OK
+[  9423954] Buffer complete
+[  9423988] on EP 81 with 8 bytes: OK
+[  9423995] HID xfer callback
+[  9424002]   Get Report callback (1, 0)
+[  9424023] [1] Claimed EP 0x81
+[  9424037]   Queue EP 81 with 8 bytes ... 
+[  9424051] OK
+[  9503955] Buffer complete
+[  9503991] on EP 81 with 8 bytes: OK
+[  9503999] HID xfer callback
+[  9504009]   Get Report callback (1, 0)
+[  9504032] [1] Claimed EP 0x81
+[  9504045]   Queue EP 81 with 8 bytes ... 
+[  9504056] OK
+[  9553955] Buffer complete
+[  9553990] on EP 81 with 8 bytes: OK
+[  9553999] HID xfer callback
+[  9554007]   Get Report callback (1, 0)
+[  9554026] [1] Claimed EP 0x81
+[  9554040]   Queue EP 81 with 8 bytes ... 
+[  9554053] OK
+[  9770022] [2] Claimed EP 0x05
+[  9770040]   Queue EP 05 with 3 bytes ... 
+[  9770052] OK
+[  9770872] Buffer complete
+[  9770899] on EP 05 with 3 bytes: OK
+[  9770909] XINPUT xfer callback
+[ 10270021] [2] Claimed EP 0x05
+[ 10270041]   Queue EP 05 with 3 bytes ... 
+[ 10270054] OK
+[ 10270873] Buffer complete
+[ 10270894] on EP 05 with 3 bytes: OK
+[ 10270901] XINPUT xfer callback
+[ 10770018] [2] Claimed EP 0x05
+[ 10770038]   Queue EP 05 with 3 bytes ... 
+[ 10770051] OK
+[ 10770873] Buffer complete
+[ 10770894] on EP 05 with 3 bytes: OK
+[ 10770902] XINPUT xfer callback
+[ 10823956] Buffer complete
+[ 10823992] on EP 81 with 8 bytes: OK
+[ 10824000] HID xfer callback
+[ 10824007]   Get Report callback (1, 0)
+[ 10824026] [1] Claimed EP 0x81
+[ 10824039]   Queue EP 81 with 8 bytes ... 
+[ 10824051] OK
+[ 10893955] Buffer complete
+[ 10893993] on EP 81 with 8 bytes: OK
+[ 10894002] HID xfer callback
+[ 10894011]   Get Report callback (1, 0)
+[ 10894030] [1] Claimed EP 0x81
+[ 10894042]   Queue EP 81 with 8 bytes ... 
+[ 10894053] OK
+[ 10993954] Buffer complete
+[ 10993984] on EP 81 with 8 bytes: OK
+[ 10993992] HID xfer callback
+[ 10993998]   Get Report callback (1, 0)
+[ 10994019] [1] Claimed EP 0x81
+[ 10994031]   Queue EP 81 with 8 bytes ... 
+[ 10994044] OK
+[ 11083955] Buffer complete
+[ 11083991] on EP 81 with 8 bytes: OK
+[ 11084000] HID xfer callback
+[ 11084008]   Get Report callback (1, 0)
+[ 11084025] [1] Claimed EP 0x81
+[ 11084039]   Queue EP 81 with 8 bytes ... 
+[ 11084051] OK
+[ 11243956] Buffer complete
+[ 11243993] on EP 81 with 8 bytes: OK
+[ 11244000] HID xfer callback
+[ 11244007]   Get Report callback (1, 0)
+[ 11244027] [1] Claimed EP 0x81
+[ 11244040]   Queue EP 81 with 8 bytes ... 
+[ 11244052] OK
+[ 11270022] [2] Claimed EP 0x05
+[ 11270040]   Queue EP 05 with 3 bytes ... 
+[ 11270051] OK
+[ 11270872] Buffer complete
+[ 11270896] on EP 05 with 3 bytes: OK
+[ 11270902] XINPUT xfer callback
+[ 11383955] Buffer complete
+[ 11383988] on EP 81 with 8 bytes: OK
+[ 11383997] HID xfer callback
+[ 11384005]   Get Report callback (1, 0)
+[ 11384024] [1] Claimed EP 0x81
+[ 11384037]   Queue EP 81 with 8 bytes ... 
+[ 11384050] OK
+[ 11770020] [2] Claimed EP 0x05
+[ 11770037]   Queue EP 05 with 3 bytes ... 
+[ 11770051] OK
+[ 11770873] Buffer complete
+[ 11770897] on EP 05 with 3 bytes: OK
+[ 11770906] XINPUT xfer callback
+[ 12270017] [2] Claimed EP 0x05
+[ 12270039]   Queue EP 05 with 3 bytes ... 
+[ 12270053] OK
+[ 12270873] Buffer complete
+[ 12270898] on EP 05 with 3 bytes: OK
+[ 12270905] XINPUT xfer callback
+[ 12383954] Buffer complete
+[ 12383987] on EP 81 with 8 bytes: OK
+[ 12383996] HID xfer callback
+[ 12384005]   Get Report callback (1, 0)
+[ 12384031] [1] Claimed EP 0x81
+[ 12384045]   Queue EP 81 with 8 bytes ... 
+[ 12384056] OK
+[ 12503965] Buffer complete
