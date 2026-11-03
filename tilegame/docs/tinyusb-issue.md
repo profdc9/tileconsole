@@ -38,7 +38,8 @@ Power is ruled out (self-powered hub, bigger supply capacitor, 252 MHz).
  5.116  ATTACH hub 6 port 1           keyboard now first    all requests ok, mounted at 5.58
  5.626  ATTACH hub 6 port 3           gamepad second        all requests ok, mounted at 6.11
 ```
-`tusb23.txt` is TinyUSB's debug output of the same run (its clock starts about 0.16 s before the other log).
+`tusb23.txt` is TinyUSB's debug output of the same run (its clock starts about 0.16 s before the other log);
+`tusb23-excerpt.txt` has only the two keyboard enumerations from it, annotated.
 
 In earlier runs the keyboard was in a higher-numbered port than the gamepad, so every host restart re-created the failing order
 and never recovered (usblog15/16/17).
@@ -48,8 +49,8 @@ and never recovered (usblog15/16/17).
   endpoints until the bus had been quiet 2.5 s (no transfer to the pad during the keyboard's enumeration, still fails); 252 MHz;
   self-powered hub; bigger supply capacitor; TinyUSB 0.21.0 and master.
 - Moved the failure later in the enumeration:
-  - `SIE_CTRL.SOF_SYNC` added for transfers with `need_pre()`: `SET_ADDRESS` and the 18-byte descriptor pass, the configuration
-    descriptor request fails (3 of 3 attempts, `usblog17`).
+  - `SIE_CTRL.SOF_SYNC` added for transfers with `need_pre()`: `SET_ADDRESS` and the request for the 18-byte descriptor go
+    through (I did not check whether all 18 bytes came back), the configuration descriptor request fails (3 of 3 attempts, `usblog17`).
   - a 300 us wait before each control transaction to a low-speed device behind the hub (master, `usblog19`; in that run my XInput class
     driver was not bound because of the `open()` bug mentioned below, the pad otherwise enumerated): the status stage and
     `SET_ADDRESS` pass; the second packet of the 18-byte descriptor read (sent by the controller itself right after the first) then times out.
@@ -84,5 +85,5 @@ and the controller has no register for the gap between packets of one stage.
 
 ## Files
 https://github.com/profdc9/tileconsole/tree/main/tilegame/docs/usblogs (`usblog23.bin`, `usblog23-brief.txt`,
-`usblog23-annotated.txt`, `tusb23.txt`; also 15, 16, 17 (0.18.0), 18, 19 (master, with my driver bug), 20 (master, fixed)). Decoder: `tilegame/tools/usblog_decode.py` (`--brief` for one line per
+`usblog23-annotated.txt`, `tusb23.txt`, `tusb23-excerpt.txt`; also 15, 16, 17 (0.18.0), 18, 19 (master, with my driver bug), 20 (master, fixed)). Decoder: `tilegame/tools/usblog_decode.py` (`--brief` for one line per
 request); recorder: `tilegame/board/usblog_usb.c`; notes: `tilegame/docs/usb-and-power.md`.

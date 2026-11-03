@@ -1,0 +1,130 @@
+tusb23 excerpt: TinyUSB 0.18.0 debug output (CFG_TUSB_DEBUG=2) of usblog23, only the two keyboard enumerations. The full text is tusb23.txt.
+Same hub, same keyboard (hub port 1, low speed, EP0 max packet 8), same gamepad (hub port 3, full speed). "[ 4016701]" is microseconds since boot
+(add -0.161 s to get the clock of usblog23-brief.txt). Lines "Buffer complete" and "Transfer complete" and blank lines are removed.
+Annotations start with ###.
+
+======================= A. The gamepad is already enumerated (dev 1); the keyboard is plugged in: IT FAILS =======================
+
+[  4015880] HUB Get Port Status: addr = 6 port = 1
+[  4015889] [0:6] Class Request: A3 00 00 00 01 00 04 00 
+[  4016082] on EP 00 with 8 bytes: OK
+[  4016143] on EP 80 with 4 bytes: OK
+[  4016159] [0:6] Control data:
+[  4016166]   0000:  03 03 10 00                                      |....|
+[  4016243] on EP 00 with 0 bytes: OK
+[  4016252] 
+[  4016275] HUB Clear Feature: PORT_RESET_CHANGE, addr = 6 port = 1
+[  4016287] [0:6] Class Request: 23 01 14 00 01 00 00 00 
+[  4016349] on EP 00 with 8 bytes: OK
+[  4016678] on EP 80 with 0 bytes: OK
+[  4016685] 
+### Port reset done. The new device is addressed as device 0. First read: 8 bytes of its device descriptor. This works.
+[  4016701] [0:0] Open EP0 with Size = 8
+[  4016716] Get 8 byte of Device Descriptor
+[  4016727] [0:0] Get Descriptor: 80 06 00 01 00 00 08 00 
+[  4017014] on EP 00 with 8 bytes: OK
+[  4017210] on EP 80 with 8 bytes: OK
+[  4017221] [0:0] Control data:
+[  4017228]   0000:  12 01 10 01 00 00 00 08                          |........|
+[  4017360] on EP 00 with 0 bytes: OK
+[  4017368] 
+### SET_ADDRESS 2 works too: the keyboard is now device 2.
+[  4017388] Set Address = 2
+[  4017404] [0:0] Set Address: 00 05 02 00 00 00 00 00 
+[  4017558] on EP 00 with 8 bytes: OK
+[  4017652] on EP 80 with 0 bytes: OK
+[  4017660] 
+[  4019686] [0:2] Open EP0 with Size = 8
+[  4019698] Get Device Descriptor
+### Second read: the whole device descriptor, 18 bytes = three 8-byte packets (the last one has 2 bytes).
+[  4019706] [0:2] Get Descriptor: 80 06 00 01 00 00 12 00 
+[  4020018] on EP 00 with 8 bytes: OK
+### Only the first 8-byte packet arrived. TinyUSB 0.18 reports this stage as 'OK, 8 bytes' (13 receive timeouts in usblog23 between
+### the first packet and this completion), so the descriptor it holds is truncated (bLength 0x12 but 8 bytes). In section B the same read returns 18 bytes.
+[  4020917] on EP 80 with 8 bytes: OK
+[  4020930] [0:2] Control data:
+[  4020936]   0000:  12 01 10 01 00 00 00 08                          |........|
+[  4021021] [1] Claimed EP 0x05
+### Meanwhile the firmware starts the gamepad's periodic LED command (an interrupt OUT to device 1, every 500 ms). The keyboard's status stage
+### is pending at this moment (it also times out, about 10 times, and completes at 4021895 in usblog23).
+[  4021038]   Queue EP 05 with 3 bytes ... 
+[  4021048] OK
+[  4021847] on EP 05 with 3 bytes: OK
+[  4021854] XINPUT xfer callback
+[  4021913] on EP 00 with 0 bytes: OK
+[  4021921] 
+[  4021939] Get Configuration[0] Descriptor (9 bytes)
+### The request for the 9-byte configuration descriptor is sent: its SETUP packet gets a receive timeout, the controller re-sends it
+### thousands of times a second, and the request never completes. Nothing more is logged until the host is restarted (330 ms later).
+[  4021953] [0:2] Get Descriptor: 80 06 00 02 00 00 09 00 
+### The firmware restarts the USB host after 3000 receive timeouts (deinit/init): every device is closed and found again.
+[  4352477] [0:0:0] unplugged address = 1
+
+======================= B. After the restart the keyboard (port 1) is enumerated BEFORE the gamepad (port 3): IT WORKS =======================
+
+[  5276393] on EP 80 with 0 bytes: OK
+[  5276399] 
+[  5276414] [0:] USBH Device Attach
+[  5726425] HUB Get Port Status: addr = 6 port = 1
+[  5726435] [0:6] Class Request: A3 00 00 00 01 00 04 00 
+[  5726641] on EP 00 with 8 bytes: OK
+[  5726698] on EP 80 with 4 bytes: OK
+[  5726710] [0:6] Control data:
+[  5726716]   0000:  03 03 10 00                                      |....|
+[  5726788] on EP 00 with 0 bytes: OK
+[  5726797] 
+[  5726819] HUB Clear Feature: PORT_RESET_CHANGE, addr = 6 port = 1
+[  5726831] [0:6] Class Request: 23 01 14 00 01 00 00 00 
+[  5726893] on EP 00 with 8 bytes: OK
+[  5727117] on EP 80 with 0 bytes: OK
+[  5727125] 
+[  5727142] [0:0] Open EP0 with Size = 8
+### Same steps as above, same device.
+[  5727155] Get 8 byte of Device Descriptor
+[  5727165] [0:0] Get Descriptor: 80 06 00 01 00 00 08 00 
+[  5727321] on EP 00 with 8 bytes: OK
+[  5727511] on EP 80 with 8 bytes: OK
+[  5727521] [0:0] Control data:
+[  5727527]   0000:  12 01 10 01 00 00 00 08                          |........|
+[  5727662] on EP 00 with 0 bytes: OK
+[  5727671] 
+[  5727687] Set Address = 1
+[  5727701] [0:0] Set Address: 00 05 01 00 00 00 00 00 
+[  5727993] on EP 00 with 8 bytes: OK
+[  5728092] on EP 80 with 0 bytes: OK
+[  5728102] 
+[  5730123] [0:1] Open EP0 with Size = 8
+[  5730135] Get Device Descriptor
+### The same 18-byte read of the device descriptor, in the working order:
+[  5730147] [0:1] Get Descriptor: 80 06 00 01 00 00 12 00 
+[  5730344] on EP 00 with 8 bytes: OK
+### All 18 bytes arrive (compare 4020917 above, 8 bytes).
+[  5730943] on EP 80 with 18 bytes: OK
+[  5730951] [0:1] Control data:
+[  5730957]   0000:  12 01 10 01 00 00 00 08 61 04 67 4E 13 01 00 01  |........a.gN....|
+[  5730997]   0010:  00 01                                            |..|
+[  5731127] on EP 00 with 0 bytes: OK
+[  5731136] 
+[  5731153] Get Configuration[0] Descriptor (9 bytes)
+[  5731169] [0:1] Get Descriptor: 80 06 00 02 00 00 09 00 
+[  5731333] on EP 00 with 8 bytes: OK
+[  5731641] on EP 80 with 9 bytes: OK
+[  5731654] [0:1] Control data:
+[  5731660]   0000:  09 02 3B 00 02 01 00 A0 31                       |..;.....1|
+[  5731944] on EP 00 with 0 bytes: OK
+[  5731949] 
+### Configuration descriptor (59 bytes): fine. The enumeration goes on to HID report descriptors and the keyboard works. The gamepad is enumerated
+### afterwards (hub port 3) without problems, and the keyboard keeps working.
+[  5731961] Get Configuration[0] Descriptor
+[  5731972] [0:1] Get Descriptor: 80 06 00 02 00 00 3B 00 
+[  5732131] on EP 00 with 8 bytes: OK
+[  5733684] on EP 80 with 59 bytes: OK
+[  5733699] [0:1] Control data:
+[  5733705]   0000:  09 02 3B 00 02 01 00 A0 31 09 04 00 00 01 03 01  |..;.....1.......|
+[  5733745]   0010:  01 00 09 21 10 01 00 01 22 36 00 07 05 81 03 08  |...!...."6......|
+[  5733782]   0020:  00 0A 09 04 01 00 01 03 00 00 00 09 21 10 01 00  |............!...|
+[  5733819]   0030:  01 22 19 00 07 05 82 03 03 00 0A                 |.".........|
+[  5733950] on EP 00 with 0 bytes: OK
+[  5733958] 
+[  5733974] Set Configuration = 1
+[  5733983] [0:1] Set Configuration: 00 09 01 00 00 00 00 00 
