@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """Reads a USB log the board saved as /sd/usblogNN.bin (src/usblog.h has the format) and prints it as a timeline.
 
-    python3 -I tools/usblog_decode.py usblog00.bin [--last N] [--skip-isr]
+    python3 -I tools/usblog_decode.py usblog00.bin [--last N] [--skip-isr] [--brief]
+
+--brief prints the story, one line per control request or event with its outcome and the receive timeouts that came with it,
+instead of every record: times are seconds since the first record.
 """
 import struct
 import sys
@@ -94,10 +97,68 @@ def describe(e):
     return "type %d x=%04X a=%08X b=%08X c=%08X d=%08X" % (typ, x, a, b, c, d)
 
 
+def brief(entries):
+    t0 = entries[0][0]
+    pending = None      # a transfer or a setup packet that has not completed yet: (text)
+    timeouts = 0
+    out = []
+
+    def stamp(e):
+        return "%9.3f" % (((e[0] - t0) & 0xFFFFFFFF) / 1e6)
+
+    def flush(e):
+        nonlocal timeouts
+        if timeouts:
+            out.append("%9s      ... %d receive timeouts" % ("", timeouts))
+            timeouts = 0
+
+    for e in entries:
+        t, typ, core, x, a, b, c, d = e
+        if typ == 1:
+            if a & 1 << 6:
+                timeouts += 1
+            continue
+        if typ == 10:
+            timeouts += a
+            continue
+        if typ == 2 and x >> 8 == 2:
+            res = RESULT.get(a >> 8 & 255, "?")
+            line = "%s %s %d bytes -> %s" % (("data/status IN " if a & 128 else "data/status OUT")[:15], "ep%d" % (a & 15), b, "ok" if res == "SUCCESS" else res)
+            if pending and (x & 255) == pending[0]:
+                out.append(pending[1].replace("@", "-> " + ("ok" if res == "SUCCESS" else res)))
+                pending = None
+            else:
+                flush(e)
+                out.append("%s    dev %d  %s" % (stamp(e), x & 255, line))
+            continue
+        if typ in (3, 4):
+            flush(e)
+            if pending:
+                out.append(pending[1].replace("@", "(no completion)"))
+            if typ == 4:
+                pending = (x, "%s  dev %d  SETUP %s  @" % (stamp(e), x, setup(a, b)))
+            else:
+                pending = (x >> 8, "%s    dev %d  %s %s  @" % (stamp(e), x >> 8, "IN " if x & 128 else "OUT", "%d bytes" % a if a else "(status stage, 0 bytes)"))
+            continue
+        if typ == 5:
+            continue
+        flush(e)
+        if pending and typ not in (1,):
+            out.append(pending[1].replace("@", "(no completion)"))
+            pending = None
+        d_ = describe(e)
+        out.append("%s  %s" % (stamp(e), d_))
+    if pending:
+        out.append(pending[1].replace("@", "(no completion)"))
+    flush(entries[-1])
+    return out
+
+
 def main(argv):
     path = None
     last = None
     skip_isr = False
+    brief_mode = False
     i = 1
     while i < len(argv):
         if argv[i] == "--last":
@@ -105,6 +166,8 @@ def main(argv):
             i += 1
         elif argv[i] == "--skip-isr":
             skip_isr = True
+        elif argv[i] == "--brief":
+            brief_mode = True
         else:
             path = argv[i]
         i += 1
@@ -122,6 +185,9 @@ def main(argv):
     if entries:
         print("span %.3f ms" % (((entries[-1][0] - entries[0][0]) & 0xFFFFFFFF) / 1000.0))
     shown = entries[-last:] if last else entries
+    if brief_mode and shown:
+        print("\n".join(brief(shown)))
+        return 0
     prev = None
     for e in shown:
         if skip_isr and e[1] == 1:
