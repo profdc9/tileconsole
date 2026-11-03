@@ -132,6 +132,7 @@ static uint32_t auto_restarts;
 #define CTRL_STUCK_US 2000000u              /* a transfer on the control endpoint that has not completed for this long (the stack has no timeout) */
 static uint8_t ls_port;                     /* the hub port of the device that a storm hit, until the root port is unplugged */
 static volatile uint32_t ctrl_us;           /* when the control endpoint was last started and has not completed since, or 0 */
+extern volatile uint16_t tilegame_hcd_spurious;   /* the same: an endpoint address | 0x100 when a buffer status arrived for an endpoint with no transfer */
 extern volatile uint8_t tilegame_hub_first_port;   /* patched TinyUSB (third_party/tinyusb/README-tilegame.md): the hub port to enumerate first, once */
 
 void __not_in_flash_func(usb_hid_host_ctrl_start)(void) { ctrl_us = time_us_32() | 1; }
@@ -140,6 +141,8 @@ void __not_in_flash_func(usb_hid_host_ctrl_done)(void) { ctrl_us = 0; }
 void __not_in_flash_func(usb_hid_host_event)(uint8_t event_id, uint8_t hub_addr, uint8_t hub_port)
 {
     const uint32_t now = time_us_32() | 1;
+    if (event_id == HCD_EVENT_DEVICE_REMOVE)
+        ctrl_us = 0;   /* (a control transfer that was under way to a device that has gone is never completed) */
     if (event_id == HCD_EVENT_DEVICE_ATTACH)
         last_attach_ms = to_ms_since_boot(get_absolute_time());
     if (event_id == HCD_EVENT_DEVICE_REMOVE && hub_addr == 0 && hub_port == 0)
@@ -187,7 +190,9 @@ static void check_host(void)
         why = 2;
     else if (storm_us)
         why = 3;
-    else if (ctrl_us && now - ctrl_us > CTRL_STUCK_US)
+    else if (tilegame_hcd_spurious)
+        why = 5;   /* a completion that was dropped: the endpoint (the hub's status endpoint, usblog35) is dead */
+    else if (ctrl_us && (int32_t)(time_us_32() - ctrl_us) > (int32_t)CTRL_STUCK_US)   /* (signed: ctrl_us can be newer than `now`; unsigned it looked 70 minutes old) */
         why = 4;
     if (!why)
         return;
@@ -199,6 +204,8 @@ static void check_host(void)
     }
     if (why != 1)
         auto_restarts++;
+    const uint16_t spurious = tilegame_hcd_spurious;
+    tilegame_hcd_spurious = 0;
     root_removed_us = attach_us = storm_us = ctrl_us = 0;
     if (why == 1)
         ls_port = 0;
@@ -207,7 +214,7 @@ static void check_host(void)
     tilegame_hub_first_port = ls_port;   /* after a restart that port is enumerated first (once; 0: lowest first) */
     host_restarts++;
     last_restart_us = now;
-    usblog(USBLOG_EV_HOST_RESTART, 0, why, host_restarts, 0, 0);
+    usblog(USBLOG_EV_HOST_RESTART, 0, why, host_restarts, spurious, 0);
     tuh_deinit(BOARD_TUH_RHPORT);
     usblog_usb_remove();
     start_host();

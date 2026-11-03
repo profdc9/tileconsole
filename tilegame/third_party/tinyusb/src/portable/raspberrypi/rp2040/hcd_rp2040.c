@@ -116,12 +116,16 @@ static void __tusb_irq_path_func(hw_xfer_complete)(struct hw_endpoint *ep, xfer_
   hcd_event_xfer_complete(dev_addr, ep_addr, xferred_len, xfer_result, true);
 }
 
+// tilegame patch: set (to the endpoint address | 0x100) when a buffer status arrives for an endpoint with no transfer. The firmware restarts the host:
+// a dropped completion of the hub's status endpoint leaves the hub dead (new devices are never seen).
+volatile uint16_t tilegame_hcd_spurious;
+
 static void __tusb_irq_path_func(_handle_buff_status_bit)(uint bit, struct hw_endpoint *ep)
 {
   usb_hw_clear->buf_status = bit;
   // tilegame patch: a buffer status for an endpoint that has no transfer (a packet that completed after its transfer had been given up, or
   // a duplicate) is ignored; it used to panic in hw_endpoint_xfer_continue ("Can't continue xfer on inactive ep", seen on the hub's status endpoint).
-  if (!ep->active) return;
+  if (!ep->active) { tilegame_hcd_spurious = (uint16_t)(ep->ep_addr | 0x100); return; }
   // EP may have been stalled?
   assert(ep->active);
   if (ep == &epx) ls_gap_wait(ep->dev_addr);   // (tilegame patch: the next packet of a data stage)
