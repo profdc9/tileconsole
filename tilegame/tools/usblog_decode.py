@@ -85,7 +85,7 @@ def describe(e):
     if typ == 10:
         return "ISR record repeated %d more times over %d us" % (a, b)
     if typ == 11:
-        return "USB HOST RESTARTED (%s), restart number %d" % ({1: "the root port was unplugged", 2: "an attach led nowhere", 3: "a receive timeout storm", 4: "a control transfer never completed", 5: "a buffer status for an endpoint with no transfer"}.get(a, a), b)
+        return "USB HOST RESTARTED (%s), restart number %d" % ({1: "the root port was unplugged", 2: "an attach led nowhere", 3: "a receive timeout storm", 4: "a control transfer never completed", 5: "a buffer status for an endpoint with no transfer", 6: "a device attached and never mounted"}.get(a, a), b)
     if typ == 12:
         return "USB interrupt is %s; last turned off at %d by code at %08X; last turned on at %d" % ("OFF" if x else "on", a, b, c)
     if typ == 0xF0:

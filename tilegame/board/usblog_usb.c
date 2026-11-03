@@ -67,12 +67,17 @@ static void drop_held(uint8_t dev_addr)
             held[i].used = false;
 }
 
+#endif
+
+/* TinyUSB calls this when a device's enumeration is complete, whatever its class. */
 void tuh_mount_cb(uint8_t dev_addr)
 {
     (void)dev_addr;
+#if USB_PAUSE_POLL
     usblog_usb_enum_over();
-}
 #endif
+    usb_hid_host_mounted();
+}
 
 /* TinyUSB masks the USB interrupt around its event queue (usbh_int_set). The USB log of a hang shows the hub's status endpoint finished and the
  * interrupt never serviced, while the program kept running: so who turned it off, and when, is kept for the hang record. */

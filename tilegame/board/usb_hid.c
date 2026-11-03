@@ -130,6 +130,10 @@ static uint32_t last_restart_us;
 #define AUTO_RESTARTS_QUIET_US 30000000u   /* time is not helped by more, so the host is left alone until the root port is unplugged or 30 s pass */
 static uint32_t auto_restarts;
 #define CTRL_STUCK_US 2000000u              /* a transfer on the control endpoint that has not completed for this long (the stack has no timeout) */
+#define PENDING_STUCK_US 3000000u           /* a device that has attached and has not been mounted (enumeration complete) by then: the attach is lost */
+static volatile uint32_t pending_us;        /* when it attached (the first one not yet mounted), or 0 */
+static volatile uint8_t pending_hub, pending_port;
+void __not_in_flash_func(usb_hid_host_mounted)(void) { pending_us = 0; }
 static uint8_t ls_port;                     /* the hub port of the device that a storm hit, until the root port is unplugged */
 static volatile uint32_t ctrl_us;           /* when the control endpoint was last started and has not completed since, or 0 */
 extern volatile uint16_t tilegame_hcd_spurious;   /* the same: an endpoint address | 0x100 when a buffer status arrived for an endpoint with no transfer */
@@ -141,6 +145,12 @@ void __not_in_flash_func(usb_hid_host_ctrl_done)(void) { ctrl_us = 0; }
 void __not_in_flash_func(usb_hid_host_event)(uint8_t event_id, uint8_t hub_addr, uint8_t hub_port)
 {
     const uint32_t now = time_us_32() | 1;
+    if (event_id == HCD_EVENT_DEVICE_ATTACH && !pending_us) {
+        pending_hub = hub_addr;
+        pending_port = hub_port;
+        pending_us = now;
+    } else if (event_id == HCD_EVENT_DEVICE_REMOVE && pending_us && hub_addr == pending_hub && hub_port == pending_port)
+        pending_us = 0;   /* it went again */
     if (event_id == HCD_EVENT_DEVICE_REMOVE)
         ctrl_us = 0;   /* (a control transfer that was under way to a device that has gone is never completed) */
     if (event_id == HCD_EVENT_DEVICE_ATTACH)
@@ -182,7 +192,8 @@ static void check_host(void)
 {
     const uint32_t now = time_us_32();
     /* (each timer is read once: an interrupt can clear it between a test and the subtraction, and "now - 0" looks very old) */
-    const uint32_t root_removed = root_removed_us, attach = attach_us, storm = storm_us, ctrl = ctrl_us;
+    const uint32_t root_removed = root_removed_us, attach = attach_us, storm = storm_us, ctrl = ctrl_us, pending = pending_us;
+    const uint8_t pending_h = pending_hub, pending_p = pending_port;
     uint32_t why = 0;
     if (host_restarts && now - last_restart_us < 1000000u)
         return;   /* (at most one a second) */
@@ -196,6 +207,8 @@ static void check_host(void)
         why = 5;   /* a completion that was dropped: the endpoint (the hub's status endpoint, usblog35) is dead */
     else if (ctrl && (int32_t)(now - ctrl) > (int32_t)CTRL_STUCK_US)
         why = 4;
+    else if (pending && (int32_t)(now - pending) > (int32_t)PENDING_STUCK_US)
+        why = 6;   /* nothing hung that the other tests see (no storm, no transfer under way), but the device never got mounted (usblog40, 41) */
     if (!why)
         return;
     if (why == 1 || now - last_restart_us > AUTO_RESTARTS_QUIET_US)
@@ -208,11 +221,13 @@ static void check_host(void)
         auto_restarts++;
     const uint16_t spurious = tilegame_hcd_spurious;
     tilegame_hcd_spurious = 0;
-    root_removed_us = attach_us = storm_us = ctrl_us = 0;
+    root_removed_us = attach_us = storm_us = ctrl_us = pending_us = 0;
     if (why == 1)
         ls_port = 0;
     else if (why == 3 && attach_hub != 0)
-        ls_port = attach_port;   /* a receive timeout storm: the device being enumerated (behind a hub) is the one that suffers from coming after others */
+        ls_port = attach_port;
+    else if (why == 6 && pending_h != 0)
+        ls_port = pending_p;   /* the same for a device that never mounted: it goes first after the restart */   /* a receive timeout storm: the device being enumerated (behind a hub) is the one that suffers from coming after others */
     tilegame_hub_first_port = ls_port;   /* after a restart that port is enumerated first (once; 0: lowest first) */
     host_restarts++;
     last_restart_us = now;
