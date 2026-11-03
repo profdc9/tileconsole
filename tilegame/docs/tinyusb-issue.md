@@ -1,4 +1,4 @@
-# rp2040/hcd: a low-speed device behind a hub fails to enumerate if a full-speed device on the same hub is already enumerated (the other order works)
+# rp2040 host: low-speed device behind a hub fails to enumerate if a full-speed device was enumerated first
 
 Related: #4180 lists "low-speed device behind a full-speed hub (PREAMBLE)" as not validated on rp2040/rp2350.
 
