@@ -50,12 +50,15 @@ A keyboard and a gamepad behind one hub work together. Two things made that work
 - The RP2040/RP2350 host driver panics inside its interrupt handler on a data sequence error, which a low speed device behind some
   hubs produces. That interrupt is masked; the errors are counted on the diagnostic screen.
 
-Not every hub works: with one bus-powered USB 3.0 hub a low-speed keyboard stopped after a few reports (it worked on a laptop and
-behind a second hub). Full-speed devices (XInput pads, most HID gamepads) worked behind both. A stuck main loop or a panic resets the
-board and the diagnostic screen (`padtest`) shows why.
+A low-speed keyboard that is plugged into the hub after a full-speed gamepad fails to enumerate (the other order works). The firmware
+detects this and restarts the USB host, enumerating the keyboard first, so it comes up 2 to 4.5 s after the plug-in. The reason, the patched
+TinyUSB copy in `third_party/tinyusb`, and the power findings are in `docs/usb-and-power.md`; the report for TinyUSB is
+`docs/tinyusb-issue.md`.
 
-The USB event log, the host recovery, the power findings (a bus-powered hub makes the 5 V rail dip; `-DCPU_MHZ=252` keeps the board
-up) and the plug-in order that works are in `docs/usb-and-power.md`.
+Full-speed devices (XInput pads, most HID gamepads) enumerate behind the hubs tried. A stuck main loop or a panic resets the board and the
+diagnostic screen (`padtest`) shows why. The devkit keeps a USB event log (`USBLOG` saves it; `tools/usblog_decode.py` reads it). A
+bus-powered hub makes the 5 V rail dip when it is plugged in: a 1000 uF capacitor on the 5 V rail fixed the restarts at 504 MHz (see
+`docs/usb-and-power.md`).
 
 ## Keyboard text input and the console demo
 

@@ -11,3 +11,11 @@ full-speed hub starts that many microseconds after the previous one, and its dat
 Second patch (`hcd_rp2040.c`, `_handle_buff_status_bit`): a buffer status for an endpoint with no active transfer is ignored instead of
 panicking in `hw_endpoint_xfer_continue` ("Can't continue xfer on inactive ep 81": usblog25, during the enumeration of a full-speed gamepad
 behind a hub). The cause of the late status is not known.
+
+Third patch (`src/host/hub.c`): `tilegame_hub_first_port`, a hub port that `hub_xfer_cb` looks at first when it has a status change, once. The
+firmware sets it to the port of the device that failed to enumerate, so that after a host restart that device is enumerated before the others.
+
+Fourth patch (`hcd_rp2040.c`): `tilegame_hcd_spurious` is set to the endpoint address | 0x100 when a buffer status arrives for an endpoint with
+no transfer; the firmware then restarts the host (the same condition panicked, and ignoring it silently left the hub's status endpoint dead).
+
+All four are used by `board/usb_hid.c`. Nothing else in the tree is changed.

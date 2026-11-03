@@ -42,7 +42,7 @@ Observed with a bus-powered USB 3.0 hub, a low-speed keyboard and a full-speed X
 - Linux enumerates the same keyboard through the hub's transaction translator, with a second port reset; the board talks to the
   hub at full speed and uses preamble packets for the low-speed device.
 
-Workaround: plug the keyboard in before the gamepad.
+Workaround by hand: plug the keyboard in before the gamepad (the firmware workaround below does this by restarting the host).
 
 It is not the supply: with a self-powered hub the keyboard fails to enumerate after a replug in the same way, and the failure
 stayed when the board's 5 V rail was made stiffer (below).
@@ -89,20 +89,39 @@ AMS1117-3.3, the USB-A port (VBUS) and the Mini-DINs.
 
 ## The workaround in the firmware (vendored TinyUSB 0.18.0, `third_party/tinyusb`)
 
-What the logs showed (usblog23 to 31): a low-speed keyboard behind the hub fails (control requests lost, the controller retries for
-ever) when it is enumerated after a full-speed gamepad on the same hub, and works when it is enumerated first. A 300 us gap between
-transactions (`USB_LS_GAP_US`, one packet at a time) did not fix the failure (usblog27: the third packet of the descriptor read is
-lost, with a data sequence error, probably the controller's own ACK to the keyboard), so it is not what the workaround relies on.
+**Why TinyUSB is vendored.** The Pico SDK's TinyUSB (0.18.0) cannot be changed from the project, and the failure needs changes inside it: the
+hub driver and the rp2040 host controller driver. A copy of 0.18.0 is in `third_party/tinyusb` (`README-tilegame.md` there lists the origin and
+every patch). Newer TinyUSB (0.21.0 and master) was tried and does not fix it, and master is worse in one case (usblog20); the patches are
+small and should go away if TinyUSB handles this itself. `cmake -DUSB_VENDORED_TINYUSB=OFF` builds against the SDK's copy.
 
-The workaround is to recover, and to make the recovery enumerate the keyboard first:
-- the receive timeout storm detector restarts the USB host after about 0.3 s (`usb_hid.c`, at most 2 automatic restarts in a row);
-- the hub port where the storm hit is remembered, and after a restart the vendored hub driver looks at that port first
-  (`tilegame_hub_first_port` in `third_party/tinyusb/src/host/hub.c`), whatever its number, so the keyboard is enumerated before the gamepad;
-- a control transfer that has not completed for 2 s also restarts the host (TinyUSB 0.18 has no timeout; the stall was seen on a gamepad's
-  HID report descriptor read, usblog26);
-- a buffer status for an endpoint with no transfer is ignored instead of panicking (usblog25).
+**The failure** (usblog23 to 48). A low-speed keyboard behind the hub fails (control requests lost, the controller retries for ever) when it is
+enumerated after a full-speed gamepad on the same hub, and works when it is enumerated first. Power is not the cause (self-powered hub, bigger
+capacitor), nor the gamepad's polling, nor `CFG_TUSB_DEBUG`. The cause is not known; the issue draft (`tinyusb-issue.md`) has the analysis.
 
-Result: keyboard plugged into the hub after the gamepad (usblog30, keyboard in hub port 4, gamepad in port 3): the keyboard fails once,
-the host restarts after 0.8 s, the keyboard comes up first and then the gamepad (both working about 2 s after the plug-in). Everything
-plugged in at power-up (usblog31): no restarts. The cause of the failure is still not known; the TinyUSB issue draft
-(`tinyusb-issue.md`) describes it.
+**The workaround** is to detect the failure, restart the USB host, and make the restart enumerate the failed device first:
+- A receive timeout storm (3000 timeouts without a completed control transfer) restarts the host after about 0.3 s (`usb_hid.c`).
+- A device behind the hub that attaches and is not mounted within 3 s restarts the host (a silent stall: no storm, nothing pending, usblog40
+  and 41). The hub's own attach is not tracked.
+- A control transfer that has not completed for 2 s restarts the host (TinyUSB 0.18 has no timeout; usblog26).
+- A buffer status for an endpoint with no transfer restarts the host (it used to panic; ignoring it left the hub's status endpoint dead, so
+  plugged-in devices were never seen, usblog25 and 35).
+- After a restart the hub driver looks at the port where the last storm or never-mounted attach happened first (`tilegame_hub_first_port` in
+  `third_party/tinyusb/src/host/hub.c`), whatever its number, so the keyboard comes up before the gamepad.
+- At most 2 automatic restarts in a row; the allowance comes back after 10 s without one, or when the root port is unplugged.
+- Each timer in `check_host` is read once. Reading `ctrl_us` twice let the USB interrupt clear it between the test and the subtraction, which
+  gave a false restart about once per run (usblog28 to 39). By accident those restarts had been rescuing the keyboard; the 3 s detector does
+  it on purpose.
+
+**Result** (usblog47, 48): keyboard plugged in after the gamepad, in either hub port: it is found every time, 2 to 4.5 s after the plug-in (a
+storm restart after 0.8 s, or the 3 s detector). Each recovery restarts the whole hub, so the gamepad drops out for about 2 s. Everything
+plugged in at power-up: no restarts.
+
+**Left in, but not shown to matter:** `USB_LS_GAP_US=300` (a gap before control transactions to a low-speed device behind a hub, one packet
+at a time). The 300 us gap fixed individual steps (usblog19) but not the failure (usblog27), and the comparison without it (usblog32)
+was confounded by the false restarts, so it was kept as it was in the tested build. Set `-DUSB_LS_GAP_US=0` to try without it.
+
+Other experiments, default off: `USB_PAD_LATE`, `USB_PAUSE_POLL`, `USB_FS_INT_MS`, `USB_PRE_DELAY_US`, `TUSB_LOG` (TinyUSB's own debug output into a RAM
+ring, saved as `tusbNN.txt` by the `USBLOG` command).
+
+**Logs.** `docs/usblogs/` has the logs behind this (`usblogNN.bin`, `-brief.txt` one line per request, and annotated copies of 23);
+`tools/usblog_decode.py usblogNN.bin [--brief]` reads them.
