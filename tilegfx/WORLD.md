@@ -2,7 +2,7 @@
 
 Two layers on top of `tilegfx.h`, in plain C with no dependencies (like the rest of `tilegfx`): `tg_world` keeps a large tile map and the
 small SRAM map the compositor reads in step with a camera; `tg_actor` is a pool of game objects in world coordinates that are given
-sprites only while they are on screen. Status: `tg_world.[ch]` and `test_world` are written and pass; `tg_actor` and the BASIC bindings are not.
+sprites only while they are on screen. Status: `tg_world.[ch]`, `tg_actor.[ch]` and their tests (`test_world`, `test_actor`) are written and pass; the BASIC bindings are not.
 
 ## What the compositor already does
 
@@ -112,36 +112,42 @@ Several worlds (parallax) are independent: each has its own layer, windows, and 
 
 ## Actors
 
-An actor is a rectangle of sprites (a metasprite) at a global position. The pool is the caller's array.
+An actor is a rectangle of sprites (a metasprite) at a global position. The pool is the caller's array (`tg_actor.h`).
 
     typedef struct {
         int32_t x, y;           /* top left, global, 24.8 fixed point (1/256 pixel) */
         int32_t vx, vy;         /* per frame, 24.8; added by tg_actors_step */
         uint16_t tile;          /* the first sprite tile; the others follow row by row: tile + row * cols + col */
-        uint8_t cols, rows;     /* 1..4 sprite tiles each way; the box is cols * rows sprite tiles (8 or 16 pixels each, as the sprite sheet) */
-        uint8_t flags;          /* TG_ACTOR_ACTIVE | HIDDEN | HFLIP | VFLIP (the flips mirror the whole grid) */
+        uint8_t cols, rows;     /* 1..4 sprite tiles each way (a sprite tile is 8 or 16 pixels: g->sprite_tile_log2) */
+        uint8_t flags;          /* TG_ACTOR_ACTIVE | HIDDEN | HFLIP | VFLIP (the flips mirror the whole grid, and each tile) */
         uint8_t pal, above;     /* as tg_sprite_t */
-        uint8_t prio;           /* 0 in front */
+        uint8_t prio;           /* 0 in front; the same prio: in front in order of the actor's number */
+        uint8_t hit_x, hit_y, hit_w, hit_h;   /* the collision box in pixels from the top left; hit_w or hit_h 0: the whole grid */
         uint16_t user;          /* the program's: a type, a state, an animation counter */
     } tg_actor_t;
 
-    typedef struct { tg_actor_t *a; uint16_t n; uint8_t sorting; ... } tg_actors_t;
-
-    void tg_actors_init(tg_actors_t *p, tg_actor_t *storage, uint16_t n);
-    int  tg_actor_alloc(tg_actors_t *p);                                    /* an id, cleared and ACTIVE; -1 if the pool is full */
+    void tg_actors_init(tg_actors_t *p, tg_actor_t *storage, uint16_t n, uint16_t *order);   /* order: n entries of scratch for the draw */
+    int  tg_actor_alloc(tg_actors_t *p);              /* the lowest free number, cleared, ACTIVE, 1 x 1; -1 if the pool is full */
     void tg_actor_free(tg_actors_t *p, int id);
-    tg_actor_t *tg_actor(tg_actors_t *p, int id);
+    tg_actor_t *tg_actor(tg_actors_t *p, int id);     /* NULL for a number that is not an active actor */
 
-    void tg_actors_step(tg_actors_t *p);                                    /* x += vx, y += vy for every active actor */
-    uint8_t tg_actor_move(tg_actors_t *p, int id, const tg_world_t *w, int32_t dx, int32_t dy);   /* moves, stopping at TG_TILE_SOLID; returns which sides hit */
-    void tg_actors_draw(tg_actors_t *p, tg_t *g, int32_t cam_x, int32_t cam_y);
+    void tg_actors_step(tg_actors_t *p, int frames);  /* x += vx * frames, y += vy * frames (saturating) for every active actor */
+    uint8_t tg_actor_move(tg_actors_t *p, int id, const tg_world_t *w, int32_t dx, int32_t dy);   /* x then y; returns TG_HIT_* */
+    bool tg_actors_overlap(const tg_actors_t *p, int a, int b);                                   /* the collision boxes */
+    int  tg_actors_draw(tg_actors_t *p, tg_t *g, int32_t cam_x, int32_t cam_y);                   /* the number of actors drawn */
 
-`tg_actors_draw` frees the sprite slots it took last frame, then for every active, not hidden actor whose box touches the screen
-(`x >> 8` minus the camera, as a 16-bit screen position only after that test) allocates `cols * rows` slots with `tg_sprite_alloc`,
-in priority order, so if the 128 slots run out it is the back-most actors that go without. Each metasprite part gets the actor's
-`prio`, and `above`, `pal` and flips, with the flipped grid mirrored. `TG_ACTORS_YSORT` makes the priority follow the bottom edge, for top-down
-games. The compositor's own limit of 32 sprites a line still applies. Sprites are in `tg_t`, which `plat_present` copies, so
-they need no double buffer.
+`tg_actor_move` moves in steps of a tile or less, so nothing is jumped over, and stops flush against a `TG_TILE_SOLID` tile (the actor's box is
+looked up with `tg_world_flags_box`; with a solid border the map's edge stops it too). A `TG_TILE_ONEWAY` tile stops it only when moving down
+from above. A stopped actor loses the fraction of a pixel and never moves against its direction; one that starts inside a solid tile stays
+where it is. The result is the sides that stopped it (`TG_HIT_LEFT|RIGHT|UP|DOWN`).
+
+`tg_actors_draw` gives back the sprite slots it took at the last call (other sprites in `g` are left alone), orders the actors that are
+active, not hidden and touch the screen by priority (a counting sort, stable) and allocates one sprite for each tile of the grid that is on
+the screen, with `tg_sprite_alloc`. If the 128 slots run out, the back-most actors go without; an actor whose tiles do not all fit is left out
+(a smaller one behind it can still be drawn). Each part gets the actor's `above`, `pal` and flips, the mirrored tile of the grid, and the
+actor's `prio` as its sprite priority. `TG_ACTORS_YSORT` (in `tg_actors_t.flags`) makes the priority the bottom edge on the screen
+(`255 - bottom`, so lower on the screen is nearer) and ignores `prio`. The compositor's own limit of 32 sprites a line still applies. Sprites
+are in `tg_t`, which `plat_present` copies, so they need no double buffer.
 
 ## BASIC
 
@@ -202,8 +208,9 @@ write. MY-BASIC has `mb_eval_routine`, which should do it (not checked).
   `set`/`fill`/`blit`; after each frame every line from `tg_render_line_indices` is compared with a reference that looks each pixel up
   in the big map. A second check watches the presented map: it is byte-identical, and still draws the presented picture, until the next `end_frame`.
   Also: after `begin_frame` the two windows are equal; the border rules; `flags_box` against a brute-force count.
-- Mutation checks done by hand: no replay, writing the shown map, no row streaming, and skipping the clamp/wrap aliases are each caught.
-- `test_actor`: culling at the edges (including partly off screen), priority order, pool exhaustion, metasprite flips.
+- Mutation checks done by hand (each broken on purpose and caught): world: no replay, writing the shown map, no row streaming, skipping the clamp/wrap
+  aliases; actors: slots not given back, no priority order, no grid mirroring, partial actors, steps over a tile, ignored one-way, moving backwards, velocity once.
+- `test_actor`: the pool and the velocity step; drawing compared through the compositor with sprites built by hand (random actors, cameras,\n  flips, priorities, hidden ones, both sprite sizes, with and without `YSORT`, and a program's own sprite that must stay); exhaustion; moves\n  against a pixel-by-pixel reference on a model of the map (whole pixels) and by properties (fractions); one-way tiles; overlap.
 
 ## Defaults chosen (change them if wrong)
 

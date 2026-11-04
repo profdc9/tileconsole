@@ -13,3 +13,5 @@ test_font
 test_fontmask
 test_text
 test_tilegfx
+test_world
+test_actor
