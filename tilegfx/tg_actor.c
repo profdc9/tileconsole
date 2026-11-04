@@ -15,14 +15,39 @@ static int32_t saturate(int64_t v)
 
 static int32_t px_of(int32_t v) { return floor_shift(v, 8); }
 
+static int64_t posmod64(int64_t v, int64_t m)
+{
+    const int64_t r = v % m;
+    return r < 0 ? r + m : r;
+}
+
+/* Keep a position (24.8) within one world, if the world wraps. */
+static int32_t wrapped(int32_t v, int32_t size_px)
+{
+    return size_px ? (int32_t)posmod64(v, (int64_t)size_px * 256) : v;
+}
+
 void tg_actors_init(tg_actors_t *p, tg_actor_t *storage, uint16_t n, uint16_t *order)
 {
+    if (n > 16383)
+        n = 16383;
     memset(p, 0, sizeof *p);
     memset(storage, 0, n * sizeof *storage);
     p->a = storage;
     p->order = order;
     p->n = n;
     p->sprite_log2 = 4;
+}
+
+bool tg_actors_set_wrap(tg_actors_t *p, int32_t width_px, int32_t height_px)
+{
+    if (width_px != 0 && (width_px < 192 || width_px > 8388607))
+        return false;
+    if (height_px != 0 && (height_px < 160 || height_px > 8388607))
+        return false;
+    p->wrap_w = width_px;
+    p->wrap_h = height_px;
+    return true;
 }
 
 int tg_actor_alloc(tg_actors_t *p)
@@ -54,8 +79,8 @@ void tg_actors_step(tg_actors_t *p, int frames)
         tg_actor_t *a = &p->a[i];
         if (!(a->flags & TG_ACTOR_ACTIVE))
             continue;
-        a->x = saturate((int64_t)a->x + (int64_t)a->vx * frames);
-        a->y = saturate((int64_t)a->y + (int64_t)a->vy * frames);
+        a->x = p->wrap_w ? wrapped(saturate((int64_t)a->x + (int64_t)a->vx * frames), p->wrap_w) : saturate((int64_t)a->x + (int64_t)a->vx * frames);
+        a->y = p->wrap_h ? wrapped(saturate((int64_t)a->y + (int64_t)a->vy * frames), p->wrap_h) : saturate((int64_t)a->y + (int64_t)a->vy * frames);
     }
 }
 
@@ -136,7 +161,18 @@ uint8_t tg_actor_move(tg_actors_t *p, int id, const tg_world_t *w, int32_t dx, i
         return 0;
     uint8_t hit = move_axis(p, a, w, dx, true);
     hit |= move_axis(p, a, w, dy, false);
+    a->x = wrapped(a->x, p->wrap_w);
+    a->y = wrapped(a->y, p->wrap_h);
     return hit;
+}
+
+/* Do [a, a + aw) and [b, b + bw) overlap, on a line or (size > 0) on a circle of that circumference? */
+static bool axis_overlap(int64_t a, int64_t aw, int64_t b, int64_t bw, int32_t size)
+{
+    if (size == 0)
+        return a < b + bw && b < a + aw;
+    const int64_t d = posmod64(b - a, size);          /* b starts d after a, round the circle */
+    return d < aw || d + bw > size;
 }
 
 bool tg_actors_overlap(const tg_actors_t *p, int ia, int ib)
@@ -153,16 +189,35 @@ bool tg_actors_overlap(const tg_actors_t *p, int ia, int ib)
     ay += px_of(a->y);
     bx += px_of(b->x);
     by += px_of(b->y);
-    return (int64_t)ax < (int64_t)bx + bw && (int64_t)bx < (int64_t)ax + aw && (int64_t)ay < (int64_t)by + bh && (int64_t)by < (int64_t)ay + ah;
+    return axis_overlap(ax, aw, bx, bw, p->wrap_w) && axis_overlap(ay, ah, by, bh, p->wrap_h);
 }
 
-/* Is the actor drawn: on screen (screen position of its top left in *sx, *sy) and with the sprite priority in *key. */
-static bool on_screen(const tg_actors_t *p, const tg_actor_t *a, int32_t cam_x, int32_t cam_y, int32_t *sx, int32_t *sy, uint8_t *key)
+/*
+ * Is the actor seen on screen as copy `copy` (bit 0: the copy a world's width further on, bit 1: its height further down; only a world that
+ * wraps has them), and where: the screen position of its top left in *sx, *sy, and the sprite priority in *key. In a world that wraps
+ * the first copy is the one that starts from -its size to the world's size minus that, so that one just over the seam is seen at the
+ * other side.
+ */
+static bool on_screen(const tg_actors_t *p, const tg_actor_t *a, int32_t cam_x, int32_t cam_y, int copy, int32_t *sx, int32_t *sy, uint8_t *key)
 {
     if ((a->flags & (TG_ACTOR_ACTIVE | TG_ACTOR_HIDDEN)) != TG_ACTOR_ACTIVE)
         return false;
     const int64_t w = (int64_t)grid(a->cols) << p->sprite_log2, h = (int64_t)grid(a->rows) << p->sprite_log2;
-    const int64_t x = (int64_t)px_of(a->x) - cam_x, y = (int64_t)px_of(a->y) - cam_y;
+    int64_t x = (int64_t)px_of(a->x) - cam_x, y = (int64_t)px_of(a->y) - cam_y;
+    if (p->wrap_w)
+        x = posmod64(x + w, p->wrap_w) - w;
+    if (p->wrap_h)
+        y = posmod64(y + h, p->wrap_h) - h;
+    if (copy & 1) {
+        if (!p->wrap_w)
+            return false;
+        x += p->wrap_w;
+    }
+    if (copy & 2) {
+        if (!p->wrap_h)
+            return false;
+        y += p->wrap_h;
+    }
     if (x + w <= 0 || x >= TG_WIDTH || y + h <= 0 || y >= TG_HEIGHT)
         return false;
     *sx = (int32_t)x;
@@ -197,24 +252,26 @@ int tg_actors_draw(tg_actors_t *p, tg_t *g, int32_t cam_x, int32_t cam_y)
     memset(p->hist, 0, sizeof p->hist);
     int visible = 0;
     for (int i = 0; i < p->n; i++)
-        if (on_screen(p, &p->a[i], cam_x, cam_y, &sx, &sy, &key)) {
-            p->hist[key]++;
-            visible++;
-        }
+        for (int copy = 0; copy < 4; copy++)
+            if (on_screen(p, &p->a[i], cam_x, cam_y, copy, &sx, &sy, &key)) {
+                p->hist[key]++;
+                visible++;
+            }
     uint16_t at = 0;
     for (int k = 0; k < 256; k++) {
         const uint16_t c = p->hist[k];
         p->hist[k] = at;
         at = (uint16_t)(at + c);
     }
-    for (int i = 0; i < p->n; i++)
-        if (on_screen(p, &p->a[i], cam_x, cam_y, &sx, &sy, &key))
-            p->order[p->hist[key]++] = (uint16_t)i;
+    for (int i = 0; i < p->n; i++)          /* the entry is the actor's number times 4, plus the copy */
+        for (int copy = 0; copy < 4; copy++)
+            if (on_screen(p, &p->a[i], cam_x, cam_y, copy, &sx, &sy, &key))
+                p->order[p->hist[key]++] = (uint16_t)(i * 4 + copy);
 
     int drawn = 0;
     for (int k = 0; k < visible; k++) {
-        const tg_actor_t *a = &p->a[p->order[k]];
-        on_screen(p, a, cam_x, cam_y, &sx, &sy, &key);
+        const tg_actor_t *a = &p->a[p->order[k] >> 2];
+        on_screen(p, a, cam_x, cam_y, p->order[k] & 3, &sx, &sy, &key);
         const int cols = grid(a->cols), rows = grid(a->rows);
         int parts = 0;
         for (int r = 0; r < rows; r++)

@@ -50,6 +50,26 @@ The window is centred on the camera: its top left is the global tile `(cam_tx - 
 crossing a tile boundary loads the one column or row that entered and nothing else. Raster effects with `line_scroll_x` show tiles
 further left or right than the camera: keep `W` larger by the amplitude (in tiles) of the effect.
 
+## Infinite scrolling
+
+A world whose border is `TG_BORDER_WRAP` repeats: the map is a torus, and the camera can go on in one direction for ever. The simplest case
+is a big map the same size as the window: every tile that enters the window lands in the slot of the one that left it and is the same
+tile, so scrolling changes nothing in the maps and costs nothing (a test with random maps and cameras up to 100 million pixels away checks the
+picture against a model). Any map size wraps (a map smaller than the window shows each tile more than once), but the camera is kept small
+only if the map is a multiple of the window in that direction:
+
+- **Camera.** `tg_world_set_camera` then keeps `cam_x`, `cam_y` within one map (0 .. map size in pixels), moving the window origin by the same
+  whole maps, which changes no slot. A program that has its own 32-bit coordinates can still overflow them (after about 50 days at 8 pixels
+  a frame): it should take the camera back from the world, or from an actor, which is kept within the world too (below).
+  `tg_world_wrap_px` gives the world's size in pixels, for the actors.
+- **Actors.** `tg_actors_set_wrap(&pool, width_px, height_px)` (the size from `tg_world_wrap_px`; the width at least 192 and the height at least 160,
+  so that an actor is never seen more than twice an axis) makes `tg_actors_step` and `tg_actor_move` keep the positions within 0 .. size; makes
+  `tg_actors_draw` show an actor that is near the seam on the side of the screen where it is seen, twice if both its ends are on screen (each
+  copy takes its own sprites and priority; `order` is why it needs 4 entries an actor); and `tg_actors_overlap` work across the seam. An
+  actor's position may be set to any value: it is brought into the world by the next step or move, and drawing does not need it to be.
+- **Tile collisions** for `tg_actor_move` already wrap, since they look the tiles up in the world.
+- A world with a border that is not `WRAP` has none of this, and `wrap_w`, `wrap_h` stay 0.
+
 ## Data structures
 
     #define TG_TILES_MAX 1024                 /* tile numbers are 10 bits */
@@ -94,6 +114,7 @@ The two windows must be in SRAM; the big map normally is not.
     void tg_world_begin_frame(tg_world_t *w);
     void tg_world_set_camera(tg_world_t *w, int32_t x, int32_t y);          /* global pixels, signed */
     void tg_world_end_frame(tg_world_t *w);                                 /* sets layer->map and the scroll of the world's layer, swaps */
+    bool tg_world_wrap_px(const tg_world_t *w, int32_t *width, int32_t *height);   /* TG_BORDER_WRAP: the size of the map in pixels */
 
     uint16_t tg_world_get(const tg_world_t *w, int32_t tx, int32_t ty);     /* the big map: the newest value, whatever is on screen (border rule outside) */
     void tg_world_set(tg_world_t *w, int32_t tx, int32_t ty, uint16_t entry);          /* outside the big map: ignored (wraps with TG_BORDER_WRAP) */
@@ -126,7 +147,8 @@ An actor is a rectangle of sprites (a metasprite) at a global position. The pool
         uint16_t user;          /* the program's: a type, a state, an animation counter */
     } tg_actor_t;
 
-    void tg_actors_init(tg_actors_t *p, tg_actor_t *storage, uint16_t n, uint16_t *order);   /* order: n entries of scratch for the draw */
+    void tg_actors_init(tg_actors_t *p, tg_actor_t *storage, uint16_t n, uint16_t *order);   /* order: 4 * n entries of scratch for the draw */
+    bool tg_actors_set_wrap(tg_actors_t *p, int32_t width_px, int32_t height_px);             /* a world that repeats; 0: off */
     int  tg_actor_alloc(tg_actors_t *p);              /* the lowest free number, cleared, ACTIVE, 1 x 1; -1 if the pool is full */
     void tg_actor_free(tg_actors_t *p, int id);
     tg_actor_t *tg_actor(tg_actors_t *p, int id);     /* NULL for a number that is not an active actor */
@@ -210,6 +232,11 @@ write. MY-BASIC has `mb_eval_routine`, which should do it (not checked).
   Also: after `begin_frame` the two windows are equal; the border rules; `flags_box` against a brute-force count.
 - Mutation checks done by hand (each broken on purpose and caught): world: no replay, writing the shown map, no row streaming, skipping the clamp/wrap
   aliases; actors: slots not given back, no priority order, no grid mirroring, partial actors, steps over a tile, ignored one-way, moving backwards, velocity once.
+- Infinite scrolling: `test_world` runs wrapping maps equal to the window, twice it, half of it and of random sizes with the camera also thrown up to
+  100 million pixels away, and checks that the camera stays within one map; `test_actor` draws actors at random places in worlds from 192 x 160
+  to 512 x 256 pixels (unnormalised positions too) against a reference, and checks steps, moves across the seam and overlap across it. One
+  change is not seen by any test: moving the window origin together with the camera (without it the world refills the window once each time
+  the camera crosses a map's edge, which rewrites the same tiles: only slower).
 - `test_actor`: the pool and the velocity step; drawing compared through the compositor with sprites built by hand (random actors, cameras,\n  flips, priorities, hidden ones, both sprite sizes, with and without `YSORT`, and a program's own sprite that must stay); exhaustion; moves\n  against a pixel-by-pixel reference on a model of the map (whole pixels) and by properties (fractions); one-way tiles; overlap.
 
 ## Defaults chosen (change them if wrong)

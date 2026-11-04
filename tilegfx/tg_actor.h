@@ -41,8 +41,9 @@ typedef struct {
 
 typedef struct {
     tg_actor_t *a;                             /* the pool: n actors; an actor's number (id) is its index */
-    uint16_t *order;                           /* scratch for tg_actors_draw: n entries */
-    uint16_t n;
+    uint16_t *order;                           /* scratch for tg_actors_draw: 4 * n entries (an actor can be seen twice across and twice down) */
+    uint16_t n;                                /* at most 16383 */
+    int32_t wrap_w, wrap_h;                    /* the world's size in pixels where it repeats, 0: it does not (tg_actors_set_wrap) */
     uint8_t flags;                             /* TG_ACTORS_* */
     uint8_t sprite_log2;                       /* the size of a sprite tile, as g->sprite_tile_log2; tg_actors_draw takes it from g */
     uint16_t hist[256];                        /* tg_actors_draw's work space */
@@ -50,13 +51,21 @@ typedef struct {
     uint8_t used_count;
 } tg_actors_t;
 
-/* The storage is the caller's: `storage` and `order` hold n entries each. */
+/* The storage is the caller's: `storage` holds n actors and `order` 4 * n entries. */
 void tg_actors_init(tg_actors_t *p, tg_actor_t *storage, uint16_t n, uint16_t *order);
+
+/*
+ * A world that repeats (TG_BORDER_WRAP, see tg_world_wrap_px), for infinite scrolling: an actor's position is kept in 0 .. size by
+ * tg_actors_step and tg_actor_move, an actor near the seam is drawn on the side of the screen it is seen on (twice, if both its ends are
+ * on screen), and tg_actors_overlap works across the seam. The width must be 192 pixels or more and 8388607 at most, the height 160 or
+ * more (so that no actor is seen more than twice an axis); 0 turns an axis off. Returns false, and changes nothing, if a size is not allowed.
+ */
+bool tg_actors_set_wrap(tg_actors_t *p, int32_t width_px, int32_t height_px);
 int tg_actor_alloc(tg_actors_t *p);            /* the lowest free number: a cleared actor, ACTIVE, 1 x 1; -1 if the pool is full */
 void tg_actor_free(tg_actors_t *p, int id);
 tg_actor_t *tg_actor(tg_actors_t *p, int id);  /* NULL for a number that is not an active actor */
 
-/* x += vx * frames, y += vy * frames for every active actor. */
+/* x += vx * frames, y += vy * frames for every active actor (modulo the world's size if it wraps). */
 void tg_actors_step(tg_actors_t *p, int frames);
 
 /*
@@ -74,7 +83,7 @@ bool tg_actors_overlap(const tg_actors_t *p, int a, int b);
  * Give sprites to the active, not hidden actors that touch the screen (the camera is the global pixel at its top left), front-most first; one
  * sprite for each tile of the grid that is on screen. When the sprites run out, the back-most actors go without, and an actor whose tiles
  * do not all fit is left out. The actor's prio (or, with TG_ACTORS_YSORT, its bottom edge on the screen) becomes the sprite priority, so
- * it is also what other sprites are ordered against. Returns the number of actors drawn.
+ * it is also what other sprites are ordered against. Returns the number of actors drawn (one that is seen twice counts twice).
  */
 int tg_actors_draw(tg_actors_t *p, tg_t *g, int32_t cam_x, int32_t cam_y);
 

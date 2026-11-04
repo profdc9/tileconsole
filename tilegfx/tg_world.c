@@ -203,9 +203,41 @@ void tg_world_end_frame(tg_world_t *w)
     w->open = 0;
 }
 
+/*
+ * Infinite scrolling: with TG_BORDER_WRAP and a map whose size is a multiple of the window's, moving the camera by a whole map leaves every
+ * slot as it is (the tile that enters a slot is the one that left it), so the camera and the window origin can both be moved back by whole
+ * maps, and the coordinates stay small however far the camera has gone.
+ */
+static void normalise_axis(const tg_world_t *w, int32_t *cam, int32_t *win_t, int32_t map_n, int32_t win_n)
+{
+    if (w->border != TG_BORDER_WRAP || map_n % win_n != 0)
+        return;
+    const int64_t period = (int64_t)map_n * ((int64_t)1 << w->tile_log2);       /* the map in pixels */
+    if (period > ((int64_t)1 << 30))
+        return;
+    const int64_t c = *cam;
+    const int64_t n = c >= 0 ? c / period : -((-c + period - 1) / period);       /* floor(c / period) */
+    if (n == 0)
+        return;
+    *cam = (int32_t)(c - n * period);
+    *win_t = (int32_t)(*win_t - n * map_n);
+}
+
+bool tg_world_wrap_px(const tg_world_t *w, int32_t *width, int32_t *height)
+{
+    const int64_t pw = (int64_t)w->map_w << w->tile_log2, ph = (int64_t)w->map_h << w->tile_log2;
+    if (w->border != TG_BORDER_WRAP || pw > INT32_MAX || ph > INT32_MAX)
+        return false;
+    *width = (int32_t)pw;
+    *height = (int32_t)ph;
+    return true;
+}
+
 void tg_world_set_camera(tg_world_t *w, int32_t x, int32_t y)
 {
     ensure_open(w);
+    normalise_axis(w, &x, &w->win_tx, w->map_w, win_w(w));
+    normalise_axis(w, &y, &w->win_ty, w->map_h, win_h(w));
     w->cam_x = x;
     w->cam_y = y;
     int32_t tx, ty;

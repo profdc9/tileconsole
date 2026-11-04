@@ -70,8 +70,14 @@ void tg_world_reload(tg_world_t *w);                            /* after the big
  * plat_present. Both do nothing if the frame is already begun, or ended.
  */
 void tg_world_begin_frame(tg_world_t *w);
-void tg_world_set_camera(tg_world_t *w, int32_t x, int32_t y);  /* global pixels, signed; streams the tiles that come into the window */
+void tg_world_set_camera(tg_world_t *w, int32_t x, int32_t y);  /* global pixels, signed; streams the tiles that come into the window.
+                                                                   * With TG_BORDER_WRAP and a map size that is a multiple of the window's (the
+                                                                   * same size, say) the camera is kept within one map: cam_x, cam_y are then
+                                                                   * the position modulo the map, and the scrolling can go on for ever. */
 void tg_world_end_frame(tg_world_t *w);
+
+/* With TG_BORDER_WRAP: the size of the map in pixels (the distance after which the world repeats), for tg_actors_set_wrap. Otherwise false. */
+bool tg_world_wrap_px(const tg_world_t *w, int32_t *width, int32_t *height);
 
 /* The big map: the newest value, whatever is on screen. Outside it: the border rule. */
 uint16_t tg_world_get(const tg_world_t *w, int32_t tx, int32_t ty);

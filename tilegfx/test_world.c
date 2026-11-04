@@ -19,10 +19,10 @@ static int checks;
 
 static uint32_t rng = 987654321u;
 static uint32_t rnd(void) { rng = rng * 1664525u + 1013904223u; return rng >> 8; }
+static int32_t rr(int32_t lo, int32_t hi) { return lo + (int32_t)(rnd() % (uint32_t)(hi - lo + 1)); }   /* lo .. hi */
 
 #define NT 64                                  /* tiles in the tile set */
-#define REF_LOG2 8                             /* the reference layer: 256 x 256 tiles, global tile -64 at its origin */
-#define REF_BASE (-64)
+#define REF_LOG2 8                             /* the reference layer: 256 x 256 tiles, with the camera's tile at its origin */
 
 static uint8_t *make_tiles(unsigned tile_log2, unsigned depth)
 {
@@ -95,9 +95,9 @@ static void expected_image(ref_t *r, const model_t *md, int32_t cam_x, int32_t c
     const int32_t tx0 = floordiv(cam_x, ts), ty0 = floordiv(cam_y, ts);
     for (int32_t ty = ty0; ty < ty0 + TG_HEIGHT / ts + 2; ty++)
         for (int32_t tx = tx0; tx < tx0 + TG_WIDTH / ts + 2; tx++)
-            r->ref_map[((size_t)(ty - REF_BASE) << REF_LOG2) + (size_t)(tx - REF_BASE)] = model_get(md, tx, ty);
-    r->ref_g.layers[0].scroll_x = (uint32_t)(cam_x - REF_BASE * ts);
-    r->ref_g.layers[0].scroll_y = (uint32_t)(cam_y - REF_BASE * ts);
+            r->ref_map[((size_t)(ty - ty0) << REF_LOG2) + (size_t)(tx - tx0)] = model_get(md, tx, ty);
+    r->ref_g.layers[0].scroll_x = (uint32_t)(cam_x - tx0 * ts);
+    r->ref_g.layers[0].scroll_y = (uint32_t)(cam_y - ty0 * ts);
     for (int line = 0; line < TG_HEIGHT; line++)
         tg_render_line_indices(&r->ref_g, line, img[line]);
 }
@@ -123,7 +123,8 @@ static uint8_t brute_flags(const model_t *md, unsigned tl, int32_t x, int32_t y,
 
 static uint8_t img_prev[TG_HEIGHT][TG_WIDTH];
 
-static void run(unsigned tl, unsigned depth, unsigned wl, unsigned hl, tg_border_t border, int frames)
+/* fw, fh: the big map's size in tiles (0: random). far: the camera also jumps to very distant places (infinite scrolling). */
+static void run(unsigned tl, unsigned depth, unsigned wl, unsigned hl, tg_border_t border, int frames, int32_t fw, int32_t fh, bool far)
 {
     const int32_t ts = 1 << tl;
     const int32_t vis_w = TG_WIDTH / ts + 1, vis_h = TG_HEIGHT / ts + 1;
@@ -134,7 +135,7 @@ static void run(unsigned tl, unsigned depth, unsigned wl, unsigned hl, tg_border
     ref.ref_g.layers[0] = (tg_layer_t){.kind = TG_LAYER_TILES, .tile_log2 = (uint8_t)tl, .depth = (uint8_t)depth, .map_w_log2 = REF_LOG2,
                                        .map_h_log2 = REF_LOG2, .map = ref_map, .tiles = ref.tiles};
 
-    model_t md = {.w = 3 + (int32_t)(rnd() % 98), .h = 3 + (int32_t)(rnd() % 98), .border = border, .be = random_entry()};
+    model_t md = {.w = fw ? fw : 3 + (int32_t)(rnd() % 98), .h = fh ? fh : 3 + (int32_t)(rnd() % 98), .border = border, .be = random_entry()};
     md.m = malloc((size_t)md.w * (size_t)md.h * sizeof *md.m);
     uint16_t *big = malloc((size_t)md.w * (size_t)md.h * sizeof *big);
     for (int32_t i = 0; i < md.w * md.h; i++)
@@ -162,7 +163,7 @@ static void run(unsigned tl, unsigned depth, unsigned wl, unsigned hl, tg_border
         if (f > 0)                             /* (the first frame is open since init, with the border already changed) */
             CHECK(memcmp(win_a, win_b, entries * sizeof *win_a) == 0);   /* the replay made the hidden map equal to the shown one */
 
-        if (f == frames / 3) {                 /* the look of the outside changes */
+        if (f == frames / 3 && !far) {         /* the look of the outside changes */
             md.border = (tg_border_t)((md.border + 1) % 3);
             md.be = random_entry();
             tg_world_set_border(&wd, md.border, md.be);
@@ -221,15 +222,26 @@ static void run(unsigned tl, unsigned depth, unsigned wl, unsigned hl, tg_border
         } else if (kind < 9) {
             cx += (int32_t)(rnd() % (uint32_t)(6 * ts + 1)) - 3 * ts;
             cy += (int32_t)(rnd() % (uint32_t)(6 * ts + 1)) - 3 * ts;
+        } else if (far) {
+            cx = rr(-100000000, 100000000);
+            cy = rr(-100000000, 100000000);
         } else {
             cx = ((int32_t)(rnd() % (uint32_t)(md.w + 80)) - 40) * ts + (int32_t)(rnd() % (uint32_t)ts);
             cy = ((int32_t)(rnd() % (uint32_t)(md.h + 80)) - 40) * ts + (int32_t)(rnd() % (uint32_t)ts);
         }
-        if (cx < -40 * ts) cx = -40 * ts;
-        if (cx > (md.w + 40) * ts) cx = (md.w + 40) * ts;
-        if (cy < -40 * ts) cy = -40 * ts;
-        if (cy > (md.h + 40) * ts) cy = (md.h + 40) * ts;
+        if (!far) {
+            if (cx < -40 * ts) cx = -40 * ts;
+            if (cx > (md.w + 40) * ts) cx = (md.w + 40) * ts;
+            if (cy < -40 * ts) cy = -40 * ts;
+            if (cy > (md.h + 40) * ts) cy = (md.h + 40) * ts;
+        }
         tg_world_set_camera(&wd, cx, cy);
+        if (md.border == TG_BORDER_WRAP && md.w % (1 << wl) == 0)          /* infinite scrolling: the camera stays within one map */
+            CHECK(wd.cam_x >= 0 && wd.cam_x < md.w * ts);
+        if (md.border == TG_BORDER_WRAP && md.h % (1 << hl) == 0)
+            CHECK(wd.cam_y >= 0 && wd.cam_y < md.h * ts);
+        if (md.border != TG_BORDER_WRAP || md.w % (1 << wl) != 0)
+            CHECK(wd.cam_x == cx);
 
         for (int k = 0; k < 20; k++) {
             const int32_t tx = (int32_t)(rnd() % 160) - 30, ty = (int32_t)(rnd() % 160) - 30;
@@ -312,8 +324,17 @@ int main(void)
                     unsigned wl, hl;
                     if (tl == 3) { wl = size == 2 ? 7 : 6; hl = size == 0 ? 5 : 6; }       /* 64 x 32, 64 x 64, 128 x 64 tiles */
                     else         { wl = size == 2 ? 6 : 5; hl = size == 0 ? 4 : 5; }       /* 32 x 16, 32 x 32, 64 x 32 tiles */
-                    run(tl, depth, wl, hl, border, 150);
+                    run(tl, depth, wl, hl, border, 150, 0, 0, false);
                 }
+    /* infinite scrolling: wrapping maps, the same size as the window or not, with the camera also far away */
+    for (unsigned tl = 3; tl <= 4; tl++) {
+        const unsigned wl = tl == 3 ? 6 : 5, hl = tl == 3 ? 5 : 4;
+        run(tl, 8, wl, hl, TG_BORDER_WRAP, 200, 1 << wl, 1 << hl, false);          /* the map is the window */
+        run(tl, 8, wl, hl, TG_BORDER_WRAP, 200, 1 << wl, 1 << hl, true);
+        run(tl, 4, wl, hl, TG_BORDER_WRAP, 200, 0, 0, true);                        /* any size */
+        run(tl, 8, wl + 1, hl + 1, TG_BORDER_WRAP, 200, 1 << wl, 1 << hl, true);   /* the map is half the window: every tile is on screen twice */
+        run(tl, 8, wl, hl, TG_BORDER_WRAP, 400, 2 << wl, 2 << hl, true);           /* the map is twice the window: different tiles come in */
+    }
     printf("all %d checks passed\n", checks);
     return 0;
 }
