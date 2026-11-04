@@ -34,6 +34,15 @@ typedef struct {
     /* optional (NULL: not available): a line about the machine, for the commands STACK ("stack") and HEAP ("heap"); returns 0 if it has
      * nothing to say about `what` */
     int (*info)(const char *what, char *out, size_t size);
+    /* optional (NULL: the game functions of basic_game.h that need them say so): the tile screen. wait_frame is plat_wait_frame, present is plat_present
+     * (the tg_t is the game's own: the text screen is not touched), buttons(player, kind) is plat_buttons (kind 0), plat_buttons_pressed (1), plat_buttons_released (2). */
+    uint32_t (*wait_frame)(void);
+    void (*present)(const tg_t *g);
+    unsigned (*buttons)(int player, int kind);
+    /* optional (NULL: malloc and free): memory for the game's tiles, map and actors. fast = 1 for what the display reads (tile graphics, the window of the map),
+     * which belongs in the fastest RAM; 0 for the rest (a big map can be in the PSRAM). The block need not be cleared. */
+    void *(*alloc)(size_t size, int fast);
+    void (*release)(void *p);
 } basic_hooks_t;
 
 enum { BASIC_EXIT_BYE = 0, BASIC_EXIT_EDIT = 1 };
@@ -56,6 +65,10 @@ typedef struct basic_env {
     int typeahead[32];                     /* keys typed while a program ran */
     int typeahead_count;
     int at_prompt;                         /* the prompt is on the screen and no line has been read since (so that going on after the keys ran out does not print it again) */
+    struct basic_game *game;               /* the game functions' state, while a run uses them (basic_game.c) */
+    int game_active;                       /* a picture of the game is being shown: a running program does not put the text screen up while it runs */
+    int error_seen;                        /* the run printed an error */
+    int running;                           /* the interpreter is running a program (or a line) */
 } basic_env_t;
 
 /* Sets up the screen (glyphs loaded by the caller) and the interpreter, clears the screen and prints the banner. */
@@ -69,5 +82,9 @@ int basic_env_run(basic_env_t *e);
 
 /* Frees the interpreter. */
 void basic_env_close(basic_env_t *e);
+
+/* For the functions that are added to the interpreter (basic_game.c): the environment, and an error line in red on the text screen. */
+basic_env_t *basic_env_current(void);
+void basic_env_problem(basic_env_t *e, const char *fmt, ...) __attribute__((format(printf, 2, 3)));
 
 #endif

@@ -30,6 +30,87 @@ The source is MY-BASIC's own, not modified. Two of its settings are given on the
   (Found by running it under AddressSanitizer: `mb_reset` with the variables kept, or a forked interpreter, both end in a use after free.) Use a file for anything longer than a line.
 - Printing a list or dictionary prints its type (`LIST`, `DICT`), not its contents.
 
+## Game functions: tiles, a scrolling map, actors, buttons
+
+`basic_game.c` adds functions for making games, on top of tilegfx's tile map (`tg_world`) and sprites (`tg_actor`; the design is in `tilegfx/WORLD.md`). Nothing is shown until the first
+`WAITFRAME()`; the picture is the tile screen, and it stays on until a key is typed after the program ends (Ctrl+C ends it at once), when the text screen is back and everything the
+graphics used is freed. A program that does not use these functions never sees them. The program is a loop:
+
+    gfx(8)
+    ... define graphics, make the map and the actors ...
+    while btn(0, "b") = 0
+      ... read the buttons, move things ...
+      waitframe()
+    wend
+
+`basic/examples/walk.bas` is a small one: a ball that walks around a walled room, with the camera following it.
+
+**The frame.** Everything between two `WAITFRAME()`s is the next picture: it all appears together, so a door of four tiles is never half open. `WAITFRAME()` shows it, waits for the next
+frame (60 a second), moves the actors by their velocities and returns how many frames went by since the last call (1 if the program kept up; the first call returns 1; at most 4).
+A program that is slow only looks choppier: velocities are per frame that went by, so the speed stays the same. `FRAMES()` is the frame counter, `MILLIS()` the clock.
+
+**Graphics** (everything is 8 bits a pixel: a colour is a number 0 to 255 in the palette, 0 is see-through)
+
+| function | what it does |
+|---|---|
+| `gfx(size)` | the size of tiles and sprites, 8 or 16 pixels (8 if you do not say); starts the graphics afresh, so call it first |
+| `palette(i, r, g, b)` | colour i from red, green and blue, each 0 to 255 (the first 16 are the PC's text colours; colour 0 is the backdrop) |
+| `tiledef(n, "...")` | map tile n (0 to 255) from a string of 64 characters, row by row (8 pixel tiles; MY-BASIC's strings are at most 128 characters) |
+| `tilerow(n, y, "...")` | one row of a tile: 8 or 16 characters (the way to define 16 pixel tiles) |
+| `tilepix(n, x, y, c)` | one pixel, c is 0 to 255 |
+| `sprdef(n, "...")`, `sprrow(n, y, "...")`, `sprpix(n, x, y, c)` | the same for sprite n (the sprite sheet is separate from the map's tiles) |
+
+In a string a `.` or space is colour 0, `0` to `9` are 0 to 9, `A` to `Z` are 10 to 35 and `a` to `z` are 36 to 61 (`tilepix` and `sprpix` reach the rest). Define the graphics before the loop:
+changing a tile while it is on screen can show for a frame as it was and as it is.
+
+**The map** (tiles in a grid, in front of the backdrop)
+
+| function | what it does |
+|---|---|
+| `newmap(w, h)` | a map of w by h tiles, all tile 0, up to a million tiles; the camera is where it was (0, 0 at first) |
+| `tile(x, y, n [, flip])` | the tile at x, y (tile coordinates) is n; flip 1 mirrors it across, 2 down, 3 both |
+| `gettile(x, y)`, `tilefill(x, y, w, h, n)` | the tile number there, and a block of one tile |
+| `camera(x, y)` | the pixel at the top left of the screen (any numbers, negative too; outside the map is empty) |
+| `camx()`, `camy()` | where the camera is (see `wrap`) |
+| `wrap(1)` | the map repeats in every direction, so the scrolling can go on for ever; `wrap(0)` ends it. Returns 1 if the actors wrap too (the map must be at least 192 by 160 pixels) |
+| `settileflags(n, f)` | what a tile is, as bits: 1 solid, 2 hurts, 4 one-way (solid from above only), 8 liquid, and 16 to 128 for the program's own use |
+| `tileflag(x, y)` | the flags of the tile at the pixel x, y (floating point is fine) |
+| `tilebox(x, y, w, h)` | the flags of all the tiles a box of pixels touches, ORed: one call for what would take a loop |
+
+**Actors** (sprites that have a position in the map and are drawn only while on screen; 128 at most, and the frame can show 32 on a line)
+
+| function | what it does |
+|---|---|
+| `actor(sprite, x, y)` | a new actor at the pixel x, y; returns its number, or -1 if all 128 are in use |
+| `actorfree(a)` | forgets it (the number is used again) |
+| `actorpos(a, x, y)`, `actorx(a)`, `actory(a)` | its position in pixels, which can be fractions |
+| `actorvel(a, vx, vy)` | pixels a frame that went by, added by `waitframe()` (floating point: 0.25 is a slow crawl) |
+| `actormove(a, dx, dy)` | moves it by dx and dy pixels, x first, stopping against solid tiles; returns the sides that stopped it: 1 left, 2 right, 4 up, 8 down (add them) |
+| `actorhit(a, b)` | 1 if the collision boxes of the two overlap |
+| `actortile(a, sprite)`, `actorsize(a, cols, rows)` | which sprite; a grid of up to 4 by 4 sprites (taken row by row from the number) for a big character |
+| `actorflip(a, f)`, `actorhide(a, on)` | mirror it (1 across, 2 down, 3 both); do not draw it |
+| `actorbox(a, x, y, w, h)` | the part of it that collides, in pixels from its top left (the whole of it if w or h is 0) |
+| `actorprio(a, p)`, `ysort(on)` | who is in front (0 in front, 255 behind; the same: the lower number); with `ysort(1)` the one lower on the screen is in front |
+| `actoruser(a)`, `actoruser(a, n)` | a number (0 to 65535) the program keeps in an actor: its kind, or its state |
+
+Actors are in front of the map. With `wrap(1)` an actor's position is kept within the map, and one near the seam is seen on both sides of it.
+
+**Buttons.** `btn(player, button)` is 1 while the button is held, `pressed(player, button)` if it went down since the last frame; players are 0 and 1. The button is its name, `"up"`, `"down"`,
+`"left"`, `"right"`, `"a"`, `"b"`, `"x"`, `"y"`, `"start"`, `"select"`, `"l"`, `"r"`, or a number (1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048 in that order; add them for any of several).
+
+A mistake (an actor that is not there, a number out of range, a map that was not made) stops the program with a line that says what, and the function's name.
+
+Not here yet: following an actor with the camera (`camera(actorx(a) - 160, actory(a) - 120)` does it), animation tables, loading tiles and maps from files, more than one tile layer, sound, and a
+routine that is called once a frame instead of a loop.
+
+## MY-BASIC things that matter to games
+
+- A function call needs its brackets, also when it is a statement: `waitframe()`, `tile(3, 4, 1)`.
+- `for` and `next` (and `while` and `wend`, `if` and `endif`) go on lines of their own: `for i = 1 to 10 : next` on one line is an error.
+- Two `print ... ;` on one line print a stray `NIL`: put each on its own line.
+- A string in the program is at most 128 characters, hence `tilerow` for 16 pixel tiles.
+- Numbers are floating point (24 bits of fraction), so positions are fine up to a million pixels or so; a map that wraps keeps them small.
+
 ## Limits
 
 A program is at most `BASIC_PROGRAM_MAX` (64 KB) of text. The prompt line is as long as the screen line allows. MY-BASIC's callbacks carry no pointer, so there is one environment at a time.

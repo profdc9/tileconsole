@@ -223,6 +223,12 @@ MY-BASIC needs parentheses on every function call: `n = waitframe()`.
 A second way, later and on the same core: the runtime calls a BASIC routine once a frame (like TIC-80's `TIC()`), so that a beginner has no loop to
 write. MY-BASIC has `mb_eval_routine`, which should do it (not checked).
 
+**Status.** The functions are in `tilegame/basic/basic_game.c` (reference: `tilegame/basic/README.md`, example: `basic/examples/walk.bas`, tests: `tests/test_basic.c` with a fake tile
+screen). Not as planned above: `newmap`, `actorpos`, `actorvel`, `actormove`, `actorhit` and `actoruser` are the names used (`MAP` and `MOVE` would clash with MY-BASIC's), the camera is
+set by `camera(x, y)` and not followed by `FOLLOW`, there are no animation tables, `TILES(file)` and `LOADMAP(file)` are replaced by `tiledef`/`tilerow` and `newmap`/`tile`/`tilefill`
+(no file format yet), there is one map (layer 0), `FRAMEMS()` and the callback model are not done, and the first `WAITFRAME()` returns 1 (there is no earlier frame to count from).
+Added: `wrap`, `settileflags`, `tilebox`, `ysort`. The picture stays up after the program ends until a key is typed.
+
 ## Files and tests
 
 - `tg_world.[ch]`, `tg_actor.[ch]` in `tilegfx/`; `make check` runs `test_world`.

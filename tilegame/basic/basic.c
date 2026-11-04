@@ -25,6 +25,11 @@ static void frame(void)
     plat_present(&g);
 }
 
+static unsigned buttons(int player, int kind)
+{
+    return kind == 0 ? plat_buttons(player) : kind == 1 ? plat_buttons_pressed(player) : plat_buttons_released(player);
+}
+
 static int get_char(void)
 {
     if (plat_quit_requested())
@@ -35,7 +40,7 @@ static int get_char(void)
 int main(int argc, char **argv)
 {
     const char *dir = argc > 1 ? argv[1] : "basic_files";
-    const basic_hooks_t hooks = {get_char, frame, plat_millis};
+    const basic_hooks_t hooks = {get_char, frame, plat_millis, NULL, plat_wait_frame, plat_present, buttons};
     mkdir(dir, 0777);
     if (fs_posix_init(&host, dir) != 0 || fs_mount("sd", &fs_posix_ops, &host) != 0) {
         fprintf(stderr, "cannot use the folder %s\n", dir);

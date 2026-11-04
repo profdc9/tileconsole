@@ -1,6 +1,8 @@
 /* SPDX-License-Identifier: MIT */
 #include "basic_env.h"
 
+#include "basic_game.h"
+
 #include <ctype.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -19,6 +21,11 @@
 #define PAGE_ROWS 22
 
 static basic_env_t *cur;   /* MY-BASIC's callbacks carry no pointer of their own */
+
+basic_env_t *basic_env_current(void)
+{
+    return cur;
+}
 
 /* ---- the screen ---- */
 
@@ -42,6 +49,7 @@ static void say(basic_env_t *e, const char *fmt, ...)
 }
 
 static void problem(basic_env_t *e, const char *fmt, ...) __attribute__((format(printf, 2, 3)));
+void basic_env_problem(basic_env_t *e, const char *fmt, ...) __attribute__((format(printf, 2, 3)));
 static void problem(basic_env_t *e, const char *fmt, ...)
 {
     char text[256];
@@ -53,6 +61,16 @@ static void problem(basic_env_t *e, const char *fmt, ...)
         tg_console_putc(&e->con, '\n');
     with(e, ATTR_ERROR, text);
     tg_console_putc(&e->con, '\n');
+}
+
+void basic_env_problem(basic_env_t *e, const char *fmt, ...)
+{
+    char text[256];
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(text, sizeof text, fmt, ap);
+    va_end(ap);
+    problem(e, "%s", text);
 }
 
 /* ---- keys ---- */
@@ -216,6 +234,7 @@ static void on_error(struct mb_interpreter_t *s, mb_error_e err, const char *msg
     (void)abort_code;
     if (err == SE_NO_ERR)
         return;
+    cur->error_seen = 1;
     problem(cur, "Error: %s%s%s%s", msg ? msg : mb_get_error_desc(err), func && *func ? " (" : "", func && *func ? func : "", func && *func ? ")" : "");
     if (row)
         problem(cur, "  in line %d, column %d", (int)row, (int)col);
@@ -235,7 +254,8 @@ static int on_step(struct mb_interpreter_t *s, void **ast, const char *source, i
         return MB_FUNC_BYE;
     const uint32_t now = e->hooks.millis();
     if (now - e->last_poll >= POLL_MS) {
-        e->hooks.frame();
+        if (!e->game_active)   /* (a game that is on the screen shows itself, in WAITFRAME) */
+            e->hooks.frame();
         int ch;
         while ((ch = e->hooks.getchar()) >= 0) {
             if (ch == 3)
@@ -392,12 +412,17 @@ static void cmd_run(basic_env_t *e)
         return;
     }
     e->stop = 0;
+    e->error_seen = 0;
     e->typeahead_count = 0;
     e->last_poll = e->hooks.millis();
+    basic_game_begin_run(e);
     mb_reset(&e->bas, false, true);
     int r = mb_load_string(e->bas, e->program, true);
+    e->running = 1;
     if (r == MB_FUNC_OK)
         r = mb_run(e->bas, true);
+    e->running = 0;
+    basic_game_end_run(e);
     if (e->con.col != 0)
         tg_console_putc(&e->con, '\n');
     if (e->stop)
@@ -409,16 +434,21 @@ static void cmd_run(basic_env_t *e)
 static void cmd_immediate(basic_env_t *e, const char *line)
 {
     e->stop = 0;
+    e->error_seen = 0;
     e->typeahead_count = 0;
     e->last_poll = e->hooks.millis();
+    basic_game_begin_run(e);
     /*
      * Each line is a program of its own: MY-BASIC cannot run a line on its own among the variables of an earlier one (a string variable may be pointing into the
      * text of the line it was assigned in, which is freed when the next is loaded), so the variables go with the line. ":" puts several statements on one.
      */
     mb_reset(&e->bas, false, true);
     int r = mb_load_string(e->bas, line, false);
+    e->running = 1;
     if (r == MB_FUNC_OK)
         r = mb_run(e->bas, true);
+    e->running = 0;
+    basic_game_end_run(e);
     if (e->con.col != 0)
         tg_console_putc(&e->con, '\n');
     if (e->stop)
@@ -571,6 +601,7 @@ void basic_env_init(basic_env_t *e, tg_text_t *screen, const basic_hooks_t *hook
     mb_set_inputer(e->bas, on_input);
     mb_set_error_handler(e->bas, on_error);
     mb_debug_set_stepped_handler(e->bas, on_step, NULL);
+    basic_game_register(e->bas);
     with(e, ATTR_HEAD, "TILEGAME BASIC");
     say(e, "  MY-BASIC %s\n", mb_ver_string());
     say(e, "Type HELP for the commands, or BASIC at once.\n\n");
@@ -599,6 +630,7 @@ int basic_env_run(basic_env_t *e)
 
 void basic_env_close(basic_env_t *e)
 {
+    basic_game_close(e);
     if (e->bas)
         mb_close(&e->bas);
     mb_dispose();

@@ -135,6 +135,28 @@ static void frame(void)
     plat_present(&g);
 }
 
+static unsigned buttons(int player, int kind)
+{
+    return kind == 0 ? plat_buttons(player) : kind == 1 ? plat_buttons_pressed(player) : plat_buttons_released(player);
+}
+
+#ifdef DEVKIT_BOARD
+/* The game's memory: what the display reads in the C library's heap (SRAM), the rest in the PSRAM pool if there is one. */
+static void *game_alloc(size_t n, int fast)
+{
+    return fast || !pool ? malloc(n) : pool_malloc(pool, n);
+}
+
+static void game_release(void *p)
+{
+    const uintptr_t b = (uintptr_t)p;
+    if (pool && b >= (uintptr_t)PSRAM_BASE && b < (uintptr_t)PSRAM_BASE + psram_size())
+        pool_free(pool, p);
+    else
+        free(p);
+}
+#endif
+
 static void idle(void)
 {
     frame();
@@ -400,9 +422,9 @@ static int board_info(const char *what, char *out, size_t size)
 static void devkit(void)
 {
     #ifdef DEVKIT_BOARD
-    static const basic_hooks_t hooks = {get_char, frame, plat_millis, board_info};
+    static const basic_hooks_t hooks = {get_char, frame, plat_millis, board_info, plat_wait_frame, plat_present, buttons, game_alloc, game_release};
 #else
-    static const basic_hooks_t hooks = {get_char, frame, plat_millis, NULL};
+    static const basic_hooks_t hooks = {get_char, frame, plat_millis, NULL, plat_wait_frame, plat_present, buttons};
 #endif
 #ifdef DEVKIT_BOARD
     static char note_copy[200];
