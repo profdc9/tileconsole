@@ -129,7 +129,7 @@ file(GLOB TDE_SOURCES ${TDE_DIR}/src/*.c)
 list(FILTER TDE_SOURCES EXCLUDE REGEX "/menucua\\.c$")   # (the alternative menu, included by menu.c when asked for)
 set(TDE_OS_SOURCES ${TDE_DIR}/os/console.c ${TDE_DIR}/os/port.c ${TDE_DIR}/os/criterr.c ${TDE_DIR}/os/tde_libc.c ${TDE_DIR}/os/tde_board.c)
 embed_files(${CMAKE_CURRENT_BINARY_DIR}/devkit_config.c devkit_config_files ${TDE_DIR}/config tde.cfg tde.hlp tde.shl)
-tilegame_board_app(devkit ${DEMO_DIR}/devkit.c ${CMAKE_CURRENT_LIST_DIR}/psram.c ${CMAKE_CURRENT_LIST_DIR}/../src/pool.c ${CMAKE_CURRENT_BINARY_DIR}/devkit_config.c ${BASIC_DIR}/basic_env.c ${BASIC_DIR}/basic_game.c ${BASIC_DIR}/my_basic/my_basic.c
+tilegame_board_app(devkit ${DEMO_DIR}/devkit.c ${CMAKE_CURRENT_LIST_DIR}/psram.c ${CMAKE_CURRENT_LIST_DIR}/../src/pool.c ${CMAKE_CURRENT_BINARY_DIR}/devkit_config.c ${BASIC_DIR}/basic_env.c ${BASIC_DIR}/basic_game.c ${BASIC_DIR}/basic_file.c ${BASIC_DIR}/basic_lib.c ${BASIC_DIR}/my_basic/my_basic.c
                    ${TILEGFX_DIR}/tg_world.c ${TILEGFX_DIR}/tg_actor.c ${TDE_SOURCES} ${TDE_OS_SOURCES} ${TILEGFX_DIR}/tg_console.c ${TILEGFX_DIR}/tg_text.c ${TILEGFX_DIR}/tg_text_cp437.c
                    ${TILEGFX_DIR}/tg_font.c ${TILEGFX_DIR}/fonts/unscii16.c)
 tilefs_add(devkit)

@@ -107,6 +107,49 @@ A mistake (an actor that is not there, a number out of range, a map that was not
 Not here yet: following an actor with the camera (`camera(actorx(a) - 160, actory(a) - 120)` does it), animation tables, loading tiles and maps from files, more than one tile layer, sound, and a
 routine that is called once a frame instead of a loop.
 
+## File functions
+
+A program can read and write files on tilefs (the SD card on the board). They are the ones of MY-BASIC's file module (its wiki), with a file as a small number, 1 to 4, not a
+pointer: a number that is not an open file stops the program with a line that says so, and the files a run left open are closed when it ends.
+
+| Function | |
+|---|---|
+| `fopen(name, mode)` | the file's number, or 0 if it could not be opened. The mode is C's: `"r"`, `"w"` (empties it), `"a"` (writes at the end), each with `"+"` to read and write (`"b"` makes no difference). Four files at most |
+| `fclose(f)` | 0 |
+| `fread(f)` | the next byte, 0 to 255, or -1 at the end |
+| `fread(f, n)` | up to `n` bytes (1 to 1048576, as much as the memory allows) as a string; `""` at the end. A string cannot hold a zero byte: the string ends at the first one, though all `n` bytes are read |
+| `fread_line(f)` | the next line without its end (`\n`, `\r` or `\r\n`); `""` at the end, so use `feof`. A line over 1000 characters comes in pieces |
+| `fwrite(f, ...)` | writes each value: a whole number is one byte (its low eight bits, so 300 writes 44), a number with a fraction is cut first, a string is its text. Returns the bytes written, or -1 |
+| `fwrite_line(f, ...)` | the same, then a line end (`\n`) |
+| `feof(f)` | 1 if there is nothing more to read |
+| `fpeek(f)`, `fpoke(f, position)` | the position in the file, and moving to one (counted from the start; returns 0, or -1) |
+| `fsize(f)` | the length of the file |
+| `fexists(name)` | 1 for a file, 2 for a folder, 0 for neither |
+| `fdelete(name)` | deletes a file or an empty folder: 0, or -1 |
+
+    f = fopen("SCORES.TXT", "r+")
+    while feof(f) = 0
+      print fread_line(f);
+    wend
+    fclose(f)
+
+A name is looked up as the prompt's `LOAD` does (from the current folder, or `/sd/...`). `IMPORT` is not one of these: it reads a program file of any size on its own.
+
+## Library functions: bits, small helpers, string matching
+
+These are the functions of MY-BASIC's wiki modules (bit operation, miscellaneous, string matching).
+
+| Function | |
+|---|---|
+| `bit_and(m, n)`, `bit_or(m, n)`, `bit_xor(m, n)`, `bit_not(m)` | on the 32 bits of whole numbers. Numbers are floating point (24 bits of fraction), so a value above 16 million loses its low bits once it is a variable or in arithmetic: keep bit sets to 24 bits |
+| `bit_lshift(m, n)`, `bit_rshift(m, n)` | shifts; the right shift keeps the sign. A count under 0 or over 31 moves every bit out (0, or -1 for a right shift of a negative number) |
+| `iif(condition, a, b)` | `a` if the condition is true (not 0, not nil), else `b`. Both are worked out first |
+| `swap(a, b)` | the two variables change values |
+| `min(a, b, ...)`, `max(a, b, ...)` | the smallest and the largest of any number of values (at least one) |
+| `assert(condition [, message])` | stops the program with "Assertion failed: message" if the condition is 0 |
+| `find(text, pattern [, start])` | the position of the first `pattern` in `text` at or after `start` (0 is the first character), or -1; an empty pattern is never found |
+| `wildcard_find(text, pattern)` | 1 if the whole of `text` matches `pattern`, where `?` is any one character and `*` any run of them, also none; else 0 |
+
 ## MY-BASIC things that matter to games
 
 - A function call needs its brackets, also when it is a statement: `waitframe()`, `tile(3, 4, 1)`.

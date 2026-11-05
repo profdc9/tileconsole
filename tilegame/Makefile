@@ -187,7 +187,7 @@ tde_ed: $(TDERELOBJ) $(TDEPLAT) include/platform.h
 	$(CC) $(CFLAGS) -w -U_FORTIFY_SOURCE $(INC) $(SDINC) -Itde/os $(TDERELOBJ) $(TDEPLAT) $(TDE_WRAP) -o $@ $(SDL) -lm
 
 # The development kit on the desktop: BASIC and the editor in one program (EDIT runs the editor in the same process).
-DEVKITBASIC = basic/basic_env.c basic/basic_game.c basic/my_basic/my_basic.c $(TILEGFX)/tg_console.c $(TILEGFX)/tg_world.c $(TILEGFX)/tg_actor.c
+DEVKITBASIC = basic/basic_env.c basic/basic_game.c basic/basic_file.c basic/basic_lib.c basic/my_basic/my_basic.c $(TILEGFX)/tg_console.c $(TILEGFX)/tg_world.c $(TILEGFX)/tg_actor.c
 devkit: demo/devkit.c $(TDERELOBJ) $(DEVKITBASIC) $(TDEPLAT) include/platform.h build/devkit_basic.o
 	$(CC) $(CFLAGS) -w -U_FORTIFY_SOURCE $(INC) $(SDINC) -Itde/os -Ibasic demo/devkit.c $(TDERELOBJ) build/devkit_basic.o $(filter-out tde/tdeapp.c,$(TDEPLAT)) $(TDE_WRAP) -o $@ $(SDL) -lm
 
@@ -200,9 +200,11 @@ build/devkit_basic.o: $(DEVKITBASIC)
 	$(CC) -c $(BASICFLAGS) -O2 $(INC) $(SDINC) -Ibasic basic/my_basic/my_basic.c -o build/devkit_my_basic.o
 	$(CC) -c $(BASICFLAGS) -O2 $(INC) $(SDINC) $(TILEGFX)/tg_console.c -o build/devkit_tg_console.o
 	$(CC) -c $(BASICFLAGS) -O2 $(INC) $(SDINC) -Ibasic basic/basic_game.c -o build/devkit_basic_game.o
+	$(CC) -c $(BASICFLAGS) -O2 $(INC) $(SDINC) -Ibasic basic/basic_file.c -o build/devkit_basic_file.o
+	$(CC) -c $(BASICFLAGS) -O2 $(INC) $(SDINC) -Ibasic basic/basic_lib.c -o build/devkit_basic_lib.o
 	$(CC) -c $(BASICFLAGS) -O2 $(INC) $(SDINC) $(TILEGFX)/tg_world.c -o build/devkit_tg_world.o
 	$(CC) -c $(BASICFLAGS) -O2 $(INC) $(SDINC) $(TILEGFX)/tg_actor.c -o build/devkit_tg_actor.o
-	ld -r build/devkit_basic_env.o build/devkit_basic_game.o build/devkit_my_basic.o build/devkit_tg_console.o build/devkit_tg_world.o build/devkit_tg_actor.o -o $@
+	ld -r build/devkit_basic_env.o build/devkit_basic_game.o build/devkit_basic_file.o build/devkit_basic_lib.o build/devkit_my_basic.o build/devkit_tg_console.o build/devkit_tg_world.o build/devkit_tg_actor.o -o $@
 
 TDETESTSRC = tests/test_tde.c tests/test_tde_console.c src/keymap.c $(TILEGFX)/tg_text.c $(TILEGFX)/tg_text_cp437.c $(TILEGFX)/tg_font.c $(TILEGFX)/fonts/unscii16.c $(TILEGFX)/tilegfx.c $(TDEFSSRC) build/tde/fs_posix.o
 
@@ -238,7 +240,7 @@ check-san: test_tde_san
 # misaligned, which is undefined and on the board's CPU can fault: a word, as large as a pointer, keeps them aligned.
 # (MY-BASIC's own default is the compact mode, which packs its structures: members at odd addresses, which GCC handles; the alignment check of the sanitizer is off for that.)
 BASICFLAGS = -std=gnu11 -Wall -Wno-unused-function -Wno-unused-result -Wno-address-of-packed-member -Dmb_mem_tag_t=size_t
-BASICSRC = basic/basic_env.c basic/basic_game.c basic/my_basic/my_basic.c $(TILEGFX)/tg_world.c $(TILEGFX)/tg_actor.c $(TILEGFX)/tg_console.c $(TILEGFX)/tg_text.c $(TILEGFX)/tg_text_cp437.c $(TILEGFX)/tg_font.c $(TILEGFX)/fonts/unscii16.c $(TILEFSSRC)
+BASICSRC = basic/basic_env.c basic/basic_game.c basic/basic_file.c basic/basic_lib.c basic/my_basic/my_basic.c $(TILEGFX)/tg_world.c $(TILEGFX)/tg_actor.c $(TILEGFX)/tg_console.c $(TILEGFX)/tg_text.c $(TILEGFX)/tg_text_cp437.c $(TILEGFX)/tg_font.c $(TILEGFX)/fonts/unscii16.c $(TILEFSSRC)
 
 tgbasic: basic/basic.c $(BASICSRC) sdl/plat_sdl.c src/mouse_acc.c include/platform.h $(TILEGFX)/tilegfx.c
 	$(CC) $(BASICFLAGS) -O2 $(INC) $(SDINC) -Ibasic basic/basic.c $(BASICSRC) sdl/plat_sdl.c src/mouse_acc.c $(TILEGFX)/tilegfx.c -o $@ $(SDL) -lm

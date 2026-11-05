@@ -645,9 +645,26 @@ static void test_gaps(void)
 static int run_jump = 1;   /* the frames that pass at each WAITFRAME */
 static unsigned run_held, run_down;   /* the buttons a run sees */
 
+static struct { const char *path, *text; } seeds[8];   /* files every run_program starts with (fresh empties the disk) */
+static int seed_count;
+
+static void seed_file(const char *path, const char *text)
+{
+    for (int i = 0; i < seed_count; i++)
+        if (!strcmp(seeds[i].path, path)) {
+            seeds[i].text = text;
+            return;
+        }
+    CHECK(seed_count < 8);
+    seeds[seed_count].path = path;
+    seeds[seed_count++].text = text;
+}
+
 static void run_program(const char *text)
 {
     fresh();
+    for (int i = 0; i < seed_count; i++)
+        CHECK(put_file(seeds[i].path, seeds[i].text) > 0);
     frame_jump = run_jump;
     held = run_held;
     went_down = run_down;
@@ -1182,6 +1199,241 @@ static void test_game_example(void)
     run_held = 0;
 }
 
+/* ---- the file functions ---- */
+
+static void test_file_functions(void)
+{
+    seed_count = 0;
+    /* writing: bytes and strings, a line, the position */
+    run_program(
+        "f = fopen(\"/sd/o.txt\", \"w\")\n"
+        "print \"f=\" + str(f);\n"
+        "print \"w1=\" + str(fwrite(f, \"ab\", 67, 68.7, 256 + 69));\n"
+        "print \"w2=\" + str(fwrite_line(f, \"xyz\"));\n"
+        "print \"w3=\" + str(fwrite_line(f));\n"
+        "print \"pk=\" + str(fpeek(f));\n"
+        "print \"c=\" + str(fclose(f));\n");
+    CHECK(printed("f=1") && printed("w1=5") && printed("w2=4") && printed("w3=1") && printed("pk=10") && printed("c=0") && printed("Ready."));
+    CHECK(file_is("/sd/o.txt", "abCDExyz\n\n"));
+    seed_file("/sd/o.txt", "x");
+
+    /* reading: lines ended by \r\n and \n, a byte, a count, the end, a seek */
+    seed_file("/sd/r.txt", "line one\r\nline two\nlast");
+    run_program(
+        "f = fopen(\"/sd/r.txt\", \"r\")\n"
+        "print \"size=\" + str(fsize(f));\n"
+        "print \"e0=\" + str(feof(f));\n"
+        "print \"[\" + fread_line(f) + \"]\";\n"
+        "print \"[\" + fread_line(f) + \"]\";\n"
+        "print \"pk=\" + str(fpeek(f));\n"
+        "print \"b=\" + str(fread(f));\n"
+        "print \"s=\" + fread(f, 3);\n"
+        "print \"e1=\" + str(feof(f));\n"
+        "print \"x=\" + str(fread(f));\n"
+        "print \"r=\" + fread(f, 5) + \"|\";\n"
+        "print \"k=\" + str(fpoke(f, 5));\n"
+        "print \"[\" + fread_line(f) + \"]\";\n"
+        "print \"pk2=\" + str(fpeek(f));\n"
+        "fclose(f)\n");
+    CHECK(printed("size=23") && printed("e0=0") && printed("[line one]") && printed("[line two]") && printed("pk=19") && printed("b=108") && printed("s=ast"));
+    CHECK(printed("e1=1") && printed("x=-1") && printed("r=|") && printed("k=0") && printed("[one]") && printed("pk2=10") && printed("Ready."));
+
+    /* a lone \r ends a line and the byte after it is kept */
+    seed_file("/sd/cr.txt", "a\rb\r\r\nc");
+    run_program(
+        "f = fopen(\"/sd/cr.txt\", \"r\")\n"
+        "for i = 1 to 4\n"
+        "  print \"[\" + fread_line(f) + \"]\";\n"
+        "next\n"
+        "print \"e=\" + str(feof(f));\n");
+    CHECK(printed("[a]") && printed("[b]") && printed("[]") && printed("[c]") && printed("e=1"));
+    CHECK(env.game == NULL);
+
+    /* append, read and write, and a write after reading ahead goes where the program is */
+    seed_file("/sd/a.txt", "12");
+    seed_file("/sd/p.txt", "abcdef");
+    run_program(
+        "f = fopen(\"/sd/a.txt\", \"a\") : fwrite(f, \"34\") : fclose(f)\n"
+        "f = fopen(\"/sd/w.txt\", \"w+\") : fwrite(f, \"hello\") : fpoke(f, 1)\n"
+        "print \"s=\" + fread(f, 3); : fclose(f)\n"
+        "f = fopen(\"/sd/p.txt\", \"r+\")\n"
+        "print \"b=\" + str(fread(f)); : fwrite(f, \"X\")\n"
+        "print \"pk=\" + str(fpeek(f)); : print \"n=\" + fread(f, 2); : fclose(f)\n");
+    CHECK(file_is("/sd/a.txt", "1234") && file_is("/sd/w.txt", "hello") && file_is("/sd/p.txt", "aXcdef"));
+    CHECK(printed("s=ell") && printed("b=97") && printed("pk=2") && printed("n=cd"));
+
+    /* names: a missing file is 0, fexists and fdelete */
+    run_program(
+        "print \"m=\" + str(fopen(\"/sd/none.txt\", \"r\"));\n"
+        "print \"x1=\" + str(fexists(\"/sd/a.txt\")) + str(fexists(\"/sd/none.txt\")) + str(fexists(\"/sd\"));\n"
+        "print \"d1=\" + str(fdelete(\"/sd/a.txt\"));\n"
+        "print \"d2=\" + str(fdelete(\"/sd/a.txt\"));\n"
+        "print \"x2=\" + str(fexists(\"/sd/a.txt\"));\n");
+    CHECK(printed("m=0") && printed("x1=102") && printed("d1=0") && printed("d2=-1") && printed("x2=0"));
+
+    /* errors: a number that is not an open file, a bad mode, too many files; each stops the program */
+    run_program("f = fopen(\"/sd/o.txt\", \"r\") : fclose(f) : print fread(f);\n");
+    CHECK(shows("not an open file") && !printed("Ready."));
+    run_program("print fread(3);\n");
+    CHECK(shows("not an open file"));
+    run_program("f = fopen(\"/sd/o.txt\", \"x\")\n");
+    CHECK(shows("the mode is"));
+    run_program(
+        "for i = 1 to 4\n"
+        "  print \"o\" + str(fopen(\"/sd/o.txt\", \"r\"));\n"
+        "next\n"
+        "print fopen(\"/sd/o.txt\", \"r\");\n");
+    CHECK(printed("o1") && printed("o4") && shows("files are open already") && !printed("Ready."));
+    run_program("f = fopen(\"/sd/o.txt\", \"r\")\nprint fread(f, 0)\n");
+    CHECK(shows("the count is"));
+
+    /* what a run left open is closed at its end (normal, or an error): the next run has all its files, and so does tilefs */
+    for (int k = 0; k < 2; k++) {
+        run_program(
+            "for i = 1 to 4\n"
+            "  print \"o\" + str(fopen(\"/sd/o.txt\", \"r\"));\n"
+            "next\n");
+        CHECK(printed("o1") && printed("o4") && printed("Ready."));
+    }
+    int fds[FS_MAX_FILES];
+    for (int i = 0; i < FS_MAX_FILES; i++) {
+        fds[i] = fs_open("/sd/o.txt", FS_RDONLY);
+        CHECK(fds[i] >= 0);
+    }
+    for (int i = 0; i < FS_MAX_FILES; i++)
+        fs_close(fds[i]);
+
+    /* fread(f, n) reads a long run in one string (past what a line holds), the part read ahead first; a zero byte ends the string, the bytes are all used */
+    {
+        static char blob[7000];
+        for (size_t i = 0; i < sizeof blob - 1; i++)
+            blob[i] = (char)('a' + i % 26);
+        blob[sizeof blob - 1] = 0;
+        seed_file("/sd/blob.bin", blob);
+        seed_file("/sd/nul.bin", "ab");
+        run_program(
+            "f = fopen(\"/sd/blob.bin\", \"r\")\n"
+            "print \"b=\" + str(fread(f));\n"
+            "s$ = fread(f, 5000)\n"
+            "print \"n=\" + str(len(s$));\n"
+            "print \"h=\" + left(s$, 3) + right(s$, 3);\n"
+            "print \"pk=\" + str(fpeek(f));\n"
+            "t$ = fread(f, 5000)\n"
+            "print \"n2=\" + str(len(t$));\n"
+            "print \"e=\" + str(feof(f));\n"
+            "print \"x=\" + str(fread(f, 2000000));\n");
+        CHECK(printed("b=97") && printed("n=5000") && printed("h=bcdghi") && printed("pk=5001") && printed("n2=1998") && printed("e=1") && shows("the count is"));
+        CHECK(allocs == releases);
+    }
+    {
+        run_program(
+            "f = fopen(\"/sd/nul.bin\", \"w\")\n"
+            "fwrite(f, 97, 98, 0, 99, 100)\n"
+            "fclose(f)\n"
+            "f = fopen(\"/sd/nul.bin\", \"r\")\n"
+            "print \"s=\" + fread(f, 5);\n"
+            "print \"pk=\" + str(fpeek(f));\n");
+        fs_stat_t st;
+        CHECK(printed("s=ab") && printed("pk=5") && fs_stat("/sd/nul.bin", &st) == 0 && st.size == 5);
+    }
+
+    /* a long line comes in pieces */
+    {
+        static char big[2600];
+        memset(big, 'z', sizeof big - 1);
+        big[1500] = '\n';
+        big[sizeof big - 1] = 0;
+        seed_file("/sd/big.txt", big);
+        run_program(
+            "f = fopen(\"/sd/big.txt\", \"r\")\n"
+            "print \"a=\" + str(len(fread_line(f)));\n"
+            "print \"b=\" + str(len(fread_line(f)));\n"
+            "print \"c=\" + str(len(fread_line(f)));\n"
+            "print \"d=\" + str(len(fread_line(f)));\n");
+        CHECK(printed("a=1000") && printed("b=500") && printed("c=1000") && printed("d=98"));
+    }
+}
+
+
+/* ---- the library functions: bit operations, miscellaneous, string matching ---- */
+
+/* The wildcard match, worked out the plain way. */
+static int glob_model(const char *t, const char *p)
+{
+    if (!*p)
+        return !*t;
+    if (*p == '*')
+        return glob_model(t, p + 1) || (*t && glob_model(t + 1, p));
+    return *t && (*p == '?' || *p == *t) && glob_model(t + 1, p + 1);
+}
+
+static void test_lib_functions(void)
+{
+    seed_count = 0;
+    run_program(
+        "print \"a=\" + str(bit_and(12, 10));\n"
+        "print \"o=\" + str(bit_or(12, 10));\n"
+        "print \"x=\" + str(bit_xor(12, 10));\n"
+        "print \"n=\" + str(bit_not(0)) + \" \" + str(bit_not(5));\n"
+        "print \"l=\" + str(bit_lshift(1, 4)) + \" \" + str(bit_lshift(3, 0)) + \" \" + str(bit_lshift(1, 32)) + \" \" + str(bit_lshift(1, -1));\n"
+        "print \"r=\" + str(bit_rshift(256, 4)) + \" \" + str(bit_rshift(-16, 2)) + \" \" + str(bit_rshift(-1, 40)) + \" \" + str(bit_rshift(7, 99)) + \" \" + str(bit_rshift(7, -2));\n");
+    CHECK(printed("a=8") && printed("o=14") && printed("x=6") && printed("n=-1 -6") && printed("l=16 3 0 0") && printed("r=16 -4 -1 0 0") && printed("Ready."));
+
+    run_program(
+        "print \"i=\" + iif(1, \"yes\", \"no\") + iif(0, \"yes\", \"no\") + iif(0.5 * 2, \"T\", \"F\") + iif(0.0, \"T\", \"F\");\n"
+        "print \"j=\" + str(iif(0, 1, 2)) + str(iif(3 > 2, 7, 8));\n"
+        "a = 1 : b = 2 : swap(a, b)\n"
+        "print \"s=\" + str(a) + str(b);\n"
+        "c$ = \"x\" : d$ = \"yz\" : swap(c$, d$)\n"
+        "print \"t=\" + c$ + d$;\n"
+        "print \"m=\" + str(min(3, 1, 2)) + str(max(3, 1, 2)) + str(min(5)) + str(max(-1, -7)) + str(min(-3, 2.5));\n"
+        "assert(1)\n"
+        "assert(2 > 1, \"fine\")\n"
+        "print \"done\";\n");
+    CHECK(printed("i=yesnoTF") && printed("j=27") && printed("s=21") && printed("t=yzx") && printed("m=135-1-3") && printed("done") && printed("Ready."));
+
+    run_program("assert(0, \"boom\")\nprint \"after\";\n");
+    CHECK(shows("Assertion failed: boom") && !printed("after") && !printed("Ready."));
+    run_program("assert(1 > 2)\n");
+    CHECK(shows("Assertion failed") && !printed("Ready."));
+    run_program("print min()\n");
+    CHECK(shows("MIN needs at least one value") && !printed("Ready."));
+
+    run_program(
+        "print \"f=\" + str(find(\"aabbccddaabb\", \"aabb\")) + \" \" + str(find(\"aabbccddaabb\", \"aabb\", 1)) + \" \" + str(find(\"aabbccddaabb\", \"bbaa\"));\n"
+        "print \"g=\" + str(find(\"abc\", \"c\", -5)) + \" \" + str(find(\"abc\", \"c\", 3)) + \" \" + str(find(\"abc\", \"\")) + \" \" + str(find(\"\", \"a\")) + \" \" + str(find(\"abc\", \"abcd\"));\n"
+        "print \"w=\" + str(wildcard_find(\"aabbccddaabb\", \"?a?b?c*\")) + str(wildcard_find(\"aabbccddaabb\", \"a*b*a*b\")) + str(wildcard_find(\"aabbccddaabb\", \"abcd\"));\n"
+        "print \"v=\" + str(wildcard_find(\"\", \"\")) + str(wildcard_find(\"\", \"**\")) + str(wildcard_find(\"\", \"?\")) + str(wildcard_find(\"a\", \"\")) + str(wildcard_find(\"ab\", \"a?\")) + str(wildcard_find(\"ab\", \"?\"));\n");
+    CHECK(printed("f=0 8 -1") && printed("g=2 -1 -1 -1 -1") && printed("w=110") && printed("v=110010") && printed("Ready."));
+
+    /* the wildcard matcher against the plain one, over short strings of a and b with every kind of pattern character */
+    unsigned rng = 12345;
+#define NEXT() (rng = rng * 1103515245u + 12345u, (rng >> 16))
+    for (int round = 0; round < 12; round++) {
+        char prog[4096], *at = prog;
+        int expect = 0;
+        at += sprintf(at, "m = 0\n");
+        for (int i = 0; i < 20; i++) {
+            char text[12], pat[12];
+            const int tl = (int)(NEXT() % 7), pl = (int)(NEXT() % 6);
+            for (int k = 0; k < tl; k++)
+                text[k] = "ab"[NEXT() % 2];
+            for (int k = 0; k < pl; k++)
+                pat[k] = "aab?*"[NEXT() % 5];
+            text[tl] = pat[pl] = 0;
+            if (glob_model(text, pat))
+                expect |= 1 << i;
+            at += sprintf(at, "m = m + wildcard_find(\"%s\", \"%s\") * %d\n", text, pat, 1 << i);
+        }
+        sprintf(at, "print \"mask=\" + str(m);\n");
+        run_program(prog);
+        char want[32];
+        snprintf(want, sizeof want, "mask=%d", expect);
+        CHECK(printed(want));
+    }
+}
+
+
 int main(void)
 {
     test_basics();
@@ -1199,6 +1451,8 @@ int main(void)
     test_game_world();
     test_game_input_and_errors();
     test_game_example();
+    test_file_functions();
+    test_lib_functions();
     printf("all %d checks passed\n", checks);
     return 0;
 }

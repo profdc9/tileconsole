@@ -1,7 +1,9 @@
 /* SPDX-License-Identifier: MIT */
 #include "basic_env.h"
 
+#include "basic_file.h"
 #include "basic_game.h"
+#include "basic_lib.h"
 
 #include <ctype.h>
 #include <stdarg.h>
@@ -413,12 +415,14 @@ static void cmd_run(basic_env_t *e)
     e->stop = 0;
     e->typeahead_count = 0;
     e->last_poll = e->hooks.millis();
+    basic_file_close_all();
     basic_game_begin_run(e);
     mb_reset(&e->bas, false, true);
     int r = mb_load_string(e->bas, e->program, true);
     if (r == MB_FUNC_OK)
         r = mb_run(e->bas, true);
     basic_game_end_run(e);
+    basic_file_close_all();
     if (e->con.col != 0)
         tg_console_putc(&e->con, '\n');
     if (e->stop)
@@ -432,6 +436,7 @@ static void cmd_immediate(basic_env_t *e, const char *line)
     e->stop = 0;
     e->typeahead_count = 0;
     e->last_poll = e->hooks.millis();
+    basic_file_close_all();
     basic_game_begin_run(e);
     /*
      * Each line is a program of its own: MY-BASIC cannot run a line on its own among the variables of an earlier one (a string variable may be pointing into the
@@ -442,6 +447,7 @@ static void cmd_immediate(basic_env_t *e, const char *line)
     if (r == MB_FUNC_OK)
         r = mb_run(e->bas, true);
     basic_game_end_run(e);
+    basic_file_close_all();
     if (e->con.col != 0)
         tg_console_putc(&e->con, '\n');
     if (e->stop)
@@ -595,6 +601,8 @@ void basic_env_init(basic_env_t *e, tg_text_t *screen, const basic_hooks_t *hook
     mb_set_error_handler(e->bas, on_error);
     mb_debug_set_stepped_handler(e->bas, on_step, NULL);
     basic_game_register(e->bas);
+    basic_file_register(e->bas);
+    basic_lib_register(e->bas);
     with(e, ATTR_HEAD, "TILEGAME BASIC");
     say(e, "  MY-BASIC %s\n", mb_ver_string());
     say(e, "Type HELP for the commands, or BASIC at once.\n\n");
@@ -624,6 +632,7 @@ int basic_env_run(basic_env_t *e)
 void basic_env_close(basic_env_t *e)
 {
     basic_game_close(e);
+    basic_file_close_all();
     if (e->bas)
         mb_close(&e->bas);
     mb_dispose();
