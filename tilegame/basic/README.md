@@ -47,7 +47,7 @@ graphics used is freed. A program that does not use these functions never sees t
 
 **The frame.** Everything between two `WAITFRAME()`s is the next picture: it all appears together, so a door of four tiles is never half open. `WAITFRAME()` shows it, waits for the next
 frame (60 a second), moves the actors by their velocities and returns how many frames went by since the last call (1 if the program kept up; the first call returns 1; at most 4).
-A program that is slow only looks choppier: velocities are per frame that went by, so the speed stays the same. `FRAMES()` is the frame counter, `MILLIS()` the clock.
+A program that is slow only looks choppier: velocities are per frame that went by, so the speed stays the same. `FRAMES()` is the frame counter, `MILLIS()` the clock. `TEXTMODE()` puts the text screen up at once, in the middle of a program, for a `PRINT` or an `INPUT`; the graphics are kept, and the next `WAITFRAME()` shows the picture again (when the program ends the text screen comes back by itself).
 
 **Graphics** (everything is 8 bits a pixel: a colour is an entry 0 to 255 in the palette, and entry 0 is see-through)
 
@@ -71,6 +71,7 @@ changing a tile while it is on screen can show for a frame as it was and as it i
 | `newmap(w, h)` | a map of w by h tiles, all tile 0, up to a million tiles; the camera is where it was (0, 0 at first) |
 | `tile(x, y, n [, flip])` | the tile at x, y (tile coordinates) is n; flip 1 mirrors it across, 2 down, 3 both |
 | `gettile(x, y)`, `tilefill(x, y, w, h, n)` | the tile number there, and a block of one tile |
+| `tilestr(x, y, w, s$ [, offset])` | the bytes of the string, plus the offset (0 if not given), are tile numbers put in the map one after the other, w to a row from x, y and then the next row. A string cannot hold a 0, so the offset is how to reach tile 0 (`-32` makes a space tile 0). The tile of every byte must be 0 to 255, or nothing is changed |
 | `camera(x, y)` | the pixel at the top left of the screen (any numbers, negative too; outside the map is empty) |
 | `camx()`, `camy()` | where the camera is (see `wrap`) |
 | `wrap(1)` | the map repeats in every direction, so the scrolling can go on for ever; `wrap(0)` ends it. Returns 1 if the actors wrap too (the map must be at least 192 by 160 pixels) |

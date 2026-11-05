@@ -45,12 +45,15 @@ static int get_char(void)
 }
 
 static int frame_while_game;   /* the text screen was put up while the game was on screen */
+static int frame_text_kept;    /* ... and while the graphics were kept but not on screen (TEXTMODE) */
 
 static void frame(void)
 {
     now_ms += 17;
     if (env.game_active)
         frame_while_game++;
+    else if (env.game)
+        frame_text_kept++;
     if (++idle_frames > 100000 && script_pos >= script_len && cut_armed)   /* (a running program calls this now and then too, and may run a while) */
         longjmp(cut, 1);
 }
@@ -775,6 +778,87 @@ static void test_game_draw(void)
     CHECK(image[0][0] == '1' && image[0][7] == '1' && image[0][8] == '2' && image[0][15] == '2' && image[15][0] == '1' && image[15][15] == '2' && image[16][0] == 0);
 }
 
+static void test_game_tilestr(void)
+{
+    /* the bytes of the string are tile numbers, width to a row */
+    run_program(
+        "gfx(8) : newmap(8, 8)\n"
+        "tilestr(1, 2, 3, \"ABCDE\")\n"
+        "print gettile(1, 2);\n"
+        "print gettile(3, 2);\n"
+        "print gettile(1, 3);\n"
+        "print gettile(2, 3);\n"
+        "print gettile(3, 3);\n"
+        "print gettile(0, 2);\n"
+        "print gettile(4, 2);\n"
+        "print gettile(1, 4);\n");
+    {
+        const int r = row_of("65");
+        CHECK(r >= 0 && !strcmp(row(r + 1), "67") && !strcmp(row(r + 2), "68") && !strcmp(row(r + 3), "69") && !strcmp(row(r + 4), "0"));
+        CHECK(!strcmp(row(r + 5), "0") && !strcmp(row(r + 6), "0") && !strcmp(row(r + 7), "0"));
+    }
+
+    /* the offset: a space is tile 0 with -32, and it replaces what was there; flips are not kept */
+    run_program(
+        "gfx(8) : newmap(8, 8) : tilefill(0, 0, 8, 1, 9) : tile(1, 0, 9, 3)\n"
+        "tilestr(0, 0, 4, \" !]\", -32)\n"
+        "print gettile(0, 0);\n"
+        "print gettile(1, 0);\n"
+        "print gettile(2, 0);\n"
+        "print gettile(3, 0);\n");
+    {
+        const int r = row_of("0");
+        CHECK(r >= 0 && !strcmp(row(r + 1), "1") && !strcmp(row(r + 2), "61") && !strcmp(row(r + 3), "9"));
+    }
+    run_program(
+        "gfx(8) : newmap(8, 8)\n"
+        "tilestr(0, 0, 2, \"AB\", 10)\n"
+        "print gettile(0, 0);\n"
+        "print gettile(1, 0);\n"
+        "tilestr(0, 0, 2, \"\")\n"
+        "print gettile(0, 0);\n");
+    CHECK(printed("75") && printed("76") && printed("75"));                  /* (an empty string changes nothing) */
+
+    /* off the edge of the map is the map's business, as with TILE */
+    run_program("gfx(8) : newmap(4, 4) : tilestr(2, 2, 4, \"AAAAAAAAAA\") : print gettile(3, 3);\n");
+    CHECK(printed("65"));
+
+    /* mistakes */
+    run_program("gfx(8) : newmap(4, 4) : tilestr(0, 0, 0, \"A\")\n");
+    CHECK(shows("the width is 1 or more"));
+    run_program("gfx(8) : newmap(4, 4) : tilestr(0, 0, 2, \"AB\", 190)\n");
+    CHECK(shows("character 2 is tile 256") && shows("tiles are 0 to 255"));
+    run_program("gfx(8) : newmap(4, 4) : tilestr(0, 0, 2, \"AB\", -66)\n");
+    CHECK(shows("character 1 is tile -1"));
+    run_program("tilestr(0, 0, 2, \"AB\")\n");
+    CHECK(shows("There is no map"));
+}
+
+static void test_game_textmode(void)
+{
+    /* TEXTMODE() puts the text screen up at once; the graphics are kept, and the next WAITFRAME shows the picture again */
+    frame_text_kept = 0;
+    run_program(
+        "gfx(8) : newmap(4, 4) : tile(1, 1, 7) : waitframe()\n"
+        "textmode()\n"
+        "print gettile(1, 1);\n"
+        "print 55;\n");
+    CHECK(printed("7") && printed("55") && printed("Ready.") && frame_text_kept >= 1 && frame_while_game == 0 && presents == 1);
+    frame_text_kept = 0;
+    run_program(
+        "gfx(8) : newmap(4, 4) : tile(1, 1, 7) : waitframe()\n"
+        "textmode()\n"
+        "textmode()\n"
+        "waitframe()\n"
+        "print gettile(1, 1);\n");
+    CHECK(printed("7") && frame_text_kept >= 1 && presents == 2);
+    CHECK(env.game == NULL && !env.game_active && allocs == releases);
+    /* with no picture up it does nothing, and does not make the graphics */
+    frame_text_kept = 0;
+    run_program("textmode()\nprint 8;\n");
+    CHECK(printed("8") && env.game == NULL && frame_text_kept == 0);
+}
+
 static void test_game_actors(void)
 {
     /* velocity is per frame that went by: 3 frames at a wait, and no more than 4 */
@@ -1019,6 +1103,8 @@ int main(void)
     test_edit_and_exit();
     test_gaps();
     test_game_draw();
+    test_game_tilestr();
+    test_game_textmode();
     test_game_actors();
     test_game_world();
     test_game_input_and_errors();

@@ -421,6 +421,38 @@ FUNC(tilefill)
     return MB_FUNC_OK;
 }
 
+/*
+ * TILESTR(x, y, width, s [, offset]): the bytes of the string are tile numbers (the byte plus the offset, 0 if it is not given) put in the map one after the
+ * other, `width` to a row from x, y, then the next row. A string cannot hold a 0, so the offset is how a program reaches tile 0 (-32 makes a space tile 0).
+ */
+FUNC(tilestr)
+{
+    int x, y, w, offset = 0;
+    char *text = NULL;
+    OPEN();
+    CK(arg_int(s, l, &x));
+    CK(arg_int(s, l, &y));
+    CK(arg_int(s, l, &w));
+    CK(mb_pop_string(s, l, &text));
+    if (mb_has_arg(s, l))
+        CK(arg_int(s, l, &offset));
+    CLOSE();
+    NEED_GAME();
+    NEED_WORLD();
+    const size_t len = text ? strlen(text) : 0;
+    if (w < 1)
+        return fail(s, l, SE_RN_INDEX_OUT_OF_BOUND, "TILESTR(x, y, width, string): the width is 1 or more");
+    for (size_t i = 0; i < len; i++) {
+        const int n = (unsigned char)text[i] + offset;
+        if (n < 0 || n >= BG_TILES)
+            return fail(s, l, SE_RN_INDEX_OUT_OF_BOUND, "TILESTR: character %d is tile %d, tiles are 0 to %d", (int)i + 1, n, BG_TILES - 1);
+    }
+    for (size_t i = 0; i < len; i++)
+        tg_world_set(&G->world, x + (int)(i % (size_t)w), y + (int)(i / (size_t)w), TG_ENTRY((unsigned char)text[i] + offset, 0, 0));
+    RET(0);
+    return MB_FUNC_OK;
+}
+
 FUNC(settileflags)
 {
     int n, f;
@@ -812,6 +844,20 @@ FUNC(waitframe)
     return MB_FUNC_OK;
 }
 
+/* TEXTMODE(): the text screen now; the graphics are kept, and the next WAITFRAME shows the picture again. */
+FUNC(textmode)
+{
+    OPEN();
+    CLOSE();
+    basic_env_t *e = basic_env_current();
+    if (e->game_active) {
+        e->game_active = 0;
+        e->hooks.frame();
+    }
+    RET(0);
+    return MB_FUNC_OK;
+}
+
 FUNC(frames)
 {
     OPEN();
@@ -884,10 +930,10 @@ FUNC(pressed) { return button_state(s, l, 1); }
 #define F(n) {#n, bf_##n}
 static const struct { const char *name; mb_func_t fn; } functions[] = {
     F(gfx), F(palette), F(tiledef), F(sprdef), F(tilerow), F(sprrow), F(tilepix), F(sprpix),
-    F(newmap), F(wrap), F(tile), F(gettile), F(tilefill), F(settileflags), F(tileflag), F(tilebox), F(camera), F(camx), F(camy),
+    F(newmap), F(wrap), F(tile), F(gettile), F(tilefill), F(tilestr), F(settileflags), F(tileflag), F(tilebox), F(camera), F(camx), F(camy),
     F(actor), F(actorfree), F(actorpos), F(actorx), F(actory), F(actorvel), F(actortile), F(actorsize), F(actorflip), F(actorhide), F(actorprio),
     F(actorbox), F(actoruser), F(ysort), F(actormove), F(actorhit),
-    F(waitframe), F(frames), F(millis), F(btn), F(pressed),
+    F(waitframe), F(textmode), F(frames), F(millis), F(btn), F(pressed),
 };
 
 void basic_game_register(struct mb_interpreter_t *s)
