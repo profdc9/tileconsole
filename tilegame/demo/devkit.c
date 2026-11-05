@@ -68,6 +68,7 @@ static uint8_t stack[STACK_BYTES] __attribute__((aligned(8)));
 #else
 static fs_posix_t host;
 static const char *host_dir = "devkit_files";
+void plat_sdl_window_scale(int scale);   /* sdl/plat_sdl.c */
 #endif
 
 #ifdef DEVKIT_BOARD
@@ -512,8 +513,18 @@ int main(int argc, char **argv)
     __asm volatile("msr msp, %0\n\tbx %1\n" ::"r"(top), "r"(devkit) : "memory");
     __builtin_unreachable();
 #else
-    if (argc > 1)
-        host_dir = argv[1];
+    for (int i = 1; i < argc; i++) {
+        if (!strcmp(argv[i], "-2") || !strcmp(argv[i], "--double")) {
+            plat_sdl_window_scale(2);
+        } else if (!strcmp(argv[i], "--scale") && i + 1 < argc) {
+            plat_sdl_window_scale(atoi(argv[++i]));
+        } else if (argv[i][0] == '-' && argv[i][1]) {
+            fprintf(stderr, "usage: devkit [-2 | --double | --scale 1..4] [folder]\n");
+            return 1;
+        } else {
+            host_dir = argv[i];
+        }
+    }
     devkit();
     basic_env_close(&env);
     plat_shutdown();

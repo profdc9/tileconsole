@@ -114,6 +114,14 @@ static uint8_t sdl_button_bit(Uint8 button)
     }
 }
 
+static int window_scale = 1;
+
+/* The window is this many times the picture (640 x 480), 1 to 4, before plat_init; SDL scales the picture (the logical size is the picture's). */
+void plat_sdl_window_scale(int scale)
+{
+    window_scale = scale < 1 ? 1 : scale > 4 ? 4 : scale;
+}
+
 bool plat_init(void)
 {
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS) != 0)
@@ -124,7 +132,8 @@ bool plat_init(void)
     for (int i = 0; i < SDL_NumJoysticks(); i++)
         open_controller(i);
 
-    window = SDL_CreateWindow("tilegame", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, TG_DISPLAY_WIDTH, TG_DISPLAY_HEIGHT, 0);
+    window = SDL_CreateWindow("tilegame", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, TG_DISPLAY_WIDTH * window_scale,
+                              TG_DISPLAY_HEIGHT * window_scale, 0);
     if (!window)
         return false;
     renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_PRESENTVSYNC);

@@ -27,7 +27,7 @@ Every folder has its own `README.md`. Each project's history is its own lineage 
 
 ## Build
 
-Desktop (SDL2): `cd tilegame && make check` runs all the tests; `make devkit && ./devkit` is the development kit (run it from `tilegame/`).
+Desktop (SDL2): `cd tilegame && make check` runs all the tests; `make devkit && ./devkit [-2] [folder]` is the development kit (run it from `tilegame/`; `-2` or `--double` opens a 1280 x 960 window, `--scale 1..4` another size; the folder, `devkit_files` if none, is `/sd`).
 
 Board (needs the pico-sdk): `cmake -S tilegame/board -B build -DCPU_MHZ=504 -DPLAT_USB_HID=ON`, then build the `devkit` target and copy `devkit.uf2` to the board in BOOTSEL mode. The other board programs (`sdtest`, `editsd`, `platformer`, ...) are targets of the same project.
 
