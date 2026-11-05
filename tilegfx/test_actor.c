@@ -344,6 +344,45 @@ static bool step_blocked(const model_t *md, unsigned tl, int32_t x, int32_t y, i
     return dy > 0 && oneway_step(md, tl, x + dx, y + dy, w, h);
 }
 
+/*
+ * The tile recorded for each side that stopped the actor: its number and flags are the map's (not looked up later), and where the box is flush against a tile
+ * line, it is the first solid tile along that line, or else the first one-way tile (only a stop from above can be by one). In a world that wraps the
+ * coordinates are those of the position before it was kept within the world, so they are compared modulo its size.
+ */
+static bool same_tile_coord(const model_t *md, int32_t a, int32_t b, bool horizontal)
+{
+    const int32_t m = horizontal ? md->w : md->h;
+    return md->border == TG_BORDER_WRAP ? posmod(a - b, m) == 0 : a == b;
+}
+
+static void check_touch(const model_t *md, unsigned tl, const tg_actor_t *a, uint8_t hit, int32_t fx, int32_t fy, int32_t ox, int32_t oy, int32_t bw, int32_t bh)
+{
+    const int32_t ts = 1 << tl;
+    const int32_t bx = fx + ox, by = fy + oy;
+    for (int side = 0; side < 4; side++) {
+        if (!((hit >> side) & 1))
+            continue;
+        const tg_touch_t *t = &a->touch[side];
+        const unsigned want = model_get(md, t->tx, t->ty) & TG_TILE_MASK;
+        CHECK(t->tile == want && t->flags == md->flags[want] && (t->flags & (TG_TILE_SOLID | TG_TILE_ONEWAY)));
+        const bool horizontal = side < 2;
+        const int32_t edge = side == 0 ? bx : side == 1 ? bx + bw : side == 2 ? by : by + bh;
+        if (posmod(edge, ts) != 0)
+            continue;                                              /* not flush: it was stopped where it already was */
+        const int32_t line = floordiv(side == 0 || side == 2 ? edge - 1 : edge, ts);
+        const int32_t p0 = floordiv(horizontal ? by : bx, ts), p1 = floordiv(horizontal ? by + bh - 1 : bx + bw - 1, ts);
+        int32_t first_solid = INT32_MIN, first_oneway = INT32_MIN;
+        for (int32_t q = p1; q >= p0; q--) {
+            const uint8_t f = md->flags[model_get(md, horizontal ? line : q, horizontal ? q : line) & TG_TILE_MASK];
+            if (f & TG_TILE_SOLID) first_solid = q;
+            if (f & TG_TILE_ONEWAY) first_oneway = q;
+        }
+        const int32_t perp = first_solid != INT32_MIN ? first_solid : first_oneway;
+        CHECK(perp != INT32_MIN);
+        CHECK(same_tile_coord(md, horizontal ? t->tx : t->ty, line, horizontal) && same_tile_coord(md, horizontal ? t->ty : t->tx, perp, !horizontal));
+    }
+}
+
 static int64_t posmod64(int64_t v, int64_t m) { const int64_t r = v % m; return r < 0 ? r + m : r; }
 
 /* after - before, as the shortest way round if the world (size_px pixels, 24.8) wraps */
@@ -422,7 +461,7 @@ static void test_move(void)
             a->x = px * 256 + (whole ? 0 : rr(0, 255));
             a->y = py * 256 + (whole ? 0 : rr(0, 255));
             const int32_t x0 = a->x, y0 = a->y;
-            const int32_t dx = whole ? rr(-40, 40) * 256 : rr(-9000, 9000), dy = whole ? rr(-40, 40) * 256 : rr(-9000, 9000);
+            const int32_t dx = whole ? rr(-40, 40) * 256 : rr(-9000, 9000), dy = rnd() % 3 == 0 ? 0 : whole ? rr(-40, 40) * 256 : rr(-9000, 9000);   /* (the x stop is only checked where the y did not move it) */
             const uint8_t hit = tg_actor_move(&p, id, &w, dx, dy);
             const int32_t fx = floordiv(a->x, 256), fy = floordiv(a->y, 256);
 
@@ -463,6 +502,7 @@ static void test_move(void)
                 if (hit & TG_HIT_DOWN) CHECK(step_blocked(&md, tl, fx + ox, fy + oy, bw, bh, 0, 1));
                 if (hit & TG_HIT_UP) CHECK(step_blocked(&md, tl, fx + ox, fy + oy, bw, bh, 0, -1));
             }
+            check_touch(&md, tl, a, hit & (dy == 0 ? 15 : TG_HIT_UP | TG_HIT_DOWN), fx, fy, ox, oy, bw, bh);
             moved += hit == 0;
             blocked_x += (hit & (TG_HIT_LEFT | TG_HIT_RIGHT)) != 0;
             blocked_y += (hit & (TG_HIT_UP | TG_HIT_DOWN)) != 0;
@@ -494,6 +534,19 @@ static void test_move(void)
     a->x = 8 * 256; a->y = 40 * 256;
     CHECK(tg_actor_move(&p, id, &w, 0, 100 * 256) == TG_HIT_DOWN);       /* lands on the row: its bottom at y = 80 */
     CHECK(a->y == 72 * 256);
+    /* the tile is recorded as it was when it stopped the actor, whatever the map becomes: its place, number and flags; the other sides have nothing */
+    CHECK(a->touch[3].tx == 1 && a->touch[3].ty == 10 && a->touch[3].tile == 1 && a->touch[3].flags == TG_TILE_ONEWAY);
+    for (int side = 0; side < 3; side++)
+        CHECK(a->touch[side].tx == 0 && a->touch[side].ty == 0 && a->touch[side].tile == 0 && a->touch[side].flags == 0);
+    tg_world_set(&w, 1, 10, 0);
+    tg_world_set_flags(&w, md.flags);
+    CHECK(tg_world_get(&w, 1, 10) == 0);
+    CHECK(a->touch[3].tile == 1 && a->touch[3].flags == TG_TILE_ONEWAY);
+    CHECK(tg_actor_move(&p, id, &w, 0, 100 * 256) == 0);                 /* the tile is gone now: it falls through */
+    CHECK(a->touch[3].tile == 1);                                        /* and the record is kept until the next stop on that side */
+    tg_world_set(&w, 1, 10, 1);
+    a->x = 8 * 256; a->y = 40 * 256;
+    CHECK(tg_actor_move(&p, id, &w, 0, 100 * 256) == TG_HIT_DOWN);
     CHECK(tg_actor_move(&p, id, &w, 40 * 256, 0) == 0);                  /* sideways along it */
     a->x = 8 * 256; a->y = 120 * 256;
     CHECK(tg_actor_move(&p, id, &w, 0, -100 * 256) == 0);                /* up through it from below */

@@ -973,6 +973,40 @@ static void test_game_world(void)
         CHECK(!strcmp(row(r + 6), "2") && !strcmp(row(r + 7), "3") && !strcmp(row(r + 8), "3"));
     }
 
+    /* the tile that stopped an actor is recorded as it was then: where, its number and its flags, per side; a later change of the map does not touch it */
+    run_program(
+        "gfx(8) : newmap(30, 20) : settileflags(7, 1) : settileflags(8, 2) : tile(6, 2, 7) : tile(2, 8, 8)\n"
+        "a = actor(1, 10, 16) : b = actor(1, 16, 30)\n"
+        "h = actormove(a, 100, 0)\n"
+        "print hitx(a, \"right\");\n"
+        "print hity(a, 2);\n"
+        "print hittile(a, \"RIGHT\");\n"
+        "print hitflags(a, 2);\n"
+        "print hitx(a, \"left\");\n"
+        "tile(6, 2, 0)\n"
+        "print hittile(a, 2);\n"
+        "print gettile(6, 2);\n"
+        "h = actormove(a, -5, 0)\n"
+        "print hitx(a, 2);\n"
+        "h = actormove(b, 0, 100)\n"
+        "print hitx(b, 8);\n"
+        "print hity(b, \"down\");\n"
+        "print hittile(b, 8);\n"
+        "print hitflags(b, 8);\n");
+    {
+        const int r = row_of("6");
+        static const char *const want[] = {"6", "2", "7", "1", "0", "7", "0", "6", "2", "8", "8", "2"};
+        CHECK(r >= 0);
+        for (int i = 0; i < 12; i++)
+            CHECK(!strcmp(row(r + i), want[i]));
+    }
+    run_program("gfx(8) : a = actor(1, 0, 0) : print hitx(a, 3)\n");
+    CHECK(shows("the side is 1"));
+    run_program("gfx(8) : a = actor(1, 0, 0) : print hittile(a, \"over\")\n");
+    CHECK(shows("the side is 1"));
+    run_program("gfx(8) : print hitflags(5, 2)\n");
+    CHECK(shows("there is no actor 5"));
+
     /* a box of its own inside the picture */
     run_program(
         "gfx(8) : newmap(30, 20) : settileflags(1, 1) : tilefill(6, 0, 1, 10, 1)\n"

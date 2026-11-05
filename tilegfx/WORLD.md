@@ -159,7 +159,9 @@ An actor is a rectangle of sprites (a metasprite) at a global position. The pool
 `tg_actor_move` moves in steps of a tile or less, so nothing is jumped over, and stops flush against a `TG_TILE_SOLID` tile (the actor's box is
 looked up with `tg_world_flags_box`; with a solid border the map's edge stops it too). A `TG_TILE_ONEWAY` tile stops it only when moving down
 from above. A stopped actor loses the fraction of a pixel and never moves against its direction; one that starts inside a solid tile stays
-where it is. The result is the sides that stopped it (`TG_HIT_LEFT|RIGHT|UP|DOWN`).
+where it is. The result is the sides that stopped it (`TG_HIT_LEFT|RIGHT|UP|DOWN`). For each of them `a->touch[side]` (`side` is the bit's index: 0 left, 1 right,
+2 up, 3 down) records the tile that stopped it as it was then: `tx`, `ty`, the tile number and the flags. The map may change afterwards (a door opens), the record does not;
+it stays until the next stop on that side. Of several tiles along the edge it is the first (the top one for a stop left or right, the left one for up or down).
 
 `tg_actors_draw` gives back the sprite slots it took at the last call (other sprites in `g` are left alone), orders the actors that are
 active, not hidden and touch the screen by priority (a counting sort, stable) and allocates one sprite for each tile of the grid that is on
@@ -225,7 +227,7 @@ write. MY-BASIC has `mb_eval_routine`, which should do it (not checked).
 screen). Not as planned above: `newmap`, `actorpos`, `actorvel`, `actormove`, `actorhit` and `actoruser` are the names used (`MAP` and `MOVE` would clash with MY-BASIC's), the camera is
 set by `camera(x, y)` and not followed by `FOLLOW`, there are no animation tables, `TILES(file)` and `LOADMAP(file)` are replaced by `tiledef`/`tilerow` and `newmap`/`tile`/`tilefill`
 (no file format yet), there is one map (layer 0), `FRAMEMS()` and the callback model are not done, and the first `WAITFRAME()` returns 1 (there is no earlier frame to count from).
-Added: `wrap`, `settileflags`, `tilebox`, `ysort`. The picture goes away when the program ends.
+Added: `wrap`, `settileflags`, `tilebox`, `ysort`, `hitx`/`hity`/`hittile`/`hitflags` (the recorded tile of a stop). The picture goes away when the program ends.
 
 ## Files and tests
 

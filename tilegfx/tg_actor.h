@@ -27,6 +27,12 @@
 
 #define TG_ACTORS_YSORT 1                      /* tg_actors_t.flags: the lower on the screen, the nearer (prio is not used) */
 
+typedef struct {                               /* a tile that stopped an actor, as it was then (the map may change after) */
+    int32_t tx, ty;                            /* its tile coordinates (outside the map, those of the border tile that stopped it) */
+    uint16_t tile;                             /* its tile number */
+    uint8_t flags;                             /* its flags (TG_TILE_*) */
+} tg_touch_t;
+
 typedef struct {
     int32_t x, y;                              /* top left, global pixels, 24.8 fixed point (1/256 pixel) */
     int32_t vx, vy;                            /* per frame, 24.8; added by tg_actors_step */
@@ -37,6 +43,8 @@ typedef struct {
     uint8_t prio;                              /* 0 in front; actors with the same prio are in front in order of their number */
     uint8_t hit_x, hit_y, hit_w, hit_h;        /* the box for collisions, in pixels from the top left; hit_w or hit_h 0: the whole grid */
     uint16_t user;                             /* the program's: a type, a state, an animation counter */
+    tg_touch_t touch[4];                       /* the last tile that stopped it on each side, set by tg_actor_move; [0] left, [1] right, [2] up, [3] down (the TG_HIT_* bits in order);
+                                                  kept until the next stop on that side, all 0 for a new actor: the return of tg_actor_move says whether this move stopped */
 } tg_actor_t;
 
 typedef struct {
@@ -71,7 +79,8 @@ void tg_actors_step(tg_actors_t *p, int frames);
 /*
  * Move by (dx, dy) in 24.8, the x first and then the y, stopping flush against tiles that have TG_TILE_SOLID (the box of the actor is looked up
  * with tg_world_flags_box, so it also stops at the map's border if that is solid). TG_TILE_ONEWAY stops it only when moving down, from above.
- * An actor that stops loses the fraction of a pixel. Returns the TG_HIT_* sides that stopped it. An actor that starts inside a solid tile
+ * An actor that stops loses the fraction of a pixel. Returns the TG_HIT_* sides that stopped it, and records in a->touch[] for each of them the tile
+ * (coordinates, number and flags at that moment) that stopped it: the first one along the edge (the top one for left and right, the left one for up and down). An actor that starts inside a solid tile
  * is not moved out of it.
  */
 uint8_t tg_actor_move(tg_actors_t *p, int id, const tg_world_t *w, int32_t dx, int32_t dy);

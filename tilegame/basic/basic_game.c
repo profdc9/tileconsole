@@ -763,6 +763,54 @@ FUNC(actoruser)
     return MB_FUNC_OK;
 }
 
+/*
+ * HITX(a, side), HITY(a, side), HITTILE(a, side), HITFLAGS(a, side): the tile that last stopped the actor on that side (1 or "left", 2 "right", 4 "up",
+ * 8 "down", as ACTORMOVE returns them), as it was then: where (tile coordinates), its tile number and its flags. TILE(x, y, n) may change it later, this
+ * does not. They are 0 until the first stop on that side, and kept until the next, so the return of ACTORMOVE says whether this move stopped.
+ */
+/* Is the name, in any case, the lower case word? */
+static int same_name(const char *name, const char *word)
+{
+    while (*word && *name && tolower((unsigned char)*name) == *word) {
+        word++;
+        name++;
+    }
+    return !*word && !*name;
+}
+
+static int touch_field(struct mb_interpreter_t *s, void **l, int field, const char *who)
+{
+    int id;
+    mb_value_t v;
+    OPEN();
+    CK(arg_int(s, l, &id));
+    mb_make_nil(v);
+    CK(mb_pop_value(s, l, &v));
+    CLOSE();
+    NEED_GAME();
+    int side = -1;
+    if (v.type == MB_DT_INT || v.type == MB_DT_REAL) {
+        const int n = v.type == MB_DT_INT ? (int)v.value.integer : (int)v.value.float_point;
+        side = n == 1 ? 0 : n == 2 ? 1 : n == 4 ? 2 : n == 8 ? 3 : -1;
+    } else if (v.type == MB_DT_STRING && v.value.string) {
+        static const char *const names[4] = {"left", "right", "up", "down"};
+        for (int i = 0; i < 4; i++)
+            if (same_name(v.value.string, names[i]))
+                side = i;
+    }
+    if (side < 0)
+        return fail(s, l, SE_RN_INDEX_OUT_OF_BOUND, "%s(actor, side): the side is 1 \"left\", 2 \"right\", 4 \"up\" or 8 \"down\"", who);
+    NEED_ACTOR(who);
+    const tg_touch_t *t = &a->touch[side];
+    RET(field == 0 ? t->tx : field == 1 ? t->ty : field == 2 ? t->tile : t->flags);
+    return MB_FUNC_OK;
+}
+
+FUNC(hitx) { return touch_field(s, l, 0, "HITX"); }
+FUNC(hity) { return touch_field(s, l, 1, "HITY"); }
+FUNC(hittile) { return touch_field(s, l, 2, "HITTILE"); }
+FUNC(hitflags) { return touch_field(s, l, 3, "HITFLAGS"); }
+
 FUNC(ysort)
 {
     int on;
@@ -932,7 +980,7 @@ static const struct { const char *name; mb_func_t fn; } functions[] = {
     F(gfx), F(palette), F(tiledef), F(sprdef), F(tilerow), F(sprrow), F(tilepix), F(sprpix),
     F(newmap), F(wrap), F(tile), F(gettile), F(tilefill), F(tilestr), F(settileflags), F(tileflag), F(tilebox), F(camera), F(camx), F(camy),
     F(actor), F(actorfree), F(actorpos), F(actorx), F(actory), F(actorvel), F(actortile), F(actorsize), F(actorflip), F(actorhide), F(actorprio),
-    F(actorbox), F(actoruser), F(ysort), F(actormove), F(actorhit),
+    F(actorbox), F(actoruser), F(ysort), F(actormove), F(hitx), F(hity), F(hittile), F(hitflags), F(actorhit),
     F(waitframe), F(textmode), F(frames), F(millis), F(btn), F(pressed),
 };
 

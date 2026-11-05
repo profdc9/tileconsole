@@ -88,7 +88,8 @@ changing a tile while it is on screen can show for a frame as it was and as it i
 | `actorpos(a, x, y)`, `actorx(a)`, `actory(a)` | its position in pixels, which can be fractions |
 | `actorvel(a, vx, vy)` | pixels a frame that went by, added by `waitframe()` (floating point: 0.25 is a slow crawl) |
 | `actormove(a, dx, dy)` | moves it by dx and dy pixels, x first, stopping against solid tiles; returns the sides that stopped it: 1 left, 2 right, 4 up, 8 down (add them) |
-| `actorhit(a, b)` | 1 if the collision boxes of the two overlap |
+| `actorhit(a, b)` | 1 if the collision boxes of the two overlap (two actors; not a tile) |
+| `hitx(a, side)`, `hity(a, side)`, `hittile(a, side)`, `hitflags(a, side)` | the tile that last stopped the actor on that side (1 or `"left"`, 2 `"right"`, 4 `"up"`, 8 `"down"`), as it was at that moment: its tile coordinates, its tile number and its flags. A later `tile` that changes the map does not change them, so a program can tell that it hit a door or a spike even if it has since turned it into floor. Where several tiles are along the edge, it is the first (the top one for left and right, the left one for up and down); off the edge of a map it is the border tile that stopped it. They are 0 until the first stop on that side and kept until the next, so use what `actormove` returns to know that this move stopped |
 | `actortile(a, sprite)`, `actorsize(a, cols, rows)` | which sprite; a grid of up to 4 by 4 sprites (taken row by row from the number) for a big character |
 | `actorflip(a, f)`, `actorhide(a, on)` | mirror it (1 across, 2 down, 3 both); do not draw it |
 | `actorbox(a, x, y, w, h)` | the part of it that collides, in pixels from its top left (the whole of it if w or h is 0) |

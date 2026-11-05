@@ -101,6 +101,36 @@ static void hitbox(const tg_actors_t *p, const tg_actor_t *a, int32_t *ox, int32
     }
 }
 
+/*
+ * The tile that stopped the box (bx, by, bw, bh), moving to `hit`'s side, goes in a->touch: the first tile with one of the flags `mask` along the edge it
+ * moved with (a whole row of one-way tiles is the box's bottom row alone); a box that started inside a solid tile may have none there, so then the first in
+ * the whole box.
+ */
+static void record_touch(tg_actor_t *a, const tg_world_t *w, uint8_t hit, int32_t bx, int32_t by, int32_t bw, int32_t bh, uint8_t mask)
+{
+    const unsigned tl = w->tile_log2;
+    const int32_t x0 = floor_shift(bx, tl), x1 = floor_shift(bx + bw - 1, tl), y0 = floor_shift(by, tl), y1 = floor_shift(by + bh - 1, tl);
+    int32_t ex0 = x0, ex1 = x1, ey0 = y0, ey1 = y1;                  /* the edge it moved with */
+    if (hit == TG_HIT_RIGHT) ex0 = x1;
+    else if (hit == TG_HIT_LEFT) ex1 = x0;
+    else if (hit == TG_HIT_DOWN) ey0 = y1;
+    else ey1 = y0;
+    for (int pass = 0; pass < 2; pass++) {
+        const int32_t ax0 = pass ? x0 : ex0, ax1 = pass ? x1 : ex1, ay0 = pass ? y0 : ey0, ay1 = pass ? y1 : ey1;
+        for (int32_t ty = ay0; ty <= ay1; ty++)
+            for (int32_t tx = ax0; tx <= ax1; tx++) {
+                const uint8_t f = tg_world_flags_tile(w, tx, ty);
+                if (f & mask) {
+                    int side = 0;
+                    while (!((hit >> side) & 1))
+                        side++;
+                    a->touch[side] = (tg_touch_t){tx, ty, (uint16_t)(tg_world_get(w, tx, ty) & TG_TILE_MASK), f};
+                    return;
+                }
+            }
+    }
+}
+
 /* Move along one axis, a tile or less at a time so that no tile can be jumped over; returns the TG_HIT_* side that stopped it. */
 static uint8_t move_axis(const tg_actors_t *p, tg_actor_t *a, const tg_world_t *w, int32_t d, bool horizontal)
 {
@@ -122,10 +152,11 @@ static uint8_t move_axis(const tg_actors_t *p, tg_actor_t *a, const tg_world_t *
         }
         const int32_t bx = (horizontal ? new_px : px_of(a->x)) + ox, by = (horizontal ? px_of(a->y) : new_px) + oy;
         bool blocked = (tg_world_flags_box(w, bx, by, bw, bh) & TG_TILE_SOLID) != 0;
+        bool oneway = false;
         if (!horizontal && step > 0 && !blocked) {
             /* one-way: the bottom edge came into a row of tiles from above */
             const int32_t old_bottom = old_px + oy + bh, row_top = floor_shift(by + bh - 1, tl) * ts;
-            blocked = old_bottom <= row_top && (tg_world_flags_box(w, bx, by + bh - 1, bw, 1) & TG_TILE_ONEWAY) != 0;
+            blocked = oneway = old_bottom <= row_top && (tg_world_flags_box(w, bx, by + bh - 1, bw, 1) & TG_TILE_ONEWAY) != 0;
         }
         if (!blocked) {
             *pos = next;
@@ -149,6 +180,10 @@ static uint8_t move_axis(const tg_actors_t *p, tg_actor_t *a, const tg_world_t *
         }
         if (step > 0 ? flush > old_px : flush < old_px)
             *pos = flush * 256;
+        if (oneway)
+            record_touch(a, w, hit, bx, by + bh - 1, bw, 1, TG_TILE_ONEWAY);
+        else
+            record_touch(a, w, hit, bx, by, bw, bh, TG_TILE_SOLID);
         return hit;
     }
     return 0;
