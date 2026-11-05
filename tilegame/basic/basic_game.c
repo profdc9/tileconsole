@@ -462,7 +462,7 @@ FUNC(settileflags)
     CLOSE();
     NEED_GAME();
     if (n < 0 || n >= BG_TILES || f < 0 || f > 255)
-        return fail(s, l, SE_RN_INDEX_OUT_OF_BOUND, "SETTILEFLAGS(n, flags): n is 0 to %d, flags 0 to 255 (1 solid, 2 hurts, 4 one-way, 8 liquid)", BG_TILES - 1);
+        return fail(s, l, SE_RN_INDEX_OUT_OF_BOUND, "SETTILEFLAGS(n, flags): n is 0 to %d, flags 0 to 255 (1 solid, 2 one-way)", BG_TILES - 1);
     G->flags[n] = (uint8_t)f;
     RET(0);
     return MB_FUNC_OK;

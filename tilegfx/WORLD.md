@@ -76,10 +76,8 @@ only if the map is a multiple of the window in that direction:
 
     /* The flag byte of a tile number (not of a map entry: the flips and palette do not matter). */
     #define TG_TILE_SOLID  0x01
-    #define TG_TILE_HAZARD 0x02
-    #define TG_TILE_ONEWAY 0x04               /* solid from above only */
-    #define TG_TILE_LIQUID 0x08
-    /* 0x10 .. 0x80: the program's */
+    #define TG_TILE_ONEWAY 0x02               /* solid from above only */
+    /* 0x04 .. 0x80: not used yet (the program's) */
 
     typedef enum { TG_BORDER_TILE, TG_BORDER_CLAMP, TG_BORDER_WRAP } tg_border_t;   /* outside the big map */
 

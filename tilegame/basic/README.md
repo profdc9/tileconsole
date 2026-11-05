@@ -75,7 +75,7 @@ changing a tile while it is on screen can show for a frame as it was and as it i
 | `camera(x, y)` | the pixel at the top left of the screen (any numbers, negative too; outside the map is empty) |
 | `camx()`, `camy()` | where the camera is (see `wrap`) |
 | `wrap(1)` | the map repeats in every direction, so the scrolling can go on for ever; `wrap(0)` ends it. Returns 1 if the actors wrap too (the map must be at least 192 by 160 pixels) |
-| `settileflags(n, f)` | what a tile is, as bits: 1 solid, 2 hurts, 4 one-way (solid from above only), 8 liquid, and 16 to 128 for the program's own use |
+| `settileflags(n, f)` | what a tile is, as bits: 1 solid, 2 one-way (solid from above only); 4 to 128 are not used yet, so a program may use them for its own marks |
 | `tileflag(x, y)` | the flags of the tile at the pixel x, y (floating point is fine) |
 | `tilebox(x, y, w, h)` | the flags of all the tiles a box of pixels touches, ORed: one call for what would take a loop |
 

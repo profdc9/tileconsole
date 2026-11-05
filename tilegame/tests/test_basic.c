@@ -949,6 +949,30 @@ static void test_game_world(void)
         CHECK(r >= 0 && !strcmp(row(r + 1), "40") && !strcmp(row(r + 2), "0") && !strcmp(row(r + 3), "110"));
         CHECK(!strcmp(row(r + 4), "1") && !strcmp(row(r + 5), "0") && !strcmp(row(r + 6), "1") && !strcmp(row(r + 7), "1"));
     }
+    /* flag 2 is one-way: solid from above only, so an actor goes up through a row of it and stops on it going down; flag 3 (both) is solid from every side */
+    run_program(
+        "gfx(8) : newmap(30, 20) : settileflags(1, 2) : settileflags(2, 3) : tilefill(0, 10, 30, 1, 1) : tile(20, 10, 2)\n"
+        "a = actor(1, 10, 30)\n"
+        "h = actormove(a, 0, 100)\n"
+        "print h;\n"
+        "print actory(a);\n"
+        "h = actormove(a, 0, -100)\n"
+        "print h;\n"
+        "print actory(a);\n"
+        "b = actor(1, 160, 100)\n"
+        "h = actormove(b, 0, -100)\n"
+        "print h;\n"
+        "print actory(b);\n"
+        "print tileflag(10, 82);\n"
+        "print tileflag(160, 82);\n"
+        "print tilebox(0, 82, 200, 1);\n");
+    {
+        const int r = row_of("8");
+        CHECK(r >= 0 && !strcmp(row(r + 1), "72") && !strcmp(row(r + 2), "0") && !strcmp(row(r + 3), "-28"));   /* down: stopped on it (hit 8) at y 72; up: through it, nothing stops it */
+        CHECK(!strcmp(row(r + 4), "4") && !strcmp(row(r + 5), "88"));                                          /* the solid one stops it from below, flush */
+        CHECK(!strcmp(row(r + 6), "2") && !strcmp(row(r + 7), "3") && !strcmp(row(r + 8), "3"));
+    }
+
     /* a box of its own inside the picture */
     run_program(
         "gfx(8) : newmap(30, 20) : settileflags(1, 1) : tilefill(6, 0, 1, 10, 1)\n"
