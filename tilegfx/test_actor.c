@@ -316,13 +316,18 @@ static uint8_t pixel_flags(const model_t *md, unsigned tl, int32_t x, int32_t y)
     return md->flags[model_get(md, floordiv(x, 1 << tl), floordiv(y, 1 << tl)) & TG_TILE_MASK];
 }
 
-static bool box_solid(const model_t *md, unsigned tl, int32_t x, int32_t y, int32_t w, int32_t h)
+static bool box_has(const model_t *md, unsigned tl, int32_t x, int32_t y, int32_t w, int32_t h, uint8_t mask)
 {
     for (int32_t py = y; py < y + h; py++)
         for (int32_t px = x; px < x + w; px++)
-            if (pixel_flags(md, tl, px, py) & TG_TILE_SOLID)
+            if (pixel_flags(md, tl, px, py) & mask)
                 return true;
     return false;
+}
+
+static bool box_solid(const model_t *md, unsigned tl, int32_t x, int32_t y, int32_t w, int32_t h)
+{
+    return box_has(md, tl, x, y, w, h, TG_TILE_SOLID);
 }
 
 /* Would a one pixel step down put the bottom edge of the box into a one-way tile? (Its bottom pixel row is the first row of a tile.) */
@@ -406,7 +411,7 @@ static void test_move(void)
     model_t md = {.w = 60, .h = 40, .be = 5};
     md.m = malloc(60 * 40 * sizeof *md.m);
     for (int i = 0; i < NT; i++)
-        md.flags[i] = (uint8_t)((rnd() % 4 == 0 ? TG_TILE_SOLID : 0) | (rnd() % 6 == 0 ? TG_TILE_ONEWAY : 0));
+        md.flags[i] = (uint8_t)((rnd() % 4 == 0 ? TG_TILE_SOLID : 0) | (rnd() % 6 == 0 ? TG_TILE_ONEWAY : 0) | (rnd() % 5 == 0 ? TG_TILE_TRIGGER : 0));
     for (int i = 0; i < 60 * 40; i++)
         md.m[i] = big[i] = (uint16_t)(rnd() % NT);
 
@@ -461,23 +466,42 @@ static void test_move(void)
             a->x = px * 256 + (whole ? 0 : rr(0, 255));
             a->y = py * 256 + (whole ? 0 : rr(0, 255));
             const int32_t x0 = a->x, y0 = a->y;
+            a->last_x = 0x5EED;                                           /* (a mark: it must be replaced by the old position, or left alone if the actor did not move) */
+            a->last_y = 0x5EED;
             const int32_t dx = whole ? rr(-40, 40) * 256 : rr(-9000, 9000), dy = rnd() % 3 == 0 ? 0 : whole ? rr(-40, 40) * 256 : rr(-9000, 9000);   /* (the x stop is only checked where the y did not move it) */
-            const uint8_t hit = tg_actor_move(&p, id, &w, dx, dy);
+            const uint8_t full = tg_actor_move(&p, id, &w, dx, dy);
+            const uint8_t hit = full & 15;                                    /* the sides; TG_HIT_TRIGGER is checked on its own */
             const int32_t fx = floordiv(a->x, 256), fy = floordiv(a->y, 256);
 
             CHECK(!box_solid(&md, tl, fx + ox, fy + oy, bw, bh));          /* never ends inside a solid tile */
             if (whole) {
                 int32_t ex = px, ey = py;
                 uint8_t ehit = 0;
+                int32_t path_x[100], path_y[100], path_n = 0;                 /* the pixel positions it passes through, and whether the box touches a trigger at one */
+                bool etrig = box_has(&md, tl, ex + ox, ey + oy, bw, bh, TG_TILE_TRIGGER);
+                path_x[path_n] = ex; path_y[path_n++] = ey;
                 const int sx = dx > 0 ? 1 : -1;
                 for (int k = 0; k < (dx > 0 ? dx : -dx) / 256; k++) {
                     if (step_blocked(&md, tl, ex + ox, ey + oy, bw, bh, sx, 0)) { ehit |= sx > 0 ? TG_HIT_RIGHT : TG_HIT_LEFT; break; }
                     ex += sx;
+                    etrig |= box_has(&md, tl, ex + ox, ey + oy, bw, bh, TG_TILE_TRIGGER);
+                    path_x[path_n] = ex; path_y[path_n++] = ey;
                 }
                 const int sy = dy > 0 ? 1 : -1;
                 for (int k = 0; k < (dy > 0 ? dy : -dy) / 256; k++) {
                     if (step_blocked(&md, tl, ex + ox, ey + oy, bw, bh, 0, sy)) { ehit |= sy > 0 ? TG_HIT_DOWN : TG_HIT_UP; break; }
                     ey += sy;
+                    etrig |= box_has(&md, tl, ex + ox, ey + oy, bw, bh, TG_TILE_TRIGGER);
+                    path_x[path_n] = ex; path_y[path_n++] = ey;
+                }
+                CHECK(((full & TG_HIT_TRIGGER) != 0) == etrig);               /* a trigger is reported if the box touched one anywhere along the way (start included) */
+                if (etrig) {
+                    const tg_touch_t *t = &a->touch[4];
+                    bool covered = false;                                     /* the tile recorded is under the box at one of the positions */
+                    for (int i = 0; i < path_n; i++)
+                        covered |= t->tx >= floordiv(path_x[i] + ox, 1 << tl) && t->tx <= floordiv(path_x[i] + ox + bw - 1, 1 << tl) &&
+                                   t->ty >= floordiv(path_y[i] + oy, 1 << tl) && t->ty <= floordiv(path_y[i] + oy + bh - 1, 1 << tl);
+                    CHECK(covered);
                 }
                 const int32_t nx = wx ? posmod(ex, wx) : ex, ny = wy ? posmod(ey, wy) : ey;     /* the actor is kept within the world */
                 CHECK(fx == nx && fy == ny && a->x == nx * 256 && a->y == ny * 256);
@@ -503,7 +527,18 @@ static void test_move(void)
                 if (hit & TG_HIT_UP) CHECK(step_blocked(&md, tl, fx + ox, fy + oy, bw, bh, 0, -1));
             }
             check_touch(&md, tl, a, hit & (dy == 0 ? 15 : TG_HIT_UP | TG_HIT_DOWN), fx, fy, ox, oy, bw, bh);
-            moved += hit == 0;
+            if (full & TG_HIT_TRIGGER) {                                   /* what is recorded is a trigger tile, as the map has it */
+                const tg_touch_t *t = &a->touch[4];
+                const unsigned want = model_get(&md, t->tx, t->ty) & TG_TILE_MASK;
+                CHECK(t->tile == want && t->flags == md.flags[want] && (t->flags & TG_TILE_TRIGGER));
+            }
+            if (box_has(&md, tl, fx + ox, fy + oy, bw, bh, TG_TILE_TRIGGER))
+                CHECK(full & TG_HIT_TRIGGER);                              /* where it ended up it touches one: reported, whatever the way */
+            if (a->x != x0 || a->y != y0)
+                CHECK(a->last_x == x0 && a->last_y == y0);                 /* the old position is kept */
+            else
+                CHECK(a->last_x == 0x5EED && a->last_y == 0x5EED);         /* not moved: left alone */
+            moved += hit == 0;   /* (the sides only) */
             blocked_x += (hit & (TG_HIT_LEFT | TG_HIT_RIGHT)) != 0;
             blocked_y += (hit & (TG_HIT_UP | TG_HIT_DOWN)) != 0;
             tg_actor_free(&p, id);
@@ -553,6 +588,36 @@ static void test_move(void)
     CHECK(a->y == 20 * 256);
     a->y = 76 * 256;                           /* already inside the tile row: it lets go downwards */
     CHECK(tg_actor_move(&p, id, &w, 0, 30 * 256) == 0);
+
+    /* a trigger tile stops nothing, is reported, and the position before the touch is kept */
+    md.flags[2] = TG_TILE_TRIGGER;
+    md.flags[3] = TG_TILE_SOLID | TG_TILE_TRIGGER;
+    tg_world_set(&w, 5, 3, 2);                                           /* pixels 40 .. 47 across, 24 .. 31 down */
+    tg_world_set(&w, 12, 3, 3);
+    tg_actor_set_pos(a, 24 * 256, 24 * 256);                             /* (a program's own change is kept too) */
+    CHECK(a->last_x == 8 * 256);                                         /* the x it had before */
+    CHECK(tg_actor_move(&p, id, &w, 8 * 256, 0) == 0);                   /* box 32 .. 39: clear */
+    CHECK(a->x == 32 * 256 && a->last_x == 24 * 256 && a->last_y == 24 * 256);
+    CHECK(tg_actor_move(&p, id, &w, 4 * 256, 0) == TG_HIT_TRIGGER);      /* box 36 .. 43: touches it, and goes on */
+    CHECK(a->x == 36 * 256 && a->last_x == 32 * 256);                    /* where it was just before: it can be put back there */
+    CHECK(a->touch[4].tx == 5 && a->touch[4].ty == 3 && a->touch[4].tile == 2 && a->touch[4].flags == TG_TILE_TRIGGER);
+    tg_world_set(&w, 5, 3, 0);                                           /* the tile is gone, the record keeps what it was */
+    CHECK(a->touch[4].tile == 2 && a->touch[4].flags == TG_TILE_TRIGGER);
+    tg_world_set(&w, 5, 3, 2);
+    CHECK(tg_actor_move(&p, id, &w, 4 * 256, 0) == TG_HIT_TRIGGER);      /* still on it: reported again (the position before is now the one inside) */
+    CHECK(a->x == 40 * 256 && a->last_x == 36 * 256);
+    CHECK(tg_actor_move(&p, id, &w, 0, 0) == TG_HIT_TRIGGER && a->last_x == 36 * 256);   /* standing still: reported, and the position is not replaced */
+    tg_world_set(&w, 7, 3, 2);                                           /* a second trigger tile on the way: the first one met is the one recorded */
+    CHECK(tg_actor_move(&p, id, &w, 100 * 256, 0) == (TG_HIT_RIGHT | TG_HIT_TRIGGER));   /* through the first, stopped by the second (solid and trigger) */
+    CHECK(a->touch[4].tx == 5 && a->touch[4].ty == 3);
+    CHECK(a->x == 88 * 256);                                             /* flush against the tile at 96: its box is 88 .. 95 */
+    a->vx = 2 * 256;                                                     /* the velocity step keeps the position before too, and a step that goes nowhere does not */
+    a->vy = 0;
+    tg_actors_step(&p, 3);
+    CHECK(a->x == 94 * 256 && a->last_x == 88 * 256);
+    a->vx = 0;
+    tg_actors_step(&p, 3);
+    CHECK(a->x == 94 * 256 && a->last_x == 88 * 256);
     free(tiles); free(big); free(md.m);
 }
 

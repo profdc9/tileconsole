@@ -1000,6 +1000,38 @@ static void test_game_world(void)
         for (int i = 0; i < 12; i++)
             CHECK(!strcmp(row(r + i), want[i]));
     }
+    /* a trigger tile (flag 4) stops nothing: actormove says it was touched (16), the record is the tile as it was, and lastx/lasty are the position before */
+    run_program(
+        "gfx(8) : newmap(30, 20) : settileflags(9, 4) : tile(6, 2, 9)\n"
+        "a = actor(1, 10, 16) : b = actor(1, 100, 100) : actorvel(b, 2, 0)\n"
+        "h = actormove(a, 30, 0)\n"
+        "h = actormove(a, 4, 0)\n"
+        "print h;\n"
+        "print hitx(a, \"touch\");\n"
+        "print hity(a, 16);\n"
+        "print hittile(a, \"touch\");\n"
+        "print hitflags(a, 16);\n"
+        "print lastx(a);\n"
+        "print lasty(a);\n"
+        "actorpos(a, lastx(a), lasty(a))\n"
+        "print actorx(a);\n"
+        "print lastx(a);\n"
+        "h = actormove(a, 40, 0)\n"
+        "print h;\n"
+        "print actorx(a);\n"
+        "tile(6, 2, 0)\n"
+        "print hittile(a, 16);\n"
+        "print gettile(6, 2);\n"
+        "waitframe()\n"
+        "print lastx(b);\n"
+        "print actorx(b);\n");
+    {
+        const int r = row_of("16");
+        static const char *const want[] = {"16", "6", "2", "9", "4", "40", "16", "40", "44", "16", "80", "9", "0", "100", "102"};
+        CHECK(r >= 0);
+        for (int i = 0; i < 15; i++)
+            CHECK(!strcmp(row(r + i), want[i]));
+    }
     run_program("gfx(8) : a = actor(1, 0, 0) : print hitx(a, 3)\n");
     CHECK(shows("the side is 1"));
     run_program("gfx(8) : a = actor(1, 0, 0) : print hittile(a, \"over\")\n");

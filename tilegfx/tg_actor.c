@@ -71,6 +71,16 @@ tg_actor_t *tg_actor(tg_actors_t *p, int id)
     return (id >= 0 && id < p->n && (p->a[id].flags & TG_ACTOR_ACTIVE)) ? &p->a[id] : NULL;
 }
 
+void tg_actor_set_pos(tg_actor_t *a, int32_t x, int32_t y)
+{
+    if (x != a->x || y != a->y) {
+        a->last_x = a->x;
+        a->last_y = a->y;
+    }
+    a->x = x;
+    a->y = y;
+}
+
 void tg_actors_step(tg_actors_t *p, int frames)
 {
     if (frames <= 0)
@@ -79,8 +89,9 @@ void tg_actors_step(tg_actors_t *p, int frames)
         tg_actor_t *a = &p->a[i];
         if (!(a->flags & TG_ACTOR_ACTIVE))
             continue;
-        a->x = p->wrap_w ? wrapped(saturate((int64_t)a->x + (int64_t)a->vx * frames), p->wrap_w) : saturate((int64_t)a->x + (int64_t)a->vx * frames);
-        a->y = p->wrap_h ? wrapped(saturate((int64_t)a->y + (int64_t)a->vy * frames), p->wrap_h) : saturate((int64_t)a->y + (int64_t)a->vy * frames);
+        const int32_t x = p->wrap_w ? wrapped(saturate((int64_t)a->x + (int64_t)a->vx * frames), p->wrap_w) : saturate((int64_t)a->x + (int64_t)a->vx * frames);
+        const int32_t y = p->wrap_h ? wrapped(saturate((int64_t)a->y + (int64_t)a->vy * frames), p->wrap_h) : saturate((int64_t)a->y + (int64_t)a->vy * frames);
+        tg_actor_set_pos(a, x, y);
     }
 }
 
@@ -102,7 +113,7 @@ static void hitbox(const tg_actors_t *p, const tg_actor_t *a, int32_t *ox, int32
 }
 
 /*
- * The tile that stopped the box (bx, by, bw, bh), moving to `hit`'s side, goes in a->touch: the first tile with one of the flags `mask` along the edge it
+ * The tile that stopped the box (bx, by, bw, bh), moving to `hit`'s side, goes in a->touch (TG_HIT_TRIGGER: the first trigger tile in the box): the first tile with one of the flags `mask` along the edge it
  * moved with (a whole row of one-way tiles is the box's bottom row alone); a box that started inside a solid tile may have none there, so then the first in
  * the whole box.
  */
@@ -114,7 +125,7 @@ static void record_touch(tg_actor_t *a, const tg_world_t *w, uint8_t hit, int32_
     if (hit == TG_HIT_RIGHT) ex0 = x1;
     else if (hit == TG_HIT_LEFT) ex1 = x0;
     else if (hit == TG_HIT_DOWN) ey0 = y1;
-    else ey1 = y0;
+    else if (hit == TG_HIT_UP) ey1 = y0;                             /* (a trigger: all of the box) */
     for (int pass = 0; pass < 2; pass++) {
         const int32_t ax0 = pass ? x0 : ex0, ax1 = pass ? x1 : ex1, ay0 = pass ? y0 : ey0, ay1 = pass ? y1 : ey1;
         for (int32_t ty = ay0; ty <= ay1; ty++)
@@ -131,8 +142,22 @@ static void record_touch(tg_actor_t *a, const tg_world_t *w, uint8_t hit, int32_
     }
 }
 
+/* If the box of the actor, where it is, touches a trigger tile and none was found yet in this move, records the first one. */
+static void note_trigger(const tg_actors_t *p, tg_actor_t *a, const tg_world_t *w, bool *seen)
+{
+    if (*seen)
+        return;
+    int32_t ox, oy, bw, bh;
+    hitbox(p, a, &ox, &oy, &bw, &bh);
+    const int32_t bx = px_of(a->x) + ox, by = px_of(a->y) + oy;
+    if (tg_world_flags_box(w, bx, by, bw, bh) & TG_TILE_TRIGGER) {
+        record_touch(a, w, TG_HIT_TRIGGER, bx, by, bw, bh, TG_TILE_TRIGGER);
+        *seen = true;
+    }
+}
+
 /* Move along one axis, a tile or less at a time so that no tile can be jumped over; returns the TG_HIT_* side that stopped it. */
-static uint8_t move_axis(const tg_actors_t *p, tg_actor_t *a, const tg_world_t *w, int32_t d, bool horizontal)
+static uint8_t move_axis(const tg_actors_t *p, tg_actor_t *a, const tg_world_t *w, int32_t d, bool horizontal, bool *seen)
 {
     const unsigned tl = w->tile_log2;
     const int32_t ts = (int32_t)1 << tl;
@@ -160,6 +185,7 @@ static uint8_t move_axis(const tg_actors_t *p, tg_actor_t *a, const tg_world_t *
         }
         if (!blocked) {
             *pos = next;
+            note_trigger(p, a, w, seen);
             continue;
         }
         /* flush against the tile that stopped it; never backwards */
@@ -180,6 +206,7 @@ static uint8_t move_axis(const tg_actors_t *p, tg_actor_t *a, const tg_world_t *
         }
         if (step > 0 ? flush > old_px : flush < old_px)
             *pos = flush * 256;
+        note_trigger(p, a, w, seen);
         if (oneway)
             record_touch(a, w, hit, bx, by + bh - 1, bw, 1, TG_TILE_ONEWAY);
         else
@@ -194,11 +221,16 @@ uint8_t tg_actor_move(tg_actors_t *p, int id, const tg_world_t *w, int32_t dx, i
     tg_actor_t *a = tg_actor(p, id);
     if (!a)
         return 0;
-    uint8_t hit = move_axis(p, a, w, dx, true);
-    hit |= move_axis(p, a, w, dy, false);
-    a->x = wrapped(a->x, p->wrap_w);
-    a->y = wrapped(a->y, p->wrap_h);
-    return hit;
+    const int32_t x0 = a->x, y0 = a->y;
+    bool seen = false;
+    note_trigger(p, a, w, &seen);                                    /* (an actor that stands on one keeps touching it) */
+    uint8_t hit = move_axis(p, a, w, dx, true, &seen);
+    hit |= move_axis(p, a, w, dy, false, &seen);
+    const int32_t nx = wrapped(a->x, p->wrap_w), ny = wrapped(a->y, p->wrap_h);
+    a->x = x0;
+    a->y = y0;
+    tg_actor_set_pos(a, nx, ny);
+    return seen ? (uint8_t)(hit | TG_HIT_TRIGGER) : hit;
 }
 
 /* Do [a, a + aw) and [b, b + bw) overlap, on a line or (size > 0) on a circle of that circumference? */

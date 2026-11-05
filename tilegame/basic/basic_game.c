@@ -462,7 +462,7 @@ FUNC(settileflags)
     CLOSE();
     NEED_GAME();
     if (n < 0 || n >= BG_TILES || f < 0 || f > 255)
-        return fail(s, l, SE_RN_INDEX_OUT_OF_BOUND, "SETTILEFLAGS(n, flags): n is 0 to %d, flags 0 to 255 (1 solid, 2 one-way)", BG_TILES - 1);
+        return fail(s, l, SE_RN_INDEX_OUT_OF_BOUND, "SETTILEFLAGS(n, flags): n is 0 to %d, flags 0 to 255 (1 solid, 2 one-way, 4 trigger)", BG_TILES - 1);
     G->flags[n] = (uint8_t)f;
     RET(0);
     return MB_FUNC_OK;
@@ -593,8 +593,7 @@ FUNC(actorpos)
     CLOSE();
     NEED_GAME();
     NEED_ACTOR("ACTORPOS");
-    a->x = fixed(x);
-    a->y = fixed(y);
+    tg_actor_set_pos(a, fixed(x), fixed(y));
     RET(0);
     return MB_FUNC_OK;
 }
@@ -765,8 +764,9 @@ FUNC(actoruser)
 
 /*
  * HITX(a, side), HITY(a, side), HITTILE(a, side), HITFLAGS(a, side): the tile that last stopped the actor on that side (1 or "left", 2 "right", 4 "up",
- * 8 "down", as ACTORMOVE returns them), as it was then: where (tile coordinates), its tile number and its flags. TILE(x, y, n) may change it later, this
- * does not. They are 0 until the first stop on that side, and kept until the next, so the return of ACTORMOVE says whether this move stopped.
+ * 8 "down", as ACTORMOVE returns them; 16 or "touch" is the trigger tile that it last touched), as it was then: where (tile coordinates), its tile number and
+ * its flags. TILE(x, y, n) may change it later, this does not. They are 0 until the first one of the kind, and kept until the next, so the return of ACTORMOVE
+ * says whether this move had one.
  */
 /* Is the name, in any case, the lower case word? */
 static int same_name(const char *name, const char *word)
@@ -791,15 +791,15 @@ static int touch_field(struct mb_interpreter_t *s, void **l, int field, const ch
     int side = -1;
     if (v.type == MB_DT_INT || v.type == MB_DT_REAL) {
         const int n = v.type == MB_DT_INT ? (int)v.value.integer : (int)v.value.float_point;
-        side = n == 1 ? 0 : n == 2 ? 1 : n == 4 ? 2 : n == 8 ? 3 : -1;
+        side = n == 1 ? 0 : n == 2 ? 1 : n == 4 ? 2 : n == 8 ? 3 : n == 16 ? 4 : -1;
     } else if (v.type == MB_DT_STRING && v.value.string) {
-        static const char *const names[4] = {"left", "right", "up", "down"};
-        for (int i = 0; i < 4; i++)
+        static const char *const names[5] = {"left", "right", "up", "down", "touch"};
+        for (int i = 0; i < 5; i++)
             if (same_name(v.value.string, names[i]))
                 side = i;
     }
     if (side < 0)
-        return fail(s, l, SE_RN_INDEX_OUT_OF_BOUND, "%s(actor, side): the side is 1 \"left\", 2 \"right\", 4 \"up\" or 8 \"down\"", who);
+        return fail(s, l, SE_RN_INDEX_OUT_OF_BOUND, "%s(actor, side): the side is 1 \"left\", 2 \"right\", 4 \"up\", 8 \"down\" or 16 \"touch\"", who);
     NEED_ACTOR(who);
     const tg_touch_t *t = &a->touch[side];
     RET(field == 0 ? t->tx : field == 1 ? t->ty : field == 2 ? t->tile : t->flags);
@@ -810,6 +810,31 @@ FUNC(hitx) { return touch_field(s, l, 0, "HITX"); }
 FUNC(hity) { return touch_field(s, l, 1, "HITY"); }
 FUNC(hittile) { return touch_field(s, l, 2, "HITTILE"); }
 FUNC(hitflags) { return touch_field(s, l, 3, "HITFLAGS"); }
+
+/* LASTX(a), LASTY(a): where the actor was before its position last changed (by ACTORMOVE, ACTORPOS or the velocity at WAITFRAME), in pixels. */
+FUNC(lastx)
+{
+    int id;
+    OPEN();
+    CK(arg_int(s, l, &id));
+    CLOSE();
+    NEED_GAME();
+    NEED_ACTOR("LASTX");
+    RET_REAL(a->last_x / 256.0);
+    return MB_FUNC_OK;
+}
+
+FUNC(lasty)
+{
+    int id;
+    OPEN();
+    CK(arg_int(s, l, &id));
+    CLOSE();
+    NEED_GAME();
+    NEED_ACTOR("LASTY");
+    RET_REAL(a->last_y / 256.0);
+    return MB_FUNC_OK;
+}
 
 FUNC(ysort)
 {
@@ -980,7 +1005,7 @@ static const struct { const char *name; mb_func_t fn; } functions[] = {
     F(gfx), F(palette), F(tiledef), F(sprdef), F(tilerow), F(sprrow), F(tilepix), F(sprpix),
     F(newmap), F(wrap), F(tile), F(gettile), F(tilefill), F(tilestr), F(settileflags), F(tileflag), F(tilebox), F(camera), F(camx), F(camy),
     F(actor), F(actorfree), F(actorpos), F(actorx), F(actory), F(actorvel), F(actortile), F(actorsize), F(actorflip), F(actorhide), F(actorprio),
-    F(actorbox), F(actoruser), F(ysort), F(actormove), F(hitx), F(hity), F(hittile), F(hitflags), F(actorhit),
+    F(actorbox), F(actoruser), F(ysort), F(actormove), F(hitx), F(hity), F(hittile), F(hitflags), F(lastx), F(lasty), F(actorhit),
     F(waitframe), F(textmode), F(frames), F(millis), F(btn), F(pressed),
 };
 

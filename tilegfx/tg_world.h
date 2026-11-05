@@ -22,7 +22,8 @@
 /* The flag byte of a tile number (not of a map entry: the flips and the palette do not matter). */
 #define TG_TILE_SOLID 0x01
 #define TG_TILE_ONEWAY 0x02                    /* solid from above only */
-/* 0x04 .. 0x80: not used yet (the program's) */
+#define TG_TILE_TRIGGER 0x04                   /* does not stop anything: tg_actor_move reports it when an actor touches it */
+/* 0x08 .. 0x80: not used yet (the program's) */
 
 typedef enum {
     TG_BORDER_TILE,                            /* outside the big map: border_entry */
