@@ -34,6 +34,7 @@ struct basic_game {
     tg_actor_t pool[BG_MAX_ACTORS];
     uint16_t order[4 * BG_MAX_ACTORS];
     uint32_t last_frame;            /* the frame number WAITFRAME last got (0: it has not been called) */
+    char bg;                        /* the character of a graphics string that is pixel 0, see-through ('.' unless PALETTE changed it) */
 };
 typedef struct basic_game basic_game_t;
 
@@ -84,7 +85,7 @@ static void free_all(basic_env_t *e)
     e->game_active = 0;
 }
 
-/* The 16 colours of the PC's text mode, as RGB565. */
+/* The 16 colours of the PC's text mode, as RGB565; they are the palette entries of the characters 0 to 9 and A to F (the hex digits). */
 static const uint16_t ega[16] = {0x0000, 0x0015, 0x0540, 0x0555, 0xA800, 0xA815, 0xAAA0, 0xAD55,
                                  0x52AA, 0x52BF, 0x57EA, 0x57FF, 0xFAAA, 0xFABF, 0xFFEA, 0xFFFF};
 
@@ -108,7 +109,10 @@ static int setup(basic_env_t *e, int size_log2)
     G->g.sprite_tile_log2 = (uint8_t)size_log2;
     G->g.sprite_depth = 8;
     G->g.sprite_tiles = G->sprites;
-    memcpy(G->g.palette, ega, sizeof ega);
+    for (int i = 0; i < 16; i++)
+        G->g.palette[(unsigned char)"0123456789ABCDEF"[i]] = ega[i];
+    G->g.palette[0] = ega[0];   /* (the backdrop) */
+    G->bg = '.';
     tg_actors_init(&G->actors, G->pool, BG_MAX_ACTORS, G->order);
     G->actors.sprite_log2 = (uint8_t)size_log2;   /* (collision boxes before the first draw) */
     return 1;
@@ -194,33 +198,51 @@ FUNC(gfx)
     return MB_FUNC_OK;
 }
 
+/*
+ * PALETTE(c, red, green, blue): a colour is a palette entry, and the entry of a character is its code ("A" is 65), the same character a graphics string
+ * uses for it; a number is the entry itself (0 is the backdrop, which no character can name). A negative red, green or blue with a character makes
+ * that character the one that means see-through in graphics strings (it is "." at first).
+ */
 FUNC(palette)
 {
-    int i, r, g, b;
+    int r, g, b;
+    mb_value_t v;
     OPEN();
-    CK(arg_int(s, l, &i));
+    mb_make_nil(v);
+    CK(mb_pop_value(s, l, &v));
     CK(arg_int(s, l, &r));
     CK(arg_int(s, l, &g));
     CK(arg_int(s, l, &b));
     CLOSE();
     NEED_GAME();
-    if (i < 0 || i > 255 || r < 0 || r > 255 || g < 0 || g > 255 || b < 0 || b > 255)
-        return fail(s, l, SE_RN_INDEX_OUT_OF_BOUND, "PALETTE(index, red, green, blue): all of them 0 to 255");
+    int i, is_char = 0;
+    if (v.type == MB_DT_INT)
+        i = (int)v.value.integer;
+    else if (v.type == MB_DT_REAL)
+        i = (int)v.value.float_point;
+    else if (v.type == MB_DT_STRING && v.value.string && v.value.string[0] && !v.value.string[1]) {
+        i = (unsigned char)v.value.string[0];
+        is_char = 1;
+    } else
+        return fail(s, l, SE_RN_INDEX_OUT_OF_BOUND, "PALETTE(colour, red, green, blue): the colour is one character, or a number 0 to 255");
+    if (r < 0 || g < 0 || b < 0) {
+        if (!is_char)
+            return fail(s, l, SE_RN_INDEX_OUT_OF_BOUND, "PALETTE(colour, -1, -1, -1) needs a character, such as \"@\", for the colour");
+        G->bg = (char)i;
+        RET(0);
+        return MB_FUNC_OK;
+    }
+    if (i < 0 || i > 255 || r > 255 || g > 255 || b > 255)
+        return fail(s, l, SE_RN_INDEX_OUT_OF_BOUND, "PALETTE(colour, red, green, blue): the colour is a character or 0 to 255, red, green and blue 0 to 255");
     G->g.palette[i] = (uint16_t)(((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3));
     RET(0);
     return MB_FUNC_OK;
 }
 
-/* A character of a graphics string: . or space is 0, 0..9 are 0..9, A..Z 10..35, a..z 36..61. */
-static int pixel_of(char c)
+/* A character of a graphics string: the background character is 0 (see-through), any other is its own code, the palette entry PALETTE gave it. */
+static uint8_t pixel_of(const basic_game_t *G, char c)
 {
-    if (c >= '0' && c <= '9')
-        return c - '0';
-    if (c >= 'A' && c <= 'Z')
-        return c - 'A' + 10;
-    if (c >= 'a' && c <= 'z')
-        return c - 'a' + 36;
-    return 0;
+    return c == G->bg ? 0 : (uint8_t)c;
 }
 
 static int define_tile(struct mb_interpreter_t *s, void **l, int sprites)
@@ -238,7 +260,7 @@ static int define_tile(struct mb_interpreter_t *s, void **l, int sprites)
     uint8_t *dst = (sprites ? G->sprites : G->tiles) + (size_t)n * px;
     const size_t len = text ? strlen(text) : 0;
     for (size_t i = 0; i < px; i++)
-        dst[i] = i < len ? (uint8_t)pixel_of(text[i]) : 0;
+        dst[i] = i < len ? pixel_of(G, text[i]) : 0;
     RET(0);
     return MB_FUNC_OK;
 }
@@ -263,7 +285,7 @@ static int define_row(struct mb_interpreter_t *s, void **l, int sprites)
     uint8_t *dst = (sprites ? G->sprites : G->tiles) + ((size_t)n << (2 * G->size_log2)) + (size_t)y * (size_t)size;
     const size_t len = text ? strlen(text) : 0;
     for (int i = 0; i < size; i++)
-        dst[i] = (size_t)i < len ? (uint8_t)pixel_of(text[i]) : 0;
+        dst[i] = (size_t)i < len ? pixel_of(G, text[i]) : 0;
     RET(0);
     return MB_FUNC_OK;
 }

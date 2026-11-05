@@ -49,18 +49,19 @@ graphics used is freed. A program that does not use these functions never sees t
 frame (60 a second), moves the actors by their velocities and returns how many frames went by since the last call (1 if the program kept up; the first call returns 1; at most 4).
 A program that is slow only looks choppier: velocities are per frame that went by, so the speed stays the same. `FRAMES()` is the frame counter, `MILLIS()` the clock.
 
-**Graphics** (everything is 8 bits a pixel: a colour is a number 0 to 255 in the palette, 0 is see-through)
+**Graphics** (everything is 8 bits a pixel: a colour is an entry 0 to 255 in the palette, and entry 0 is see-through)
 
 | function | what it does |
 |---|---|
 | `gfx(size)` | the size of tiles and sprites, 8 or 16 pixels (8 if you do not say); starts the graphics afresh, so call it first |
-| `palette(i, r, g, b)` | colour i from red, green and blue, each 0 to 255 (the first 16 are the PC's text colours; colour 0 is the backdrop) |
+| `palette(c, r, g, b)` | colour c from red, green and blue, each 0 to 255. c is one character, such as `"A"`, or a number 0 to 255 for the entry itself (entry 0 is the backdrop) |
+| `palette(c, -1, -1, -1)` | makes the character c the see-through one in strings (it is `"."` at first) |
 | `tiledef(n, "...")` | map tile n (0 to 255) from a string of 64 characters, row by row (8 pixel tiles; MY-BASIC's strings are at most 128 characters) |
 | `tilerow(n, y, "...")` | one row of a tile: 8 or 16 characters (the way to define 16 pixel tiles) |
 | `tilepix(n, x, y, c)` | one pixel, c is 0 to 255 |
 | `sprdef(n, "...")`, `sprrow(n, y, "...")`, `sprpix(n, x, y, c)` | the same for sprite n (the sprite sheet is separate from the map's tiles) |
 
-In a string a `.` or space is colour 0, `0` to `9` are 0 to 9, `A` to `Z` are 10 to 35 and `a` to `z` are 36 to 61 (`tilepix` and `sprpix` reach the rest). Define the graphics before the loop:
+A colour is named by the character whose code is its palette entry, and the same character draws it in a string: `palette("A", 255, 0, 0)` makes `A` red, and a `tiledef` string with `A`s in it is red there. The characters you can type reach about 94 entries; `tilepix`, `sprpix` and `palette` with a number reach the rest. `.` is see-through (so are the pixels of a tile you have not defined), unless `palette("@", -1, -1, -1)` made `@` the see-through one, when `.` becomes an ordinary colour. At the start the PC's 16 text colours are on `0` to `9` and `A` to `F` (`0` black, `1` blue, `4` red, `F` white), entry 0 is a black backdrop, and every other colour is black. Define the graphics before the loop:
 changing a tile while it is on screen can show for a frame as it was and as it is.
 
 **The map** (tiles in a grid, in front of the backdrop)

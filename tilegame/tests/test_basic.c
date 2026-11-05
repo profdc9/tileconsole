@@ -671,7 +671,7 @@ static void test_game_draw(void)
 {
     run_program(
         "gfx(8)\n"
-        "palette(4, 255, 0, 0)\n"
+        "palette(\"4\", 255, 0, 0)\n"
         "tiledef(1, \"" R64("4") "\")\n"
         "sprdef(1, \"" R64("7") "\")\n"
         "newmap(20, 20)\n"
@@ -684,35 +684,66 @@ static void test_game_draw(void)
         "print a;\n");
     CHECK(printed("1") && printed("0") && printed("Ready."));
     CHECK(env.game == NULL && !env.game_active);                    /* freed, and the text screen is back */
-    CHECK(shown_g.palette[4] == 0xF800);
-    CHECK(pixels(4) == 128 && pixels(7) == 64 && pixels(0) == TG_WIDTH * TG_HEIGHT - 192);
-    CHECK(image[0][0] == 4 && image[7][7] == 4 && image[0][8] == 0 && image[8][16] == 4 && image[15][23] == 4 && image[16][16] == 0);
-    CHECK(image[50][100] == 7 && image[57][107] == 7 && image[58][100] == 0 && image[50][108] == 0);
+    CHECK(shown_g.palette['4'] == 0xF800);
+    CHECK(pixels('4') == 128 && pixels('7') == 64 && pixels(0) == TG_WIDTH * TG_HEIGHT - 192);
+    CHECK(image[0][0] == '4' && image[7][7] == '4' && image[0][8] == 0 && image[8][16] == '4' && image[15][23] == '4' && image[16][16] == 0);
+    CHECK(image[50][100] == '7' && image[57][107] == '7' && image[58][100] == 0 && image[50][108] == 0);
     CHECK(shown_g.sprites[0].above == TG_MAX_LAYERS);                  /* in front of the map (0 would put the actors behind its tiles) */
     CHECK(presents == 1);                                            /* WAITFRAME; nothing is shown after the program ends */
     CHECK(allocs > 0 && allocs == releases && fast_allocs > 0);
 
     /* the camera: the picture moves the other way; a negative camera too */
     run_program(
-        "gfx(8) : palette(4, 255, 0, 0) : tiledef(1, \"" R64("4") "\") : newmap(20, 20) : tile(0, 0, 1)\n"
+        "gfx(8) : palette(\"4\", 255, 0, 0) : tiledef(1, \"" R64("4") "\") : newmap(20, 20) : tile(0, 0, 1)\n"
         "camera(4, 3)\n"
         "waitframe()\n");
-    CHECK(pixels(4) == 20 && image[4][3] == 4 && image[4][4] == 0 && image[5][3] == 0 && image[0][0] == 4);
+    CHECK(pixels('4') == 20 && image[4][3] == '4' && image[4][4] == 0 && image[5][3] == 0 && image[0][0] == '4');
     run_program(
         "gfx(8) : tiledef(1, \"" R64("4") "\") : newmap(20, 20) : tile(0, 0, 1)\n"
         "camera(-10, -10)\n"
         "waitframe()\n");
-    CHECK(pixels(4) == 64 && image[10][10] == 4 && image[17][17] == 4 && image[9][10] == 0 && image[10][9] == 0);
+    CHECK(pixels('4') == 64 && image[10][10] == '4' && image[17][17] == '4' && image[9][10] == 0 && image[10][9] == 0);
 
     /* flips and single pixels, any colour 0 to 255 */
     run_program(
         "gfx(8) : tiledef(2, \"9" R8(R8(".")) "\") : tilepix(3, 2, 1, 200)\n"
         "newmap(8, 8) : tile(0, 0, 2, 1) : tile(1, 0, 2, 2) : tile(2, 0, 2, 3) : tile(3, 0, 3)\n"
         "waitframe()\n");
-    CHECK(image[0][7] == 9 && image[0][0] == 0);                   /* flipped across */
-    CHECK(image[7][8] == 9 && image[0][8] == 0);                   /* flipped down */
-    CHECK(image[7][23] == 9);                                      /* both */
+    CHECK(image[0][7] == '9' && image[0][0] == 0);                   /* flipped across */
+    CHECK(image[7][8] == '9' && image[0][8] == 0);                   /* flipped down */
+    CHECK(image[7][23] == '9');                                      /* both */
     CHECK(image[1][26] == 200);
+
+    /* a colour is named by a character, the same one a graphics string uses; a number is the entry itself */
+    run_program(
+        "gfx(8) : palette(\"A\", 255, 0, 0) : palette(66, 0, 255, 0) : palette(\"a\", 0, 0, 255)\n"
+        "tiledef(1, \"" R64("A") "\") : tiledef(2, \"" R64("B") "\") : tiledef(3, \"" R64("a") "\") : newmap(8, 8) : tile(0, 0, 1) : tile(1, 0, 2) : tile(2, 0, 3)\n"
+        "waitframe()\n");
+    CHECK(shown_g.palette[65] == 0xF800 && shown_g.palette[66] == 0x07E0 && shown_g.palette[97] == 0x001F);
+    CHECK(image[0][0] == 65 && image[0][8] == 66 && image[0][16] == 97);                   /* the character's code is the entry */
+
+    /* the colours at the start: the PC's text colours on the hex digits, the rest black, and entry 0 the backdrop */
+    run_program(
+        "gfx(8) : tiledef(1, \"" R64("C") "\") : newmap(8, 8) : tile(0, 0, 1)\n"
+        "waitframe()\n");
+    CHECK(shown_g.palette['0'] == 0 && shown_g.palette['1'] == 0x0015 && shown_g.palette['9'] == 0x52BF && shown_g.palette['C'] == 0xFAAA && shown_g.palette['F'] == 0xFFFF);
+    CHECK(shown_g.palette[0] == 0 && shown_g.palette['G'] == 0 && image[0][0] == 'C');
+
+    /* the see-through character is "." at first, and a negative colour makes another one it: the old one is then an ordinary colour */
+    run_program(
+        "gfx(8) : palette(\"@\", -1, -1, -1) : palette(\".\", 10, 20, 30)\n"
+        "tiledef(1, \"@.@.@.@." R8("@") R8("@") R8("@") R8("@") R8("@") R8("@") "\") : newmap(8, 8) : tile(0, 0, 1)\n"
+        "waitframe()\n");
+    CHECK(image[0][0] == 0 && image[0][1] == '.' && image[0][2] == 0 && shown_g.palette['.'] == (uint16_t)(((10 >> 3) << 11) | ((20 >> 2) << 5) | (30 >> 3)));
+    run_program(
+        "gfx(8) : palette(2, -1, 0, 0)\n");
+    CHECK(shows("needs a character"));
+    run_program(
+        "gfx(8) : palette(\"ab\", 1, 2, 3)\n");
+    CHECK(shows("one character"));
+    run_program(
+        "gfx(8) : palette(256, 1, 2, 3)\n");
+    CHECK(shows("0 to 255"));
 
     /* 16 pixel tiles, and no map at all: only the actors */
     run_program(
@@ -722,7 +753,8 @@ static void test_game_draw(void)
         "next\n"
         "a = actor(5, 10, 20)\n"
         "waitframe()\n");
-    CHECK(pixels(3) == 256 && image[20][10] == 3 && image[35][25] == 3 && image[36][10] == 0);
+    CHECK(pixels('3') == 256 && image[20][10] == '3' && image[35][25] == '3' && image[36][10] == 0);
+
 }
 
 static void test_game_actors(void)
@@ -751,31 +783,31 @@ static void test_game_actors(void)
         "gfx(8) : sprdef(1, \"" R64("1") "\") : sprdef(2, \"" R64("2") "\") : sprdef(3, \"" R64("3") "\") : sprdef(4, \"" R64("4") "\")\n"
         "a = actor(1, 20, 30) : actorsize(a, 2, 2)\n"
         "waitframe()\n");
-    CHECK(image[30][20] == 1 && image[30][28] == 2 && image[38][20] == 3 && image[38][28] == 4 && image[46][36] == 0);
+    CHECK(image[30][20] == '1' && image[30][28] == '2' && image[38][20] == '3' && image[38][28] == '4' && image[46][36] == 0);
     run_program(
         "gfx(8) : sprdef(1, \"" R64("1") "\") : sprdef(2, \"" R64("2") "\") : sprdef(3, \"" R64("3") "\") : sprdef(4, \"" R64("4") "\")\n"
         "a = actor(1, 20, 30) : actorsize(a, 2, 2) : actorflip(a, 1)\n"
         "waitframe()\n");
-    CHECK(image[30][20] == 2 && image[30][28] == 1 && image[38][20] == 4 && image[38][28] == 3);
+    CHECK(image[30][20] == '2' && image[30][28] == '1' && image[38][20] == '4' && image[38][28] == '3');
 
     /* priority, hiding, and freeing: the front actor is the lower priority number */
     run_program(
         "gfx(8) : sprdef(1, \"" R64("1") "\") : sprdef(2, \"" R64("2") "\")\n"
         "a = actor(1, 10, 10) : b = actor(2, 14, 10) : actorprio(a, 5) : actorprio(b, 9)\n"
         "waitframe()\n");
-    CHECK(image[10][10] == 1 && image[10][18] == 2 && image[10][14] == 1 && image[10][16] == 1);           /* a is in front where they overlap */
+    CHECK(image[10][10] == '1' && image[10][18] == '2' && image[10][14] == '1' && image[10][16] == '1');           /* a is in front where they overlap */
     run_program(
         "gfx(8) : sprdef(1, \"" R64("1") "\") : sprdef(2, \"" R64("2") "\")\n"
         "a = actor(1, 10, 10) : b = actor(2, 14, 10) : actorprio(a, 9) : actorprio(b, 5)\n"
         "waitframe()\n");
-    CHECK(image[10][14] == 2);
+    CHECK(image[10][14] == '2');
     run_program(
         "gfx(8) : sprdef(1, \"" R64("1") "\")\n"
         "a = actor(1, 10, 10) : b = actor(1, 40, 10) : actorhide(a, 1) : actorfree(b) : c = actor(1, 70, 10)\n"
         "waitframe()\n"
         "print b;\n"
         "print c;\n");
-    CHECK(pixels(1) == 64 && image[10][70] == 1 && image[10][10] == 0 && image[10][40] == 0);
+    CHECK(pixels('1') == 64 && image[10][70] == '1' && image[10][10] == 0 && image[10][40] == 0);
     CHECK(printed("1"));                                                                 /* b's number was used again by c */
 
     /* only 128 actors */
@@ -825,7 +857,7 @@ static void test_game_world(void)
 
     /* infinite scrolling: the map repeats, the camera is kept within one map, the actors wrap */
     run_program(
-        "gfx(8) : palette(4, 255, 0, 0) : tiledef(1, \"" R64("4") "\") : sprdef(1, \"" R64("7") "\") : newmap(64, 32) : tile(0, 0, 1)\n"
+        "gfx(8) : palette(\"4\", 255, 0, 0) : tiledef(1, \"" R64("4") "\") : sprdef(1, \"" R64("7") "\") : newmap(64, 32) : tile(0, 0, 1)\n"
         "print wrap(1);\n"
         "camera(512, 256)\n"
         "a = actor(1, 600, 300)\n"
@@ -844,12 +876,12 @@ static void test_game_world(void)
         CHECK(!strcmp(row(r + 1), "0") && !strcmp(row(r + 2), "0") && !strcmp(row(r + 3), "64") && !strcmp(row(r + 4), "136") && !strcmp(row(r + 5), "2"));
     }
     run_program(
-        "gfx(8) : palette(4, 255, 0, 0) : tiledef(1, \"" R64("4") "\") : sprdef(1, \"" R64("7") "\") : newmap(64, 32) : tile(0, 0, 1) : wrap(1)\n"
+        "gfx(8) : palette(\"4\", 255, 0, 0) : tiledef(1, \"" R64("4") "\") : sprdef(1, \"" R64("7") "\") : newmap(64, 32) : tile(0, 0, 1) : wrap(1)\n"
         "camera(512, 256)\n"
         "a = actor(1, 600, 300)\n"
         "waitframe()\n");
-    CHECK(image[0][0] == 4 && image[7][7] == 4);                             /* the tile at the origin again after one map */
-    CHECK(image[44][88] == 7 && image[51][95] == 7);                         /* an actor 88, 44 from the camera, whatever the lap */
+    CHECK(image[0][0] == '4' && image[7][7] == '4');                             /* the tile at the origin again after one map */
+    CHECK(image[44][88] == '7' && image[51][95] == '7');                         /* an actor 88, 44 from the camera, whatever the lap */
     run_program(
         "gfx(8) : newmap(10, 10) : print wrap(1);\n");                  /* 80 x 80 pixels: too small for the actors to wrap */
     CHECK(printed("0"));
@@ -938,8 +970,8 @@ static void test_game_example(void)
     type("LOAD walk\nRUN\n");
     CHECK(go() == -1);
     CHECK(printed("118") && printed("Ready."));                       /* 160 - 21 * 2: B was down after the 21st wait */
-    CHECK(pixels(4) == 52 && image[123][160] == 4 && image[120][160] == 2 && image[120][162] == 4);   /* the ball: 8 x 8 without its corners (the floor shows there), in the middle */
-    CHECK(image[100][10] == 0 && image[100][100] == 2 && image[100][44] == 1);   /* left of the map is the backdrop (the camera is at -42), then its wall, then the floor */
+    CHECK(pixels('4') == 52 && image[123][160] == '4' && image[120][160] == '2' && image[120][162] == '4');   /* the ball: 8 x 8 without its corners (the floor shows there), in the middle */
+    CHECK(image[100][10] == 0 && image[100][100] == '2' && image[100][44] == '1');   /* left of the map is the backdrop (the camera is at -42), then its wall, then the floor */
 
     /* left for ever: it stops at the wall (the floor starts at x = 8) */
     fresh();

@@ -2,10 +2,10 @@
 ' A 40 x 30 map of 8 x 8 tiles with a wall around it; the camera follows the ball.
 
 gfx(8)
-palette(1, 120, 80, 40)           ' wall
-palette(2, 40, 120, 60)           ' floor
-palette(3, 70, 150, 80)           ' a lighter spot on the floor
-palette(4, 250, 210, 40)          ' the ball
+palette("1", 120, 80, 40)           ' wall
+palette("2", 40, 120, 60)           ' floor
+palette("3", 70, 150, 80)           ' a lighter spot on the floor
+palette("4", 250, 210, 40)          ' the ball
 
 for y = 0 to 7
   tilerow(1, y, "11111111")       ' tile 1: wall
