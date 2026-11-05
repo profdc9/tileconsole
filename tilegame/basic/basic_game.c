@@ -268,7 +268,10 @@ static int define_tile(struct mb_interpreter_t *s, void **l, int sprites)
 FUNC(tiledef) { return define_tile(s, l, 0); }
 FUNC(sprdef) { return define_tile(s, l, 1); }
 
-/* TILEROW(n, y, graphics): one row of a tile (its size in characters); a 16 pixel tile is too much for a string of MY-BASIC, which is at most 128 characters. */
+/*
+ * TILEROW(n, y, graphics): one row of a tile (its size in characters). With y = 0 and a string long enough for every pixel of the tile it is the whole tile,
+ * row by row (like TILEDEF): a string in a program is at most 128 characters in MY-BASIC, so a 16 pixel tile is made by joining strings.
+ */
 static int define_row(struct mb_interpreter_t *s, void **l, int sprites)
 {
     int n, y;
@@ -284,8 +287,9 @@ static int define_row(struct mb_interpreter_t *s, void **l, int sprites)
         return fail(s, l, SE_RN_INDEX_OUT_OF_BOUND, "%s(n, y, graphics): n is 0 to %d, y 0 to %d", sprites ? "SPRROW" : "TILEROW", BG_TILES - 1, size - 1);
     uint8_t *dst = (sprites ? G->sprites : G->tiles) + ((size_t)n << (2 * G->size_log2)) + (size_t)y * (size_t)size;
     const size_t len = text ? strlen(text) : 0;
-    for (int i = 0; i < size; i++)
-        dst[i] = (size_t)i < len ? pixel_of(G, text[i]) : 0;
+    const size_t count = y == 0 && len >= (size_t)size * (size_t)size ? (size_t)size * (size_t)size : (size_t)size;
+    for (size_t i = 0; i < count; i++)
+        dst[i] = i < len ? pixel_of(G, text[i]) : 0;
     RET(0);
     return MB_FUNC_OK;
 }

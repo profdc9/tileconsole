@@ -755,6 +755,24 @@ static void test_game_draw(void)
         "waitframe()\n");
     CHECK(pixels('3') == 256 && image[20][10] == '3' && image[35][25] == '3' && image[36][10] == 0);
 
+    /* TILEROW with row 0 and a string for every pixel of the tile makes the whole tile, row by row; anything shorter, or any other row, is one row */
+    run_program(
+        "gfx(8) : newmap(8, 8) : tile(0, 0, 1) : tile(1, 0, 2) : tile(2, 0, 3) : tile(3, 0, 4)\n"
+        "tilerow(1, 0, \"" R8("1") R8("2") R8("3") R8("4") R8("5") R8("6") R8("7") R8("8") "\")\n"
+        "tilerow(2, 0, \"" R8("9") R8("8") "\")\n"                         /* 16 characters: row 0, and the first 8 of them */
+        "tilerow(3, 1, \"" R8("7") R8("7") R8("7") R8("7") R8("7") R8("7") R8("7") R8("7") "\")\n"   /* a whole tile of characters, but at row 1 */
+        "waitframe()\n");
+    CHECK(image[0][0] == '1' && image[1][7] == '2' && image[2][3] == '3' && image[7][0] == '8' && image[7][7] == '8' && image[4][5] == '5');
+    CHECK(image[0][8] == '9' && image[0][15] == '9' && image[1][8] == 0 && image[7][15] == 0);
+    CHECK(image[1][16] == '7' && image[1][23] == '7' && image[0][16] == 0 && image[2][16] == 0 && image[7][23] == 0);
+
+    /* a 16 pixel tile in one command: joined strings are longer than a string in the program can be */
+    run_program(
+        "gfx(16) : a$ = \"" R8("1") R8("2") "\" : b$ = a$ + a$ : c$ = b$ + b$ : d$ = c$ + c$\n"
+        "sprrow(1, 0, d$ + d$ + d$ + d$)\n"                              /* 16 rows of 16: 256 characters, rows alternating 1 and 2 by 8 */
+        "a = actor(1, 0, 0)\n"
+        "waitframe()\n");
+    CHECK(image[0][0] == '1' && image[0][7] == '1' && image[0][8] == '2' && image[0][15] == '2' && image[15][0] == '1' && image[15][15] == '2' && image[16][0] == 0);
 }
 
 static void test_game_actors(void)

@@ -57,7 +57,7 @@ A program that is slow only looks choppier: velocities are per frame that went b
 | `palette(c, r, g, b)` | colour c from red, green and blue, each 0 to 255. c is one character, such as `"A"`, or a number 0 to 255 for the entry itself (entry 0 is the backdrop) |
 | `palette(c, -1, -1, -1)` | makes the character c the see-through one in strings (it is `"."` at first) |
 | `tiledef(n, "...")` | map tile n (0 to 255) from a string of 64 characters, row by row (8 pixel tiles; MY-BASIC's strings are at most 128 characters) |
-| `tilerow(n, y, "...")` | one row of a tile: 8 or 16 characters (the way to define 16 pixel tiles) |
+| `tilerow(n, y, "...")` | one row of a tile: 8 or 16 characters. With y = 0 and a string with a character for every pixel of the tile (64 or 256), it is the whole tile, row by row, like `tiledef` (the way to define a 16 pixel tile in one command: join strings with `+`) |
 | `tilepix(n, x, y, c)` | one pixel, c is 0 to 255 |
 | `sprdef(n, "...")`, `sprrow(n, y, "...")`, `sprpix(n, x, y, c)` | the same for sprite n (the sprite sheet is separate from the map's tiles) |
 
@@ -109,7 +109,7 @@ routine that is called once a frame instead of a loop.
 - A function call needs its brackets, also when it is a statement: `waitframe()`, `tile(3, 4, 1)`.
 - `for` and `next` (and `while` and `wend`, `if` and `endif`) go on lines of their own: `for i = 1 to 10 : next` on one line is an error.
 - Two `print ... ;` on one line print a stray `NIL`: put each on its own line.
-- A string in the program is at most 128 characters, hence `tilerow` for 16 pixel tiles.
+- A string in the program is at most 128 characters, hence `tilerow` for 16 pixel tiles (or join strings: `a$ + b$` can be as long as you like, and `tilerow(n, 0, ...)` takes a whole tile).
 - Numbers are floating point (24 bits of fraction), so positions are fine up to a million pixels or so; a map that wraps keeps them small.
 
 ## Limits
