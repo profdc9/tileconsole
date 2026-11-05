@@ -34,7 +34,6 @@ struct basic_game {
     tg_actor_t pool[BG_MAX_ACTORS];
     uint16_t order[4 * BG_MAX_ACTORS];
     uint32_t last_frame;            /* the frame number WAITFRAME last got (0: it has not been called) */
-    int shown;                      /* a picture has been presented */
 };
 typedef struct basic_game basic_game_t;
 
@@ -752,9 +751,9 @@ FUNC(actorhit)
 
 /*
  * Shows the picture (the actors get their sprites, the maps are swapped) and waits for the next frame. Returns the frames that went by since the last time
- * (1 to BG_STEP_MAX); with `step` the actors move by that many frames of their velocity.
+ * (1 to BG_STEP_MAX); the actors move by that many frames of their velocity.
  */
-static int show_and_wait(basic_env_t *e, basic_game_t *G, int step)
+static int show_and_wait(basic_env_t *e, basic_game_t *G)
 {
     G->g.mode = TG_MODE_TILES;
     G->g.text = NULL;
@@ -762,7 +761,6 @@ static int show_and_wait(basic_env_t *e, basic_game_t *G, int step)
         tg_world_end_frame(&G->world);
     tg_actors_draw(&G->actors, &G->g, G->has_world ? G->world.cam_x : G->cam_x, G->has_world ? G->world.cam_y : G->cam_y);
     e->hooks.present(&G->g);
-    G->shown = 1;
     e->game_active = 1;
     const uint32_t f = e->hooks.wait_frame();
     int n = G->last_frame ? (int)(f - G->last_frame) : 1;
@@ -771,8 +769,7 @@ static int show_and_wait(basic_env_t *e, basic_game_t *G, int step)
     if (n > BG_STEP_MAX)
         n = BG_STEP_MAX;
     G->last_frame = f;
-    if (step)
-        tg_actors_step(&G->actors, n);
+    tg_actors_step(&G->actors, n);
     if (G->has_world)
         tg_world_begin_frame(&G->world);
     return n;
@@ -785,7 +782,7 @@ FUNC(waitframe)
     NEED_GAME();
     if (!e->hooks.wait_frame || !e->hooks.present)
         return fail(s, l, SE_RN_INVALID_ID_USAGE, "This machine has no tile screen for WAITFRAME");
-    RET(show_and_wait(e, G, 1));
+    RET(show_and_wait(e, G));
     return MB_FUNC_OK;
 }
 
@@ -880,13 +877,6 @@ void basic_game_begin_run(basic_env_t *e)
 
 void basic_game_end_run(basic_env_t *e)
 {
-    basic_game_t *G = e->game;
-    if (G && G->shown && !e->stop && !e->error_seen && e->hooks.wait_frame && e->hooks.present && e->hooks.getchar) {
-        e->typeahead_count = 0;
-        do
-            show_and_wait(e, G, 0);
-        while (e->hooks.getchar() < 0);
-    }
     free_all(e);
 }
 

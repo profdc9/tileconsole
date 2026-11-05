@@ -34,14 +34,10 @@ static int cut_armed;
 static uint32_t now_ms;
 
 static int presents;
-static const char *late_keys;   /* typed only once a program has ended with its picture still up (typed earlier, they would be typeahead of the program) */
-static int late_pos, late_min_presents;   /* ... and not before this many pictures have been shown */
 
 static int get_char(void)
 {
     if (script_pos >= script_len) {
-        if (late_keys && late_keys[late_pos] && !env.running && env.game_active && presents >= late_min_presents)
-            return (unsigned char)late_keys[late_pos++];
         return -1;
     }
     idle_frames = 0;
@@ -220,8 +216,6 @@ static void fresh(void)
     }
     basic_env_init(&env, &screen, &hooks);
     game_frame = 100;
-    late_keys = NULL;
-    late_min_presents = 0;
     press_b_after = 0;
     frame_jump = 1;
     presents = 0;
@@ -644,11 +638,11 @@ static void test_gaps(void)
 #define R8(x) x x x x x x x x
 #define R64(x) R8(R8(x))
 
-/* Runs a program (with `after` typed once it has ended, which is what the picture waits for). Leaves the environment as the run left it. */
+/* Runs a program. Leaves the environment as the run left it. */
 static int run_jump = 1;   /* the frames that pass at each WAITFRAME */
 static unsigned run_held, run_down;   /* the buttons a run sees */
 
-static void run_program(const char *text, const char *after)
+static void run_program(const char *text)
 {
     fresh();
     frame_jump = run_jump;
@@ -656,10 +650,7 @@ static void run_program(const char *text, const char *after)
     went_down = run_down;
     CHECK(put_file("/sd/t.bas", text) > 0);
     type("LOAD t\nRUN\n");
-    late_keys = after;
-    late_pos = 0;
     CHECK(go() == -1);
-    late_keys = NULL;
 }
 
 static int printed(const char *line)   /* a line of the program's output is on the screen */
@@ -690,7 +681,7 @@ static void test_game_draw(void)
         "waitframe()\n"
         "print gettile(2, 1);\n"
         "print gettile(5, 5);\n"
-        "print a;\n", " ");
+        "print a;\n");
     CHECK(printed("1") && printed("0") && printed("Ready."));
     CHECK(env.game == NULL && !env.game_active);                    /* freed, and the text screen is back */
     CHECK(shown_g.palette[4] == 0xF800);
@@ -698,26 +689,26 @@ static void test_game_draw(void)
     CHECK(image[0][0] == 4 && image[7][7] == 4 && image[0][8] == 0 && image[8][16] == 4 && image[15][23] == 4 && image[16][16] == 0);
     CHECK(image[50][100] == 7 && image[57][107] == 7 && image[58][100] == 0 && image[50][108] == 0);
     CHECK(shown_g.sprites[0].above == TG_MAX_LAYERS);                  /* in front of the map (0 would put the actors behind its tiles) */
-    CHECK(presents >= 2);                                            /* WAITFRAME, then the last picture until the key */
+    CHECK(presents == 1);                                            /* WAITFRAME; nothing is shown after the program ends */
     CHECK(allocs > 0 && allocs == releases && fast_allocs > 0);
 
     /* the camera: the picture moves the other way; a negative camera too */
     run_program(
         "gfx(8) : palette(4, 255, 0, 0) : tiledef(1, \"" R64("4") "\") : newmap(20, 20) : tile(0, 0, 1)\n"
         "camera(4, 3)\n"
-        "waitframe()\n", " ");
+        "waitframe()\n");
     CHECK(pixels(4) == 20 && image[4][3] == 4 && image[4][4] == 0 && image[5][3] == 0 && image[0][0] == 4);
     run_program(
         "gfx(8) : tiledef(1, \"" R64("4") "\") : newmap(20, 20) : tile(0, 0, 1)\n"
         "camera(-10, -10)\n"
-        "waitframe()\n", " ");
+        "waitframe()\n");
     CHECK(pixels(4) == 64 && image[10][10] == 4 && image[17][17] == 4 && image[9][10] == 0 && image[10][9] == 0);
 
     /* flips and single pixels, any colour 0 to 255 */
     run_program(
         "gfx(8) : tiledef(2, \"9" R8(R8(".")) "\") : tilepix(3, 2, 1, 200)\n"
         "newmap(8, 8) : tile(0, 0, 2, 1) : tile(1, 0, 2, 2) : tile(2, 0, 2, 3) : tile(3, 0, 3)\n"
-        "waitframe()\n", " ");
+        "waitframe()\n");
     CHECK(image[0][7] == 9 && image[0][0] == 0);                   /* flipped across */
     CHECK(image[7][8] == 9 && image[0][8] == 0);                   /* flipped down */
     CHECK(image[7][23] == 9);                                      /* both */
@@ -730,7 +721,7 @@ static void test_game_draw(void)
         "  sprrow(5, y, \"3333333333333333\")\n"
         "next\n"
         "a = actor(5, 10, 20)\n"
-        "waitframe()\n", " ");
+        "waitframe()\n");
     CHECK(pixels(3) == 256 && image[20][10] == 3 && image[35][25] == 3 && image[36][10] == 0);
 }
 
@@ -745,13 +736,13 @@ static void test_game_actors(void)
         "print n;\n"
         "print actorx(a);\n"
         "print actory(a);\n"
-        "print frames();\n", " ");
+        "print frames();\n");
     {
         const int r = row_of("1");
         CHECK(r >= 0 && !strcmp(row(r + 1), "3") && !strcmp(row(r + 2), "18") && !strcmp(row(r + 3), "22") && !strcmp(row(r + 4), "106"));
     }
     run_jump = 9;
-    run_program("gfx(8) : a = actor(1, 10, 20) : actorvel(a, 2, 0)\nwaitframe()\nn = waitframe()\nprint n;\nprint actorx(a);\n", " ");
+    run_program("gfx(8) : a = actor(1, 10, 20) : actorvel(a, 2, 0)\nwaitframe()\nn = waitframe()\nprint n;\nprint actorx(a);\n");
     CHECK(printed("4") && printed("20"));                                                 /* 9 frames went by: no more than 4 are counted */
     run_jump = 1;
 
@@ -759,31 +750,31 @@ static void test_game_actors(void)
     run_program(
         "gfx(8) : sprdef(1, \"" R64("1") "\") : sprdef(2, \"" R64("2") "\") : sprdef(3, \"" R64("3") "\") : sprdef(4, \"" R64("4") "\")\n"
         "a = actor(1, 20, 30) : actorsize(a, 2, 2)\n"
-        "waitframe()\n", " ");
+        "waitframe()\n");
     CHECK(image[30][20] == 1 && image[30][28] == 2 && image[38][20] == 3 && image[38][28] == 4 && image[46][36] == 0);
     run_program(
         "gfx(8) : sprdef(1, \"" R64("1") "\") : sprdef(2, \"" R64("2") "\") : sprdef(3, \"" R64("3") "\") : sprdef(4, \"" R64("4") "\")\n"
         "a = actor(1, 20, 30) : actorsize(a, 2, 2) : actorflip(a, 1)\n"
-        "waitframe()\n", " ");
+        "waitframe()\n");
     CHECK(image[30][20] == 2 && image[30][28] == 1 && image[38][20] == 4 && image[38][28] == 3);
 
     /* priority, hiding, and freeing: the front actor is the lower priority number */
     run_program(
         "gfx(8) : sprdef(1, \"" R64("1") "\") : sprdef(2, \"" R64("2") "\")\n"
         "a = actor(1, 10, 10) : b = actor(2, 14, 10) : actorprio(a, 5) : actorprio(b, 9)\n"
-        "waitframe()\n", " ");
+        "waitframe()\n");
     CHECK(image[10][10] == 1 && image[10][18] == 2 && image[10][14] == 1 && image[10][16] == 1);           /* a is in front where they overlap */
     run_program(
         "gfx(8) : sprdef(1, \"" R64("1") "\") : sprdef(2, \"" R64("2") "\")\n"
         "a = actor(1, 10, 10) : b = actor(2, 14, 10) : actorprio(a, 9) : actorprio(b, 5)\n"
-        "waitframe()\n", " ");
+        "waitframe()\n");
     CHECK(image[10][14] == 2);
     run_program(
         "gfx(8) : sprdef(1, \"" R64("1") "\")\n"
         "a = actor(1, 10, 10) : b = actor(1, 40, 10) : actorhide(a, 1) : actorfree(b) : c = actor(1, 70, 10)\n"
         "waitframe()\n"
         "print b;\n"
-        "print c;\n", " ");
+        "print c;\n");
     CHECK(pixels(1) == 64 && image[10][70] == 1 && image[10][10] == 0 && image[10][40] == 0);
     CHECK(printed("1"));                                                                 /* b's number was used again by c */
 
@@ -793,12 +784,12 @@ static void test_game_actors(void)
         "for i = 1 to 130\n"
         "  a = actor(1, i, 0)\n"
         "next\n"
-        "print a;\n", " ");
+        "print a;\n");
     CHECK(printed("-1"));
 
     /* what the program keeps in an actor */
     run_program(
-        "gfx(8) : a = actor(1, 0, 0) : print actoruser(a); : actoruser(a, 4321) : print actoruser(a);\n", " ");
+        "gfx(8) : a = actor(1, 0, 0) : print actoruser(a); : actoruser(a, 4321) : print actoruser(a);\n");
     CHECK(printed("0") && printed("4321"));
 }
 
@@ -818,7 +809,7 @@ static void test_game_world(void)
         "print tileflag(50, 4);\n"
         "print tileflag(10, 4);\n"
         "print tilebox(0, 0, 60, 10);\n"
-        "print actorhit(a, a);\n", " ");
+        "print actorhit(a, a);\n");
     {
         const int r = row_of("2");
         CHECK(r >= 0 && !strcmp(row(r + 1), "40") && !strcmp(row(r + 2), "0") && !strcmp(row(r + 3), "110"));
@@ -829,7 +820,7 @@ static void test_game_world(void)
         "gfx(8) : newmap(30, 20) : settileflags(1, 1) : tilefill(6, 0, 1, 10, 1)\n"
         "a = actor(1, 10, 10) : actorbox(a, 2, 0, 4, 8)\n"
         "h = actormove(a, 100, 0)\n"
-        "print actorx(a);\n", " ");
+        "print actorx(a);\n");
     CHECK(printed("42"));                                                   /* the box is x + 2 to x + 6, and stops at 48 */
 
     /* infinite scrolling: the map repeats, the camera is kept within one map, the actors wrap */
@@ -846,7 +837,7 @@ static void test_game_world(void)
         "print camy();\n"
         "b = actor(1, 510, 5) : actorvel(b, 4, 0)\n"
         "waitframe()\n"
-        "print actorx(b);\n", " ");
+        "print actorx(b);\n");
     CHECK(printed("1"));
     {
         const int r = row_of("1");
@@ -856,11 +847,11 @@ static void test_game_world(void)
         "gfx(8) : palette(4, 255, 0, 0) : tiledef(1, \"" R64("4") "\") : sprdef(1, \"" R64("7") "\") : newmap(64, 32) : tile(0, 0, 1) : wrap(1)\n"
         "camera(512, 256)\n"
         "a = actor(1, 600, 300)\n"
-        "waitframe()\n", " ");
+        "waitframe()\n");
     CHECK(image[0][0] == 4 && image[7][7] == 4);                             /* the tile at the origin again after one map */
     CHECK(image[44][88] == 7 && image[51][95] == 7);                         /* an actor 88, 44 from the camera, whatever the lap */
     run_program(
-        "gfx(8) : newmap(10, 10) : print wrap(1);\n", " ");                  /* 80 x 80 pixels: too small for the actors to wrap */
+        "gfx(8) : newmap(10, 10) : print wrap(1);\n");                  /* 80 x 80 pixels: too small for the actors to wrap */
     CHECK(printed("0"));
 }
 
@@ -875,7 +866,7 @@ static void test_game_input_and_errors(void)
         "print btn(0, 4 + 16);\n"
         "print btn(1, \"left\");\n"
         "print pressed(0, \"START\");\n"
-        "print pressed(0, 256);\n", " ");
+        "print pressed(0, 256);\n");
     {
         const int r = row_of("1");
         CHECK(r >= 0 && !strcmp(row(r + 1), "1") && !strcmp(row(r + 2), "0") && !strcmp(row(r + 3), "1") && !strcmp(row(r + 4), "0") && !strcmp(row(r + 5), "1") && !strcmp(row(r + 6), "1"));
@@ -884,26 +875,26 @@ static void test_game_input_and_errors(void)
     CHECK(env.game == NULL && presents == 0);                               /* these did not need the graphics */
 
     /* mistakes are reported with what to do, and the program stops with nothing left behind */
-    run_program("gfx(8)\na = actor(1, 0, 0)\nprint actorx(7);\nprint 99;\n", "");
+    run_program("gfx(8)\na = actor(1, 0, 0)\nprint actorx(7);\nprint 99;\n");
     CHECK(shows("there is no actor 7") && shows("Error:") && !printed("99"));
     CHECK(env.game == NULL && !env.game_active && allocs == releases);
     /* an error after a picture was shown: no waiting for a key, the text screen with the error is there at once */
-    run_program("gfx(8)\nwaitframe()\nprint actorx(7);\n", "");
+    run_program("gfx(8)\nwaitframe()\nprint actorx(7);\n");
     CHECK(shows("there is no actor 7") && env.game == NULL && !env.game_active);
-    run_program("tile(0, 0, 1)\n", "");
+    run_program("tile(0, 0, 1)\n");
     CHECK(shows("There is no map") && env.game == NULL);
-    run_program("gfx(7)\n", "");
+    run_program("gfx(7)\n");
     CHECK(shows("the size of a tile is 8 or 16"));
-    run_program("gfx(8) : tiledef(300, \"1\")\n", "");
+    run_program("gfx(8) : tiledef(300, \"1\")\n");
     CHECK(shows("n is 0 to 255"));
-    run_program("gfx(8) : print actor(1, 0, 0) : a = actorsize(0, 5, 1)\n", "");
+    run_program("gfx(8) : print actor(1, 0, 0) : a = actorsize(0, 5, 1)\n");
     CHECK(shows("1 to 4 of each"));
-    run_program("gfx(8) : newmap(0, 5)\n", "");
+    run_program("gfx(8) : newmap(0, 5)\n");
     CHECK(shows("at most"));
 
     /* without a tile screen the graphics functions still work, and WAITFRAME says so */
     game_hooks_on = 0;
-    run_program("gfx(8) : newmap(4, 4) : tile(1, 1, 2) : print gettile(1, 1); : waitframe()\nprint 99;\n", "");
+    run_program("gfx(8) : newmap(4, 4) : tile(1, 1, 2) : print gettile(1, 1); : waitframe()\nprint 99;\n");
     CHECK(printed("2") && shows("no tile screen") && !printed("99") && env.game == NULL);
     game_hooks_on = 1;
 
@@ -916,15 +907,12 @@ static void test_game_input_and_errors(void)
     CHECK(shows("Break") && row_of("42") >= 0 && env.game == NULL && !env.game_active);
     CHECK(allocs == releases);
 
-    /* the picture stays until a key is typed: it is presented again and again, and the key that ends it is not a command */
+    /* the picture goes away when the program ends, with no key: the run is over and the text screen is back (nothing is presented after the last WAITFRAME) */
     fresh();
     CHECK(put_file("/sd/t.bas", "gfx(8) : waitframe()\n") > 0);
     type("LOAD t\nRUN\n");
-    late_keys = "x";
-    late_pos = 0;
-    late_min_presents = 8;
     CHECK(go() == -1);
-    CHECK(presents >= 8 && !env.game_active && env.game == NULL && shows("Ready.") && !shows("] x"));
+    CHECK(presents == 1 && !env.game_active && env.game == NULL && shows("Ready."));
     basic_env_close(&env);
     CHECK(allocs == releases);
 }
@@ -948,8 +936,6 @@ static void test_game_example(void)
     press_b_after = 21;
     CHECK(put_file("/sd/walk.bas", text) > 0);
     type("LOAD walk\nRUN\n");
-    late_keys = " ";
-    late_pos = 0;
     CHECK(go() == -1);
     CHECK(printed("118") && printed("Ready."));                       /* 160 - 21 * 2: B was down after the 21st wait */
     CHECK(pixels(4) == 52 && image[123][160] == 4 && image[120][160] == 2 && image[120][162] == 4);   /* the ball: 8 x 8 without its corners (the floor shows there), in the middle */
@@ -962,8 +948,6 @@ static void test_game_example(void)
     press_b_after = 150;
     CHECK(put_file("/sd/walk.bas", text) > 0);
     type("LOAD walk\nRUN\n");
-    late_keys = " ";
-    late_pos = 0;
     CHECK(go() == -1);
     {
         const int r = row_of("8");

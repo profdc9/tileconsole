@@ -234,7 +234,6 @@ static void on_error(struct mb_interpreter_t *s, mb_error_e err, const char *msg
     (void)abort_code;
     if (err == SE_NO_ERR)
         return;
-    cur->error_seen = 1;
     problem(cur, "Error: %s%s%s%s", msg ? msg : mb_get_error_desc(err), func && *func ? " (" : "", func && *func ? func : "", func && *func ? ")" : "");
     if (row)
         problem(cur, "  in line %d, column %d", (int)row, (int)col);
@@ -412,16 +411,13 @@ static void cmd_run(basic_env_t *e)
         return;
     }
     e->stop = 0;
-    e->error_seen = 0;
     e->typeahead_count = 0;
     e->last_poll = e->hooks.millis();
     basic_game_begin_run(e);
     mb_reset(&e->bas, false, true);
     int r = mb_load_string(e->bas, e->program, true);
-    e->running = 1;
     if (r == MB_FUNC_OK)
         r = mb_run(e->bas, true);
-    e->running = 0;
     basic_game_end_run(e);
     if (e->con.col != 0)
         tg_console_putc(&e->con, '\n');
@@ -434,7 +430,6 @@ static void cmd_run(basic_env_t *e)
 static void cmd_immediate(basic_env_t *e, const char *line)
 {
     e->stop = 0;
-    e->error_seen = 0;
     e->typeahead_count = 0;
     e->last_poll = e->hooks.millis();
     basic_game_begin_run(e);
@@ -444,10 +439,8 @@ static void cmd_immediate(basic_env_t *e, const char *line)
      */
     mb_reset(&e->bas, false, true);
     int r = mb_load_string(e->bas, line, false);
-    e->running = 1;
     if (r == MB_FUNC_OK)
         r = mb_run(e->bas, true);
-    e->running = 0;
     basic_game_end_run(e);
     if (e->con.col != 0)
         tg_console_putc(&e->con, '\n');

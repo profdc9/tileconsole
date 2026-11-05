@@ -227,7 +227,7 @@ write. MY-BASIC has `mb_eval_routine`, which should do it (not checked).
 screen). Not as planned above: `newmap`, `actorpos`, `actorvel`, `actormove`, `actorhit` and `actoruser` are the names used (`MAP` and `MOVE` would clash with MY-BASIC's), the camera is
 set by `camera(x, y)` and not followed by `FOLLOW`, there are no animation tables, `TILES(file)` and `LOADMAP(file)` are replaced by `tiledef`/`tilerow` and `newmap`/`tile`/`tilefill`
 (no file format yet), there is one map (layer 0), `FRAMEMS()` and the callback model are not done, and the first `WAITFRAME()` returns 1 (there is no earlier frame to count from).
-Added: `wrap`, `settileflags`, `tilebox`, `ysort`. The picture stays up after the program ends until a key is typed.
+Added: `wrap`, `settileflags`, `tilebox`, `ysort`. The picture goes away when the program ends.
 
 ## Files and tests
 

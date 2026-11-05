@@ -33,7 +33,7 @@ The source is MY-BASIC's own, not modified. Two of its settings are given on the
 ## Game functions: tiles, a scrolling map, actors, buttons
 
 `basic_game.c` adds functions for making games, on top of tilegfx's tile map (`tg_world`) and sprites (`tg_actor`; the design is in `tilegfx/WORLD.md`). Nothing is shown until the first
-`WAITFRAME()`; the picture is the tile screen, and it stays on until a key is typed after the program ends (Ctrl+C ends it at once), when the text screen is back and everything the
+`WAITFRAME()`; the picture is the tile screen, and it goes away when the program ends, when the text screen is back and everything the
 graphics used is freed. A program that does not use these functions never sees them. The program is a loop:
 
     gfx(8)

@@ -67,8 +67,6 @@ typedef struct basic_env {
     int at_prompt;                         /* the prompt is on the screen and no line has been read since (so that going on after the keys ran out does not print it again) */
     struct basic_game *game;               /* the game functions' state, while a run uses them (basic_game.c) */
     int game_active;                       /* a picture of the game is being shown: a running program does not put the text screen up while it runs */
-    int error_seen;                        /* the run printed an error */
-    int running;                           /* the interpreter is running a program (or a line) */
 } basic_env_t;
 
 /* Sets up the screen (glyphs loaded by the caller) and the interpreter, clears the screen and prints the banner. */

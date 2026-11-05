@@ -9,7 +9,7 @@
  *     gfx(8) : newmap(64, 32) : tiledef(1, "...") : tile(3, 4, 1)
  *     while 1 : n = waitframe() : ... : wend
  *
- * Nothing is shown before the first WAITFRAME, and the picture goes away when the program ends (after a key, so that the last picture can be looked at).
+ * Nothing is shown before the first WAITFRAME, and the picture goes away when the program ends.
  * The state belongs to the run: it is made on first use and freed at its end.
  */
 #ifndef BASIC_GAME_H
@@ -22,7 +22,7 @@ struct mb_interpreter_t;
 /* Registers the functions (basic_env_init does). */
 void basic_game_register(struct mb_interpreter_t *s);
 
-/* Before a run: forgets what a previous one left. After it: if a picture was shown, keeps showing the last one until a key is typed (not after Ctrl+C), then frees the state. */
+/* Before a run: forgets what a previous one left. After it: frees the state, so the text screen is back. */
 void basic_game_begin_run(basic_env_t *e);
 void basic_game_end_run(basic_env_t *e);
 
