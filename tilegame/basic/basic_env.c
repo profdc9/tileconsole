@@ -589,6 +589,7 @@ static int run_line(basic_env_t *e, char *line)
 
 void basic_env_init(basic_env_t *e, tg_text_t *screen, const basic_hooks_t *hooks)
 {
+    basic_file_close_all();   /* (the file slots are not in the environment: a program's files from before are closed) */
     memset(e, 0, sizeof *e);
     e->hooks = *hooks;
     cur = e;
