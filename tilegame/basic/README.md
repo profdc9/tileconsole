@@ -10,7 +10,7 @@ files on `tilefs` (the SD card on the board), edited with TDE and run from memor
     ] PRINT 2 + 2      anything else is BASIC and runs at once
     HELP CLS NEW LIST [from [to]] RUN LOAD SAVE [file] FILES [folder] KILL CD EDIT VER BYE
 
-`basic_env.[ch]` is the environment (keys, screen and clock through three hooks, so a test can type at it); `basic.c` is the desktop program (`make tgbasic`, `./tgbasic [folder]`,
+`basic_env.[ch]` is the environment (keys, screen and clock through three hooks, so a test can type at it); `basic.c` is the desktop program (`make tgbasic`, `./tgbasic [-2] [folder]`,
 whose files are /sd; EDIT runs `./tde_ed` on the file); `make test_basic` is the test (typed keys, screen, files; run with AddressSanitizer and UBSan).
 
 ## MY-BASIC as it is, and how it is built

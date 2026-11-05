@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: MIT */
 /*
- * The BASIC environment on the desktop: ./basic [FOLDER] (default ./basic_files, made if it is not there), whose files are /sd. EDIT starts the editor ./tde_ed on
+ * The BASIC environment on the desktop: ./tgbasic [-2 | --double | --scale 1..4] [FOLDER] (default ./basic_files, made if it is not there), whose files are /sd; -2 opens a window twice the picture's size. EDIT starts the editor ./tde_ed on
  * the file (the board restarts into the editor instead: see the README) and comes back with the program reloaded.
  */
 #include <stdio.h>
@@ -18,6 +18,8 @@ static tg_text_t screen;
 static tg_t g;                 /* not on the stack: it is 2.3 KB and the board's stack is small */
 static fs_posix_t host;
 static basic_env_t env;
+
+void plat_sdl_window_scale(int scale);   /* sdl/plat_sdl.c */
 
 static void frame(void)
 {
@@ -39,8 +41,20 @@ static int get_char(void)
 
 int main(int argc, char **argv)
 {
-    const char *dir = argc > 1 ? argv[1] : "basic_files";
+    const char *dir = "basic_files";
     const basic_hooks_t hooks = {get_char, frame, plat_millis, NULL, plat_wait_frame, plat_present, buttons};
+    for (int i = 1; i < argc; i++) {
+        if (!strcmp(argv[i], "-2") || !strcmp(argv[i], "--double")) {
+            plat_sdl_window_scale(2);
+        } else if (!strcmp(argv[i], "--scale") && i + 1 < argc) {
+            plat_sdl_window_scale(atoi(argv[++i]));
+        } else if (argv[i][0] == '-' && argv[i][1]) {
+            fprintf(stderr, "usage: tgbasic [-2 | --double | --scale 1..4] [folder]\n");
+            return 1;
+        } else {
+            dir = argv[i];
+        }
+    }
     mkdir(dir, 0777);
     if (fs_posix_init(&host, dir) != 0 || fs_mount("sd", &fs_posix_ops, &host) != 0) {
         fprintf(stderr, "cannot use the folder %s\n", dir);
