@@ -1434,6 +1434,27 @@ static void test_lib_functions(void)
 }
 
 
+/* The example program basic/examples/tiletest.bas checks itself: every line it prints says ok or FAIL. */
+static void test_tile_flags_program(void)
+{
+    static char text[8192];
+    FILE *f = fopen("basic/examples/tiletest.bas", "rb");
+    CHECK(f != NULL);
+    const size_t n = fread(text, 1, sizeof text - 1, f);
+    fclose(f);
+    text[n] = 0;
+    seed_count = 0;
+    run_program(text);
+    CHECK(printed("done") && printed("Ready.") && !shows("FAIL"));
+    int oks = 0;
+    for (int r = 0; r < 25; r++)
+        oks += !strncmp(row(r), "ok   ", 5);
+    CHECK(oks >= 20);
+    type("RUN\n");                                   /* and again: the second run must not find anything left by the first */
+    CHECK(go() == -1);
+    CHECK(printed("done") && !shows("FAIL"));
+}
+
 int main(void)
 {
     test_basics();
@@ -1453,6 +1474,7 @@ int main(void)
     test_game_example();
     test_file_functions();
     test_lib_functions();
+    test_tile_flags_program();
     printf("all %d checks passed\n", checks);
     return 0;
 }
