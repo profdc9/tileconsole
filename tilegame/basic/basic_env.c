@@ -406,6 +406,8 @@ static void cmd_files(basic_env_t *e, const char *args)
         say(e, "  (empty)\n");
 }
 
+#define ACTIVITY(e, what) do { if ((e)->hooks.activity) (e)->hooks.activity(what); } while (0)
+
 static void cmd_run(basic_env_t *e)
 {
     if (!e->length) {
@@ -416,13 +418,18 @@ static void cmd_run(basic_env_t *e)
     e->typeahead_count = 0;
     e->last_poll = e->hooks.millis();
     basic_file_close_all();
+    ACTIVITY(e, 2);
     basic_game_begin_run(e);
     mb_reset(&e->bas, false, true);
+    ACTIVITY(e, 4);
     int r = mb_load_string(e->bas, e->program, true);
+    ACTIVITY(e, 5);
     if (r == MB_FUNC_OK)
         r = mb_run(e->bas, true);
+    ACTIVITY(e, 6);
     basic_game_end_run(e);
     basic_file_close_all();
+    ACTIVITY(e, 1);
     if (e->con.col != 0)
         tg_console_putc(&e->con, '\n');
     if (e->stop)
@@ -437,6 +444,8 @@ static void cmd_immediate(basic_env_t *e, const char *line)
     e->typeahead_count = 0;
     e->last_poll = e->hooks.millis();
     basic_file_close_all();
+    if (e->hooks.activity)
+        e->hooks.activity(2);
     basic_game_begin_run(e);
     /*
      * Each line is a program of its own: MY-BASIC cannot run a line on its own among the variables of an earlier one (a string variable may be pointing into the
@@ -448,6 +457,8 @@ static void cmd_immediate(basic_env_t *e, const char *line)
         r = mb_run(e->bas, true);
     basic_game_end_run(e);
     basic_file_close_all();
+    if (e->hooks.activity)
+        e->hooks.activity(1);
     if (e->con.col != 0)
         tg_console_putc(&e->con, '\n');
     if (e->stop)
@@ -471,6 +482,7 @@ static void show_help(basic_env_t *e)
     say(e, "  FILES [folder]   list a folder          KILL file        delete a file\n");
     say(e, "  CD [folder]      change folder          EDIT [file]      edit a program\n");
     say(e, "  STACK            stack used so far      HEAP             memory left\n");
+    say(e, "  VIDEO            picture losses seen, saved in VIDEO.LOG (board only)\n");
     say(e, "  USBLOG           save the USB log to the card\n");
     say(e, "  VER              version                BYE              leave\n");
     say(e, "Anything else is BASIC and runs at once, each line on its own: PRINT 2 + 2     A = 5 : PRINT A * A\n");
@@ -535,9 +547,9 @@ static int run_line(basic_env_t *e, char *line)
                 say(e, "Saved %s, %lu bytes.\n", target, (unsigned long)e->length);
             }
         }
-    } else if (!strcmp(word, "STACK") || !strcmp(word, "HEAP") || !strcmp(word, "USBLOG")) {
+    } else if (!strcmp(word, "STACK") || !strcmp(word, "HEAP") || !strcmp(word, "USBLOG") || !strcmp(word, "VIDEO")) {
         char text[160];
-        const char *what = word[0] == 'S' ? "stack" : word[0] == 'H' ? "heap" : "usblog";
+        const char *what = word[0] == 'S' ? "stack" : word[0] == 'H' ? "heap" : word[0] == 'V' ? "video" : "usblog";
         if (e->hooks.info && e->hooks.info(what, text, sizeof text))
             say(e, "%s\n", text);
         else

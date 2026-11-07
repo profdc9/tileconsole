@@ -216,6 +216,7 @@ static void __not_in_flash_func(render_step)(void)
     if (frame_gen != my_gen) {
         my_gen = frame_gen;
         next = 0;
+        video_diag_phase[1] = 5;
         /* Not spin_lock_blocking: that switches this core's interrupts off while it waits for core 0 to let go of the lock (and while it copies), which held the
          * scanline interrupt back by up to 65 us in the video log, a whole line, enough to leave the DMA chain running a stale command list. The scanline
          * interrupt does not take this lock, so it can run in between. */
@@ -227,6 +228,7 @@ static void __not_in_flash_func(render_step)(void)
             pending_valid = false;
         }
         spin_unlock_unsafe(lock);
+        video_diag_phase[1] = 3;
         live.frame = my_gen;   /* what the text mode cursor blinks by: it goes on blinking while the program does nothing */
         frame_lines = tg_display_lines(&live);
         scan_shift = (uint32_t)tg_display_line_shift(&live);
@@ -240,22 +242,122 @@ static void __not_in_flash_func(render_step)(void)
         lines_done++;
         if (dt > render_us_max)
             render_us_max = dt;
+        video_diag_phase[1] = 6;
         const uint32_t save = save_and_disable_interrupts();
         const bool same_frame = frame_gen == my_gen;
         if (same_frame)
             rendered = next + 1;
         restore_interrupts(save);
+        video_diag_phase[1] = 3;
         if (!same_frame)
             return;   /* a new frame has begun; start again from the top */
         next++;
     }
 }
 
+/* ---- a video watch: finds out when the picture is lost, restarts the output, and keeps what it saw ----
+ * The loss looks like this: the TV shows "no signal" while the program goes on, and the frames still count (they count faster: a desynchronised
+ * command stream no longer holds the DMA back). Core 1 counts frames and scanline interrupts every quarter of a second; a rate that is not 60 Hz twice
+ * in a row is a loss. It then writes down the state of the interrupt, the DMA channels and the HSTX, whether the command lists changed, and the
+ * last three seconds of samples, and restarts the output (video_output_force_resync). plat_video_report gives all of it to core 0 (VIDEO). */
+#define VW_SAMPLE_US 250000
+#define VW_HISTORY 32            /* samples kept: 8 seconds */
+#define VW_RECENT 12             /* samples copied into an event: 3 seconds */
+#define VW_EVENTS 8              /* events kept (the latest) */
+
+typedef struct {
+    uint32_t ms, frames, isrs, gap_us, isr_us, late, activity;
+} vw_sample_t;
+
+typedef struct {
+    uint32_t ms, activity, number;
+    int recovered;               /* 0: not known yet, 1: the rate was right again afterwards, -1: it was not */
+    const char *why;
+    video_diag_snapshot_t snap;
+    vw_sample_t recent[VW_RECENT];
+} vw_event_t;
+
+static vw_sample_t vw_history[VW_HISTORY];
+static uint32_t vw_samples;      /* samples taken */
+static vw_event_t vw_events[VW_EVENTS];
+static volatile uint32_t vw_event_count;
+static volatile uint32_t plat_activity_now;
+
+void plat_activity(unsigned what)
+{
+    plat_activity_now = what;
+    video_diag_activity = (uint8_t)what;
+}
+
+static void __not_in_flash_func(video_watch)(void)
+{
+    static uint32_t next_us, last_frames, last_isrs, last_late, bad, good_since;
+    static bool primed;
+    const uint32_t now = time_us_32();
+    if ((int32_t)(now - next_us) < 0)
+        return;
+    next_us = now + VW_SAMPLE_US;
+
+    const uint32_t frames = frame_gen, isrs = video_diag_isr_count, late = underruns;
+    vw_sample_t s = {to_ms_since_boot(get_absolute_time()), frames - last_frames, isrs - last_isrs, video_diag_max_gap_us, video_diag_max_isr_us,
+                     late - last_late, plat_activity_now};
+    last_frames = frames;
+    last_isrs = isrs;
+    last_late = late;
+    video_output_diag_reset_max();
+    if (!primed) {   /* the first sample after a start or a restart is only a baseline */
+        primed = true;
+        return;
+    }
+    vw_history[vw_samples++ % VW_HISTORY] = s;
+    const bool wrong = s.frames < 13 || s.frames > 17;   /* 15 are due in a quarter of a second */
+    const bool gross = s.frames == 0 || s.frames >= 25;   /* clearly gone: no need to wait for a second sample */
+    vw_event_t *last = vw_event_count ? &vw_events[(vw_event_count - 1) % VW_EVENTS] : NULL;
+    if (last && last->recovered == 0) {   /* did the last restart work? */
+        if (!wrong) {
+            if (++good_since >= 2)
+                last->recovered = 1;
+        } else {
+            good_since = 0;
+            if (bad >= 1)
+                last->recovered = -1;
+        }
+    }
+    if (!wrong) {
+        bad = 0;
+        return;
+    }
+    /* two wrong samples in a row, or one that is clearly gone, or a restart that did not work (the last event is not yet known to have recovered) */
+    if (++bad < 2 && !gross && !(last && last->recovered == 0))
+        return;
+    bad = 0;
+    vw_event_t *e = &vw_events[vw_event_count % VW_EVENTS];
+    memset(e, 0, sizeof *e);
+    e->ms = s.ms;
+    e->activity = s.activity;
+    e->number = vw_event_count + 1;
+    e->why = s.frames == 0 ? "frames stopped" : s.frames > 18 ? "frames too fast" : "frames too slow";
+    video_output_diag_snapshot(&e->snap);
+    const uint32_t n = vw_samples < VW_RECENT ? vw_samples : VW_RECENT;
+    for (uint32_t i = 0; i < n; i++)
+        e->recent[i] = vw_history[(vw_samples - n + i) % VW_HISTORY];
+    vw_event_count++;
+    good_since = 0;
+    primed = false;
+    video_output_force_resync();
+}
+
 static void __not_in_flash_func(background)(void)
 {
+    video_diag_phase[1] = 1;
     hang_check();
+    video_diag_phase[1] = 2;
+    video_watch();
+    video_diag_phase[1] = 3;
     render_step();
+    video_diag_phase[1] = 4;
     audio_pump();
+    video_diag_phase[1] = 0;
 }
 
 /* ---- input: a NES gamepad (a 4021 shift register) on GPIO ---- */
@@ -362,6 +464,7 @@ void plat_shutdown(void) {}
 
 void plat_present(const tg_t *g)
 {
+    video_diag_phase[0] = 1;
     int idx = -1;
     if (g->mode == TG_MODE_TEXT && g->text) {   /* the text screen is a snapshot: the caller may change it as soon as this returns */
         uint32_t s = spin_lock_blocking(lock);
@@ -378,24 +481,121 @@ void plat_present(const tg_t *g)
     }
     pending_valid = true;
     spin_unlock(lock, s);
+    video_diag_phase[0] = 0;
 }
+
+/* ---- the video watch's report, for core 0 (the VIDEO command) ---- */
+
+static const char *activity_name(uint32_t a)
+{
+    static const char *const names[] = {"none", "prompt", "run starting", "editor", "parsing", "running", "run ending", "gfx setup"};
+    return a < sizeof names / sizeof *names ? names[a] : "other";
+}
+
+static const char *phase0_name(uint32_t p)
+{
+    static const char *const names[] = {"other", "plat_present", "present copy", "waiting for a frame", "USB task", "NES read"};
+    return p < sizeof names / sizeof *names ? names[p] : "?";
+}
+
+static const char *phase1_name(uint32_t p)
+{
+    static const char *const names[] = {"between tasks", "hang check", "video watch", "render", "audio pump", "render: waiting for the lock", "render: interrupts off"};
+    return p < sizeof names / sizeof *names ? names[p] : "?";
+}
+
+static size_t app(char *buf, size_t size, size_t at, const char *fmt, ...) __attribute__((format(printf, 4, 5)));
+static size_t app(char *buf, size_t size, size_t at, const char *fmt, ...)
+{
+    if (at >= size)
+        return at;
+    va_list ap;
+    va_start(ap, fmt);
+    const int n = vsnprintf(buf + at, size - at, fmt, ap);
+    va_end(ap);
+    return n < 0 ? at : at + (size_t)n;
+}
+
+size_t plat_video_report(char *buf, size_t size)
+{
+    size_t at = 0;
+    const uint32_t total = vw_event_count, shown = total < VW_EVENTS ? total : VW_EVENTS;
+    at = app(buf, size, at, "video: %lu restarts since power on (%lu kept), uptime %lu ms, resyncs by the driver %lu\n", (unsigned long)total, (unsigned long)shown,
+             (unsigned long)to_ms_since_boot(get_absolute_time()), (unsigned long)video_output_resync_count);
+    {
+        const uint32_t sc = video_diag_slow_count, sn = sc < VIDEO_DIAG_SLOW ? sc : VIDEO_DIAG_SLOW;
+        at = app(buf, size, at, "\nslow interrupts: %lu so far (a gap over 45 us, or the other DMA channel already finished), %lu times the other channel was already done\n",
+                 (unsigned long)sc, (unsigned long)video_diag_both_idle_count);
+        if (sn)
+            at = app(buf, size, at, " newest first: interrupt number, time us, gap us, scanline, flags (1 other done, 2 pong, 4 posted), core 0 phase, core 1 phase, activity\n");
+        for (uint32_t k = 0; k < sn; k++) {
+            const video_diag_slow_t *r = (const video_diag_slow_t *)&video_diag_slow[(sc - 1 - k) % VIDEO_DIAG_SLOW];
+            at = app(buf, size, at, "  %lu %lu %lu %u %u %s; %s; %s\n", (unsigned long)r->isr_count, (unsigned long)r->t_us, (unsigned long)r->gap_us, r->v_scanline, r->flags,
+                     phase0_name(r->phase0), phase1_name(r->phase1), activity_name(r->activity));
+        }
+    }
+    for (uint32_t k = 0; k < shown; k++) {
+        const vw_event_t *e = &vw_events[(total - 1 - k) % VW_EVENTS];   /* the newest first */
+        const video_diag_snapshot_t *d = &e->snap;
+        at = app(buf, size, at, "\n#%lu at %lu ms, core 0 was in the %s: %s, %s\n", (unsigned long)e->number, (unsigned long)e->ms, activity_name(e->activity), e->why,
+                 e->recovered > 0 ? "recovered" : e->recovered < 0 ? "NOT recovered" : "recovery not checked");
+        at = app(buf, size, at, "  interrupts %lu, frames %lu, scanline %lu, flags %lx (1 posted, 2 pong next), longest gap %lu us, longest interrupt %lu us\n",
+                 (unsigned long)d->isr_count, (unsigned long)d->frame_count, (unsigned long)d->v_scanline, (unsigned long)d->flags, (unsigned long)d->max_gap_us,
+                 (unsigned long)d->max_isr_us);
+        for (int c = 0; c < 2; c++)
+            at = app(buf, size, at, "  dma %s ctrl %08lx read %08lx count %lu\n", c ? "pong" : "ping", (unsigned long)d->ch[c].ctrl, (unsigned long)d->ch[c].read_addr,
+                     (unsigned long)d->ch[c].transfer_count);
+        at = app(buf, size, at, "  dma intr %lx, hstx fifo stat %08lx, hstx csr %08lx\n", (unsigned long)d->dma_intr, (unsigned long)d->hstx_fifo_stat, (unsigned long)d->hstx_csr);
+        if (d->template_bad_index < 0)
+            at = app(buf, size, at, "  command lists: unchanged\n");
+        else
+            at = app(buf, size, at, "  command lists: CHANGED, word %ld is %08lx, was %08lx\n", (long)d->template_bad_index, (unsigned long)d->template_bad_value,
+                     (unsigned long)d->template_bad_was);
+        at = app(buf, size, at, "  the 3 seconds before (ms, frames, interrupts, longest gap us, longest interrupt us, late lines, activity):\n");
+        for (int i = 0; i < VW_RECENT; i++) {
+            const vw_sample_t *s = &e->recent[i];
+            if (s->ms)
+                at = app(buf, size, at, "   %lu %lu %lu %lu %lu %lu %s\n", (unsigned long)s->ms, (unsigned long)s->frames, (unsigned long)s->isrs, (unsigned long)s->gap_us,
+                         (unsigned long)s->isr_us, (unsigned long)s->late, activity_name(s->activity));
+        }
+    }
+    at = app(buf, size, at, "\nthe last samples (the same columns):\n");
+    const uint32_t n = vw_samples < VW_HISTORY ? vw_samples : VW_HISTORY;
+    for (uint32_t i = 0; i < n; i++) {
+        const vw_sample_t *s = &vw_history[(vw_samples - n + i) % VW_HISTORY];
+        at = app(buf, size, at, " %lu %lu %lu %lu %lu %lu %s\n", (unsigned long)s->ms, (unsigned long)s->frames, (unsigned long)s->isrs, (unsigned long)s->gap_us,
+                 (unsigned long)s->isr_us, (unsigned long)s->late, activity_name(s->activity));
+    }
+    return at < size ? at : size - 1;
+}
+
+uint32_t plat_video_restarts(void)
+{
+    return vw_event_count;
+}
+
 
 uint32_t plat_wait_frame(void)
 {
     core0_beat++;
 #if PLAT_USB_HID
+    video_diag_phase[0] = 4;
     usb_hid_task();   /* the USB host stack needs to run often; a late frame must not starve it */
 #endif
     while (frame_gen == seen_gen) {
         core0_beat++;
 #if PLAT_USB_HID
+        video_diag_phase[0] = 4;
         usb_hid_task();
 #endif
+        video_diag_phase[0] = 3;
         tight_loop_contents();
     }
     seen_gen = frame_gen;
 
+    video_diag_phase[0] = 5;
     const plat_buttons_t nes = nes_read();
+    video_diag_phase[0] = 0;
     for (int p = 0; p < PLAT_MAX_PLAYERS; p++) {
         plat_buttons_t now = p == 0 ? nes : 0;
 #if PLAT_USB_HID

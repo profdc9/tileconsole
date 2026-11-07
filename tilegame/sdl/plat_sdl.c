@@ -114,6 +114,11 @@ static uint8_t sdl_button_bit(Uint8 button)
     }
 }
 
+void plat_activity(unsigned what)
+{
+    (void)what;
+}
+
 static int window_scale = 1;
 
 /* The window is this many times the picture (640 x 480), 1 to 4, before plat_init; SDL scales the picture (the logical size is the picture's). */

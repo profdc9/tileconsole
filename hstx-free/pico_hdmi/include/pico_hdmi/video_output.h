@@ -252,4 +252,50 @@ void video_output_core1_run(void);
  */
 void pico_hdmi_set_audio_sample_rate(uint32_t sample_rate);
 
+/**
+ * Diagnostics, for finding out why the picture was lost (the sink shows "no signal" while the interrupts go on): a snapshot of the scanline
+ * interrupt's state and of the DMA channels and the HSTX, taken from core 1 (never from the interrupt). max_gap_us and max_isr_us are the longest
+ * time between two scanline interrupts and the longest one took since video_output_diag_reset_max; the template fields say whether one of the
+ * command lists that never change (9 words each for the two blanking lines and the DVI active line) differs from its copy taken at start-up:
+ * template_bad_index is the first word that does (-1: none), with the value it has and had.
+ */
+typedef struct {
+    uint32_t isr_count, frame_count, max_gap_us, max_isr_us;
+    uint32_t v_scanline;
+    uint32_t flags;                          // 1: an active line's command list is posted, 2: the next interrupt is the pong channel's, 4: DVI mode
+    struct {
+        uint32_t ctrl, read_addr, transfer_count;   // the ping channel (0) and the pong channel (1)
+    } ch[2];
+    uint32_t dma_intr, hstx_fifo_stat, hstx_csr;
+    int32_t template_bad_index;
+    uint32_t template_bad_value, template_bad_was;
+} video_diag_snapshot_t;
+
+extern volatile uint32_t video_diag_isr_count, video_diag_max_gap_us, video_diag_max_isr_us;
+
+/**
+ * The slow-gap log: every time the scanline interrupt starts more than 45 us after the one before (a line is about 34 us), or finds that the other DMA
+ * channel has already finished (it was a whole line late, so the chain restarted with a stale command list), it writes a record here. The phases are
+ * for the program to set: what each core was doing (video_diag_phase[0] core 0, [1] core 1) and a coarse activity code, so that the record says where the delay
+ * came from. video_diag_slow_count counts all of them; the table keeps the latest VIDEO_DIAG_SLOW.
+ */
+#define VIDEO_DIAG_SLOW 16
+typedef struct {
+    uint32_t isr_count;      // which interrupt it was
+    uint32_t t_us;           // the timer (microseconds, 32 bits) when it started
+    uint32_t gap_us;         // time since the interrupt before
+    uint16_t v_scanline;
+    uint8_t flags;           // 1: the other channel had finished already, 2: the pong channel's interrupt, 4: an active line's command list was posted
+    uint8_t phase0, phase1, activity;
+} video_diag_slow_t;
+extern volatile video_diag_slow_t video_diag_slow[VIDEO_DIAG_SLOW];
+extern volatile uint32_t video_diag_slow_count, video_diag_both_idle_count;
+extern volatile uint8_t video_diag_phase[2], video_diag_activity;
+void video_output_diag_snapshot(video_diag_snapshot_t *s);
+void video_output_diag_reset_max(void);
+
+/** Restarts the HSTX and the DMA chain from the top of a frame (core 1, thread context). */
+void video_output_force_resync(void);
+extern volatile uint32_t video_output_resync_count;
+
 #endif // VIDEO_OUTPUT_H

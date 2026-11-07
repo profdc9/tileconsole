@@ -89,7 +89,7 @@ static void free_all(basic_env_t *e)
 static const uint16_t ega[16] = {0x0000, 0x0015, 0x0540, 0x0555, 0xA800, 0xA815, 0xAAA0, 0xAD55,
                                  0x52AA, 0x52BF, 0x57EA, 0x57FF, 0xFAAA, 0xFABF, 0xFFEA, 0xFFFF};
 
-static int setup(basic_env_t *e, int size_log2)
+static int setup_state(basic_env_t *e, int size_log2)
 {
     free_all(e);
     basic_game_t *G = mem(e, sizeof *G, 0);
@@ -116,6 +116,17 @@ static int setup(basic_env_t *e, int size_log2)
     tg_actors_init(&G->actors, G->pool, BG_MAX_ACTORS, G->order);
     G->actors.sprite_log2 = (uint8_t)size_log2;   /* (collision boxes before the first draw) */
     return 1;
+}
+
+/* (the board writes down what the program is doing with its video log: 7 is making the graphics state, 5 running) */
+static int setup(basic_env_t *e, int size_log2)
+{
+    if (e->hooks.activity)
+        e->hooks.activity(7);
+    const int r = setup_state(e, size_log2);
+    if (e->hooks.activity)
+        e->hooks.activity(5);
+    return r;
 }
 
 static int fail(struct mb_interpreter_t *s, void **l, mb_error_e err, const char *fmt, ...) __attribute__((format(printf, 4, 5)));

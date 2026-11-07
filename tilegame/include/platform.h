@@ -26,6 +26,7 @@
 
 /* ---- starting up ---- */
 
+void plat_activity(unsigned what);   /* what the program is doing, for the board's video watch to write down: 1 at the prompt, 2 running a program, 3 in the editor (a no-op on the desktop) */
 bool plat_init(void);        /* open the window, or bring up HDMI, input and audio */
 void plat_shutdown(void);
 

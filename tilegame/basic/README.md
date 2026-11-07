@@ -135,6 +135,14 @@ pointer: a number that is not an open file stops the program with a line that sa
 
 A name is looked up as the prompt's `LOAD` does (from the current folder, or `/sd/...`). `IMPORT` is not one of these: it reads a program file of any size on its own.
 
+## Losing the picture (board)
+
+The board watches its own picture: core 1 counts frames every quarter second, and a rate that is not 60 Hz twice in a row means the HDMI output has lost
+sync (the TV shows "no signal" while the program goes on). It writes down what it can see, restarts the output, and the picture comes back. `VIDEO` at the
+prompt shows how many times that has happened and saves the details in `VIDEO.LOG` on the card (the newest event first): what core 0 was doing (prompt,
+program or editor), the state of the scanline interrupt (longest gap between interrupts and longest interrupt), the two DMA channels, the HSTX FIFO, whether a command list in
+memory had been changed, and the samples of the seconds before. It also lists the interrupts that came late (over 45 microseconds after the one before, or after the other DMA channel had already finished), with what each core was doing at the time, whether or not the picture was lost. Send that file with a report of a lost picture.
+
 ## Library functions: bits, small helpers, string matching
 
 These are the functions of MY-BASIC's wiki modules (bit operation, miscellaneous, string matching).

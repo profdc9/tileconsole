@@ -142,6 +142,15 @@ static unsigned buttons(int player, int kind)
 }
 
 #ifdef DEVKIT_BOARD
+size_t plat_video_report(char *buf, size_t size);   /* board/plat_board.c: the video watch's log */
+uint32_t plat_video_restarts(void);
+#endif
+static void plat_activity_hook(int what)
+{
+    plat_activity((unsigned)what);
+}
+
+#ifdef DEVKIT_BOARD
 /* The game's memory: what the display reads in the C library's heap (SRAM), the rest in the PSRAM pool if there is one. */
 static void *game_alloc(size_t n, int fast)
 {
@@ -332,6 +341,7 @@ static void run_editor(const char *name)
     snprintf(file, sizeof file, "%s", name);
     if (*file)
         args[n++] = file;
+    plat_activity(3);
     tde_console_attach(&screen, show);
     tde_console_set_idle(idle);
     setenv("TDEHOME", "/sd/tde", 1);
@@ -339,6 +349,7 @@ static void run_editor(const char *name)
     tde_crumb(10);
     tde_main(n, args);
     tde_crumb(11);
+    plat_activity(1);
     drain_keys();
 }
 
@@ -406,6 +417,19 @@ static int board_info(const char *what, char *out, size_t size)
         return 1;
     }
 #endif
+    if (!strcmp(what, "video")) {
+        static char report[12288];
+        plat_video_report(report, sizeof report);
+        int fd = fs_open("/sd/VIDEO.LOG", FS_WRONLY | FS_CREAT | FS_TRUNC);
+        int ok = fd >= 0;
+        if (ok) {
+            const size_t n = strlen(report);
+            ok = fs_write(fd, report, n) == (int)n;
+            fs_close(fd);
+        }
+        snprintf(out, size, "video: %lu picture restarts since power on; %s", (unsigned long)plat_video_restarts(), ok ? "details saved in VIDEO.LOG" : "VIDEO.LOG could not be saved");
+        return 1;
+    }
     if (!strcmp(what, "heap")) {
         const struct mallinfo mi = mallinfo();
         const long system = (long)mi.fordblks + (long)(&__HeapLimit - (char *)sbrk(0));
@@ -423,9 +447,9 @@ static int board_info(const char *what, char *out, size_t size)
 static void devkit(void)
 {
     #ifdef DEVKIT_BOARD
-    static const basic_hooks_t hooks = {get_char, frame, plat_millis, board_info, plat_wait_frame, plat_present, buttons, game_alloc, game_release};
+    static const basic_hooks_t hooks = {get_char, frame, plat_millis, board_info, plat_wait_frame, plat_present, buttons, game_alloc, game_release, plat_activity_hook};
 #else
-    static const basic_hooks_t hooks = {get_char, frame, plat_millis, NULL, plat_wait_frame, plat_present, buttons};
+    static const basic_hooks_t hooks = {get_char, frame, plat_millis, NULL, plat_wait_frame, plat_present, buttons, NULL, NULL, NULL};
 #endif
 #ifdef DEVKIT_BOARD
     static char note_copy[200];

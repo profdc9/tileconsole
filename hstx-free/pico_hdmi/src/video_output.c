@@ -12,6 +12,7 @@
 #include "hardware/structs/clocks.h"
 #include "hardware/structs/hstx_ctrl.h"
 #include "hardware/structs/hstx_fifo.h"
+#include "hardware/structs/timer.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -595,8 +596,97 @@ static inline void __scratch_x("") video_output_handle_active_data(dma_channel_h
 // DMA IRQ Handler
 // ============================================================================
 
+// ============================================================================
+// Diagnostics: what the scanline interrupt looks like from outside (see video_output_diag_snapshot)
+// ============================================================================
+
+volatile uint32_t video_diag_isr_count;         // scanline interrupts so far
+volatile uint32_t video_diag_max_gap_us;        // the longest time between two interrupts since video_output_diag_reset_max
+volatile uint32_t video_diag_max_isr_us;        // the longest an interrupt took, the same way
+static uint32_t diag_last_entry_us;
+volatile video_diag_slow_t video_diag_slow[VIDEO_DIAG_SLOW];
+volatile uint32_t video_diag_slow_count, video_diag_both_idle_count;
+volatile uint8_t video_diag_phase[2], video_diag_activity;
+
+static void __scratch_x("") diag_record_slow(uint32_t t0, uint32_t gap, bool other_idle, bool pong)
+{
+    volatile video_diag_slow_t *r = &video_diag_slow[video_diag_slow_count % VIDEO_DIAG_SLOW];
+    r->isr_count = video_diag_isr_count;
+    r->t_us = t0;
+    r->gap_us = gap;
+    r->v_scanline = (uint16_t)v_scanline;
+    r->flags = (other_idle ? 1u : 0u) | (pong ? 2u : 0u) | (vactive_cmdlist_posted ? 4u : 0u);
+    r->phase0 = video_diag_phase[0];
+    r->phase1 = video_diag_phase[1];
+    r->activity = video_diag_activity;
+    video_diag_slow_count++;
+}
+// The command lists that are never changed once made: a copy of each, from before the first interrupt, to find out whether
+// something wrote into them. 9 + 9 + 9 words.
+#define DIAG_SHADOW_WORDS 27
+static uint32_t diag_shadow[DIAG_SHADOW_WORDS];
+
+static void diag_copy_templates(uint32_t *dst)
+{
+    memcpy(dst, vblank_line_vsync_off, sizeof vblank_line_vsync_off);
+    memcpy(dst + 9, vblank_line_vsync_on, sizeof vblank_line_vsync_on);
+    memcpy(dst + 18, vactive_line_dvi, sizeof vactive_line_dvi);
+}
+
+void video_output_diag_reset_max(void)
+{
+    video_diag_max_gap_us = 0;
+    video_diag_max_isr_us = 0;
+}
+
+void video_output_diag_snapshot(video_diag_snapshot_t *s)
+{
+    memset(s, 0, sizeof *s);
+    s->isr_count = video_diag_isr_count;
+    s->frame_count = video_frame_count;
+    s->max_gap_us = video_diag_max_gap_us;
+    s->max_isr_us = video_diag_max_isr_us;
+    s->v_scanline = v_scanline;
+    s->flags = (vactive_cmdlist_posted ? 1u : 0u) | (dma_pong ? 2u : 0u) | (dvi_mode ? 4u : 0u);
+    for (int i = 0; i < 2; i++) {
+        dma_channel_hw_t *ch = &dma_hw->ch[i == 0 ? DMACH_PING : DMACH_PONG];
+        s->ch[i].ctrl = ch->ctrl_trig;
+        s->ch[i].read_addr = ch->read_addr;
+        s->ch[i].transfer_count = ch->transfer_count;
+    }
+    s->dma_intr = dma_hw->intr;
+    s->hstx_fifo_stat = hstx_fifo_hw->stat;
+    s->hstx_csr = hstx_ctrl_hw->csr;
+    uint32_t now[DIAG_SHADOW_WORDS];
+    diag_copy_templates(now);
+    s->template_bad_index = -1;
+    for (int i = 0; i < DIAG_SHADOW_WORDS; i++)
+        if (now[i] != diag_shadow[i]) {
+            s->template_bad_index = i;
+            s->template_bad_value = now[i];
+            s->template_bad_was = diag_shadow[i];
+            break;
+        }
+}
+
 static void __scratch_x("") dma_irq_handler()
 {
+    const uint32_t diag_t0 = timer_hw->timerawl;
+    // The channel that was started when the last one finished should still be running; if it has finished too, this interrupt was a whole line late.
+    const bool diag_other_idle =
+        !(dma_hw->ch[dma_pong ? DMACH_PING : DMACH_PONG].ctrl_trig & DMA_CH0_CTRL_TRIG_BUSY_BITS);
+    uint32_t diag_gap = 0;
+    if (diag_last_entry_us) {
+        diag_gap = diag_t0 - diag_last_entry_us;
+        if (diag_gap > video_diag_max_gap_us)
+            video_diag_max_gap_us = diag_gap;
+    }
+    diag_last_entry_us = diag_t0;
+    video_diag_isr_count++;
+    if (diag_other_idle)
+        video_diag_both_idle_count++;
+    if (diag_gap > 45 || diag_other_idle)
+        diag_record_slow(diag_t0, diag_gap, diag_other_idle, dma_pong);
     uint32_t ch_num = dma_pong ? DMACH_PONG : DMACH_PING;
     dma_channel_hw_t *ch = &dma_hw->ch[ch_num];
     dma_hw->intr = 1U << ch_num;
@@ -634,6 +724,9 @@ static void __scratch_x("") dma_irq_handler()
     }
     if (!vactive_cmdlist_posted)
         v_scanline = (v_scanline + 1) % MODE_V_TOTAL_LINES;
+    const uint32_t diag_dt = timer_hw->timerawl - diag_t0;
+    if (diag_dt > video_diag_max_isr_us)
+        video_diag_max_isr_us = diag_dt;
 }
 
 // ============================================================================
@@ -835,6 +928,7 @@ void video_output_core1_run(void)
     }
 #endif
 
+    diag_copy_templates(diag_shadow);
     dma_hw->ints0 = (1U << DMACH_PING) | (1U << DMACH_PONG);
     dma_hw->inte0 = (1U << DMACH_PING) | (1U << DMACH_PONG);
     irq_set_exclusive_handler(DMA_IRQ_0, dma_irq_handler);

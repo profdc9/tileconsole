@@ -43,6 +43,8 @@ typedef struct {
      * which belongs in the fastest RAM; 0 for the rest (a big map can be in the PSRAM). The block need not be cleared. */
     void *(*alloc)(size_t size, int fast);
     void (*release)(void *p);
+    /* optional: told what the environment is doing, 1 at the prompt and 2 while a program or a line runs (the board writes it down with its video log) */
+    void (*activity)(int what);
 } basic_hooks_t;
 
 enum { BASIC_EXIT_BYE = 0, BASIC_EXIT_EDIT = 1 };
