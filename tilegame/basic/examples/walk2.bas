@@ -23,11 +23,11 @@ next
 sprrow(1, 6, ".444444.")
 sprrow(1, 7, "..4444..")
 
-newmap(40, 30)
-tilefill(0, 0, 40, 30, 1)
-tilefill(1, 1, 38, 28, 2)
-for i = 1 to 40
-  tile(1 + i * 7 mod 38, 1 + i * 11 mod 28, 3)
+newmap(80, 60)                    ' 640 x 480 pixels, bigger than the screen, so there is something to scroll
+tilefill(0, 0, 80, 60, 1)
+tilefill(1, 1, 78, 58, 2)
+for i = 1 to 120
+  tile(1 + i * 7 mod 78, 1 + i * 11 mod 58, 3)
 next
 settileflags(1, 1)                ' walls are solid
 

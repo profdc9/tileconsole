@@ -1604,10 +1604,12 @@ static void test_game_example2(void)
     text[n] = 0;
     seed_count = 0;
     run_held = PLAT_BTN_RIGHT | PLAT_BTN_B;
+    strcat(text, "\nprint \"cam=\" + str(camx());\n");      /* the room is bigger than the screen, so the camera has to have moved */
     run_program(text);
     run_held = 0;
     CHECK(printed("Ready.") && !shows("Error"));
     CHECK(presents >= 1);
+    CHECK(printed("cam=") && !printed("cam=0"));
 }
 
 /* ---- FOLLOW: the camera follows an actor ---- */
