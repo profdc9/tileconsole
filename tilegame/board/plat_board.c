@@ -216,14 +216,17 @@ static void __not_in_flash_func(render_step)(void)
     if (frame_gen != my_gen) {
         my_gen = frame_gen;
         next = 0;
-        uint32_t s = spin_lock_blocking(lock);
+        /* Not spin_lock_blocking: that switches this core's interrupts off while it waits for core 0 to let go of the lock (and while it copies), which held the
+         * scanline interrupt back by up to 65 us in the video log, a whole line, enough to leave the DMA chain running a stale command list. The scanline
+         * interrupt does not take this lock, so it can run in between. */
+        spin_lock_unsafe_blocking(lock);
         if (pending_valid) {
             live = pending;
             if (live.mode == TG_MODE_TEXT)
                 text_live = text_pending;
             pending_valid = false;
         }
-        spin_unlock(lock, s);
+        spin_unlock_unsafe(lock);
         live.frame = my_gen;   /* what the text mode cursor blinks by: it goes on blinking while the program does nothing */
         frame_lines = tg_display_lines(&live);
         scan_shift = (uint32_t)tg_display_line_shift(&live);
