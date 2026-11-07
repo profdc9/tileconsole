@@ -88,6 +88,8 @@ changing a tile while it is on screen can show for a frame as it was and as it i
 | `tilestr(x, y, w, s$ [, offset])` | the bytes of the string, plus the offset (0 if not given), are tile numbers put in the map one after the other, w to a row from x, y and then the next row. A string cannot hold a 0, so the offset is how to reach tile 0 (`-32` makes a space tile 0). The tile of every byte must be 0 to 255, or nothing is changed |
 | `camera(x, y)` | the pixel at the top left of the screen (any numbers, negative too; outside the map is empty) |
 | `camx()`, `camy()` | where the camera is (see `wrap`) |
+| `follow(a [, dead_w, dead_h [, smooth]])` | from now on the camera follows actor `a` each frame (`waitframe()` or `run()`), keeping the middle of the actor in the middle of the screen. A dead zone (`dead_w` by `dead_h` pixels, in the middle of the screen) lets the actor move inside it without the camera moving, and the camera moves only as far as it must when the actor goes outside; `smooth` n makes it cover 1/(n+1) of the way each frame (0: all of it). A map that does not repeat keeps the camera inside it (a map smaller than the screen is centred), and one that repeats goes the short way round the seam. `follow(-1)` stops it, as does freeing the actor; `camera(x, y)` is for moving it yourself |
+| `followlimit(on)` | whether `follow` keeps the camera inside a map that does not repeat (1 at first) |
 | `wrap(1)` | the map repeats in every direction, so the scrolling can go on for ever; `wrap(0)` ends it. Returns 1 if the actors wrap too (the map must be at least 192 by 160 pixels) |
 | `settileflags(n, f)` | what a tile is, as bits: 1 solid, 2 one-way (solid from above only); 4 trigger (stops nothing, but `actormove` reports it: see below); 8 to 128 are not used yet, so a program may use them for its own marks |
 | `tileflag(x, y)` | the flags of the tile at the pixel x, y (floating point is fine) |
@@ -118,7 +120,7 @@ Actors are in front of the map. With `wrap(1)` an actor's position is kept withi
 
 A mistake (an actor that is not there, a number out of range, a map that was not made) stops the program with a line that says what, and the function's name.
 
-Not here yet: following an actor with the camera (`camera(actorx(a) - 160, actory(a) - 120)` does it), animation tables, loading tiles and maps from files, more than one tile layer, sound.
+Not here yet: animation tables, loading tiles and maps from files, more than one tile layer, sound.
 
 ## File functions
 

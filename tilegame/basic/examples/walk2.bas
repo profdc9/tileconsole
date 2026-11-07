@@ -1,5 +1,5 @@
 ' Walk around a room, the same as walk.bas but with the frame loop in the system: RUN() calls update() once a frame (k is the frames that went by),
-' and a result that is not 0 (B pressed) ends it. The arrow keys move the ball.
+' and a result that is not 0 (B pressed) ends it. FOLLOW(p) keeps the camera on the ball. The arrow keys move the ball.
 
 gfx(8)
 palette("1", 120, 80, 40)           ' wall
@@ -41,10 +41,10 @@ def update(k)
   if btn(0, "up") then dy = -2
   if btn(0, "down") then dy = 2
   h = actormove(p, dx, dy)
-  camera(actorx(p) - 160, actory(p) - 120)
   return btn(0, "b")
 enddef
 
+follow(p)                           ' the camera follows the ball
 onframe("update")
 run()
 

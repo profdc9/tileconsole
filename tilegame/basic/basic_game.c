@@ -39,6 +39,10 @@ struct basic_game {
     int has_frame_fn;
     int frame_fn_ref;               /* a lambda, which holds a reference (a routine made with DEF belongs to the program: unreferencing it would destroy it) */
     int in_run;                     /* RUN is looping: WAITFRAME is an error */
+    int follow_id;                  /* the actor the camera follows, -1: none */
+    int follow_dw, follow_dh;       /* the dead zone, in pixels: the actor's centre moves in it without the camera moving */
+    int follow_smooth;              /* 0: the camera goes straight to where it should be; n: it covers 1/(n+1) of the way each frame */
+    int follow_limits;              /* keep the camera inside a map that does not repeat */
 };
 typedef struct basic_game basic_game_t;
 
@@ -128,6 +132,8 @@ static int setup_state(basic_env_t *e, int size_log2)
         G->g.palette[(unsigned char)"0123456789ABCDEF"[i]] = ega[i];
     G->g.palette[0] = ega[0];   /* (the backdrop) */
     G->bg = '.';
+    G->follow_id = -1;
+    G->follow_limits = 1;
     tg_actors_init(&G->actors, G->pool, BG_MAX_ACTORS, G->order);
     G->actors.sprite_log2 = (uint8_t)size_log2;   /* (collision boxes before the first draw) */
     return 1;
@@ -556,6 +562,55 @@ FUNC(camy)
     return MB_FUNC_OK;
 }
 
+/*
+ * FOLLOW(actor [, dead_width, dead_height [, smooth]]): from now on the camera follows the actor, once a frame (WAITFRAME or RUN), keeping the middle of the actor in the middle
+ * of the screen. With a dead zone the camera stays still while the actor moves inside a box of that size in the middle of the screen, and moves only as far as it must when the
+ * actor goes outside it. With smooth n the camera covers 1/(n+1) of the way to where it should be each frame. A map that does not repeat keeps the camera inside it (FOLLOWLIMIT(0)
+ * does not), a map that repeats goes the short way round the seam. FOLLOW(-1) stops it, and so does freeing the actor; CAMERA(x, y) is for moving it yourself.
+ */
+FUNC(follow)
+{
+    int id, dw = 0, dh = 0, smooth = 0;
+    OPEN();
+    CK(arg_int(s, l, &id));
+    if (mb_has_arg(s, l)) {
+        CK(arg_int(s, l, &dw));
+        CK(arg_int(s, l, &dh));
+        if (mb_has_arg(s, l))
+            CK(arg_int(s, l, &smooth));
+    }
+    CLOSE();
+    NEED_GAME();
+    if (id < 0) {
+        G->follow_id = -1;
+        RET(0);
+        return MB_FUNC_OK;
+    }
+    if (!tg_actor(&G->actors, id))
+        return fail(s, l, SE_RN_INDEX_OUT_OF_BOUND, "FOLLOW(actor): there is no actor %d", id);
+    if (dw < 0 || dh < 0 || dw > TG_WIDTH || dh > TG_HEIGHT || smooth < 0 || smooth > 255)
+        return fail(s, l, SE_RN_INDEX_OUT_OF_BOUND, "FOLLOW(actor, width, height, smooth): width 0-%d, height 0-%d, smooth 0-255", TG_WIDTH, TG_HEIGHT);
+    G->follow_id = id;
+    G->follow_dw = dw;
+    G->follow_dh = dh;
+    G->follow_smooth = smooth;
+    RET(0);
+    return MB_FUNC_OK;
+}
+
+/* FOLLOWLIMIT(on): whether FOLLOW keeps the camera inside a map that does not repeat (it does at first). */
+FUNC(followlimit)
+{
+    int on;
+    OPEN();
+    CK(arg_int(s, l, &on));
+    CLOSE();
+    NEED_GAME();
+    G->follow_limits = on != 0;
+    RET(0);
+    return MB_FUNC_OK;
+}
+
 /* ---- actors ---- */
 
 static tg_actor_t *actor_arg(struct mb_interpreter_t *s, void **l, basic_game_t *G, int id, const char *who)
@@ -910,8 +965,60 @@ FUNC(actorhit)
  * Shows the picture (the actors get their sprites, the maps are swapped) and waits for the next frame. Returns the frames that went by since the last time
  * (1 to BG_STEP_MAX); the actors move by that many frames of their velocity.
  */
+/* The distance from where the camera looks to where it should, going the short way round when the world repeats (wrap: its size in pixels, 0 if it does not). */
+static int32_t short_way(int32_t d, int32_t wrap)
+{
+    if (wrap > 0) {
+        d %= wrap;
+        if (d > wrap / 2)
+            d -= wrap;
+        else if (d < -(wrap / 2))
+            d += wrap;
+    }
+    return d;
+}
+
+/* How far the camera moves on one axis: the part of the distance outside the dead zone, a fraction of it if the camera is smoothed (at least a pixel, and never past). */
+static int32_t follow_step(int32_t d, int32_t dead, int smooth)
+{
+    const int32_t half = dead / 2;
+    int32_t m = d > half ? d - half : d < -half ? d + half : 0;
+    if (m && smooth > 0) {
+        const int32_t part = m / (smooth + 1);
+        m = part ? part : (m > 0 ? 1 : -1);
+    }
+    return m;
+}
+
+/* The camera goes toward the actor it follows (once a frame, before the picture is made). */
+static void apply_follow(basic_game_t *G)
+{
+    if (G->follow_id < 0)
+        return;
+    const tg_actor_t *a = tg_actor(&G->actors, G->follow_id);
+    if (!a) {   /* it was freed */
+        G->follow_id = -1;
+        return;
+    }
+    const int sprite = 1 << G->size_log2;
+    const int32_t cx = (a->x >> 8) + (int32_t)a->cols * sprite / 2, cy = (a->y >> 8) + (int32_t)a->rows * sprite / 2;
+    const int32_t camx = G->has_world ? G->world.cam_x : G->cam_x, camy = G->has_world ? G->world.cam_y : G->cam_y;
+    int32_t x = camx + follow_step(short_way(cx - (camx + TG_WIDTH / 2), G->actors.wrap_w), G->follow_dw, G->follow_smooth);
+    int32_t y = camy + follow_step(short_way(cy - (camy + TG_HEIGHT / 2), G->actors.wrap_h), G->follow_dh, G->follow_smooth);
+    if (G->follow_limits && G->has_world && G->world.border != TG_BORDER_WRAP) {
+        const int32_t mw = G->world.map_w << G->world.tile_log2, mh = G->world.map_h << G->world.tile_log2;
+        x = mw <= TG_WIDTH ? (mw - TG_WIDTH) / 2 : x < 0 ? 0 : x > mw - TG_WIDTH ? mw - TG_WIDTH : x;
+        y = mh <= TG_HEIGHT ? (mh - TG_HEIGHT) / 2 : y < 0 ? 0 : y > mh - TG_HEIGHT ? mh - TG_HEIGHT : y;
+    }
+    G->cam_x = x;
+    G->cam_y = y;
+    if (G->has_world)
+        tg_world_set_camera(&G->world, x, y);
+}
+
 static int show_and_wait(basic_env_t *e, basic_game_t *G)
 {
+    apply_follow(G);
     G->g.mode = TG_MODE_TILES;
     G->g.text = NULL;
     if (G->has_world)
@@ -1124,7 +1231,7 @@ FUNC(pressed) { return button_state(s, l, 1); }
 #define F(n) {#n, bf_##n}
 static const struct { const char *name; mb_func_t fn; } functions[] = {
     F(gfx), F(palette), F(tiledef), F(sprdef), F(tilerow), F(sprrow), F(tilepix), F(sprpix),
-    F(newmap), F(wrap), F(tile), F(gettile), F(tilefill), F(tilestr), F(settileflags), F(tileflag), F(tilebox), F(camera), F(camx), F(camy),
+    F(newmap), F(wrap), F(tile), F(gettile), F(tilefill), F(tilestr), F(settileflags), F(tileflag), F(tilebox), F(camera), F(camx), F(camy), F(follow), F(followlimit),
     F(actor), F(actorfree), F(actorpos), F(actorx), F(actory), F(actorvel), F(actortile), F(actorsize), F(actorflip), F(actorhide), F(actorprio),
     F(actorbox), F(actoruser), F(ysort), F(actormove), F(hitx), F(hity), F(hittile), F(hitflags), F(lastx), F(lasty), F(actorhit),
     F(waitframe), F(onframe), F(run), F(textmode), F(frames), F(millis), F(btn), F(pressed),

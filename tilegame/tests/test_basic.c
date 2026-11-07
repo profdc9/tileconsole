@@ -1610,6 +1610,146 @@ static void test_game_example2(void)
     CHECK(presents >= 1);
 }
 
+/* ---- FOLLOW: the camera follows an actor ---- */
+
+static void test_game_follow(void)
+{
+    seed_count = 0;
+    /* the middle of the actor in the middle of the screen (320 x 240): an actor of 8 pixels at 400, 300 has its middle at 404, 304 */
+    run_program(
+        "gfx(8)\n"
+        "newmap(100, 80)\n"
+        "a = actor(1, 400, 300)\n"
+        "print \"f=\" + str(follow(a));\n"
+        "waitframe()\n"
+        "print \"c1=\" + str(camx()) + \",\" + str(camy());\n"
+        "actorpos(a, 500, 300)\n"
+        "waitframe()\n"
+        "print \"c2=\" + str(camx()) + \",\" + str(camy());\n"
+        "actorfree(a)\n"
+        "actorpos(0, 0, 0)\n");
+    CHECK(printed("f=0") && printed("c1=244,184") && printed("c2=344,184"));
+    CHECK(shows("no actor 0") && !printed("Ready."));                       /* (the actor is gone) */
+    run_program(
+        "gfx(8)\n"
+        "newmap(100, 80)\n"
+        "a = actor(1, 400, 300)\n"
+        "follow(a)\n"
+        "waitframe()\n"
+        "actorfree(a)\n"
+        "waitframe()\n"
+        "waitframe()\n"
+        "print \"c3=\" + str(camx()) + \",\" + str(camy());\n"
+        "camera(10, 20)\n"
+        "waitframe()\n"
+        "print \"c4=\" + str(camx()) + \",\" + str(camy());\n");
+    CHECK(printed("c3=244,184") && printed("c4=10,20") && printed("Ready."));   /* freeing the actor ends it, and CAMERA is then the program's */
+
+    /* a dead zone: the camera moves only as far as it must to keep the middle of the actor inside it */
+    run_program(
+        "gfx(8)\n"
+        "newmap(100, 80)\n"
+        "a = actor(1, 400, 300)\n"
+        "camera(244, 184)\n"
+        "follow(a, 100, 60)\n"
+        "waitframe()\n"
+        "print \"d1=\" + str(camx()) + \",\" + str(camy());\n"
+        "actorpos(a, 436, 300)\n"
+        "waitframe()\n"
+        "print \"d2=\" + str(camx()) + \",\" + str(camy());\n"
+        "actorpos(a, 466, 300)\n"
+        "waitframe()\n"
+        "print \"d3=\" + str(camx()) + \",\" + str(camy());\n"
+        "actorpos(a, 466, 360)\n"
+        "waitframe()\n"
+        "print \"d4=\" + str(camx()) + \",\" + str(camy());\n"
+        "actorpos(a, 100, 360)\n"
+        "waitframe()\n"
+        "print \"d5=\" + str(camx()) + \",\" + str(camy());\n");
+    CHECK(printed("d1=244,184") && printed("d2=244,184") && printed("d3=260,184") && printed("d4=260,214") && printed("d5=0,214"));
+
+    /* the edges of a map that does not repeat; FOLLOWLIMIT(0) lets it go past them */
+    run_program(
+        "gfx(8)\n"
+        "newmap(100, 80)\n"
+        "a = actor(1, 5, 5)\n"
+        "follow(a)\n"
+        "waitframe()\n"
+        "print \"e1=\" + str(camx()) + \",\" + str(camy());\n"
+        "actorpos(a, 790, 630)\n"
+        "waitframe()\n"
+        "print \"e2=\" + str(camx()) + \",\" + str(camy());\n"
+        "followlimit(0)\n"
+        "actorpos(a, 5, 5)\n"
+        "waitframe()\n"
+        "print \"e3=\" + str(camx()) + \",\" + str(camy());\n"
+        "newmap(30, 20)\n"
+        "followlimit(1)\n"
+        "waitframe()\n"
+        "print \"e4=\" + str(camx()) + \",\" + str(camy());\n");
+    CHECK(printed("e1=0,0") && printed("e2=480,400") && printed("e3=-151,-111") && printed("e4=-40,-40"));   /* (a map of 240 x 160 pixels is smaller than the screen both ways: it is centred) */
+
+    /* smooth: a fraction of the way each frame, and all of it in the end */
+    run_program(
+        "gfx(8)\n"
+        "newmap(100, 80)\n"
+        "a = actor(1, 400, 300)\n"
+        "camera(0, 0)\n"
+        "follow(a, 0, 0, 3)\n"
+        "waitframe()\n"
+        "print \"s1=\" + str(camx()) + \",\" + str(camy());\n"
+        "for i = 1 to 80\n"
+        "  waitframe()\n"
+        "next\n"
+        "print \"s2=\" + str(camx()) + \",\" + str(camy());\n");
+    CHECK(printed("s1=61,46") && printed("s2=244,184") && printed("Ready."));
+
+    /* a map that repeats: the short way round the seam (512 pixels across) */
+    run_program(
+        "gfx(8) : newmap(64, 32) : wrap(1)\n"
+        "a = actor(1, 500, 100)\n"
+        "follow(a)\n"
+        "waitframe()\n"
+        "print \"w1=\" + str(camx()) + \",\" + str(camy());\n"
+        "actorpos(a, 8, 100)\n"
+        "waitframe()\n"
+        "print \"w2=\" + str(camx()) + \",\" + str(camy());\n"
+        "follow(a, 0, 0, 3)\n"
+        "actorpos(a, 500, 100)\n"
+        "waitframe()\n"
+        "waitframe()\n"
+        "actorpos(a, 8, 100)\n"
+        "camera(344, 240)\n"
+        "waitframe()\n"
+        "print \"w3=\" + str(camx()) + \",\" + str(camy());\n");
+    CHECK(printed("w1=344,240") && printed("w2=364,240") && printed("w3=349,240") && printed("Ready."));
+
+    /* in RUN() too: the routine moves the actor, the camera follows */
+    run_program(
+        "gfx(8)\n"
+        "newmap(100, 80)\n"
+        "a = actor(1, 400, 300)\n"
+        "follow(a)\n"
+        "def u(k)\n"
+        "  actorpos(a, actorx(a) + 10, 300)\n"
+        "  return actorx(a) >= 450\n"
+        "enddef\n"
+        "onframe(\"u\")\n"
+        "run()\n"
+        "print \"r=\" + str(camx()) + \",\" + str(camy());\n");
+    CHECK(printed("r=284,184") && printed("Ready."));   /* (the camera is set at the start of each frame, before the routine moves the actor: it is where the actor was at 440) */
+
+    /* mistakes */
+    run_program("gfx(8)\nfollow(5)\n");
+    CHECK(shows("there is no actor 5") && !printed("Ready."));
+    run_program("gfx(8)\na = actor(1, 0, 0)\nfollow(a, -1, 0)\n");
+    CHECK(shows("width 0-320, height 0-240") && !printed("Ready."));
+    run_program("gfx(8)\na = actor(1, 0, 0)\nfollow(a, 10, 10, 300)\n");
+    CHECK(shows("smooth 0-255") && !printed("Ready."));
+    run_program("gfx(8)\nfollow(-1)\nprint \"ok\";\n");
+    CHECK(printed("ok") && printed("Ready."));
+}
+
 int main(void)
 {
     test_basics();
@@ -1629,6 +1769,7 @@ int main(void)
     test_game_example();
     test_game_callbacks();
     test_game_example2();
+    test_game_follow();
     test_file_functions();
     test_lib_functions();
     test_tile_flags_program();
