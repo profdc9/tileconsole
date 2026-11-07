@@ -1,11 +1,13 @@
 /* SPDX-License-Identifier: MIT */
 /* Tests of the BASIC environment: it is typed at with scripted keys on a RAM disk and the screen and the files are looked at. */
 #include <setjmp.h>
+#include <malloc.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "basic_env.h"
+#include "my_basic/my_basic.h"
 #include "platform.h"
 #include "tg_text.h"
 #include "tilefs.h"
@@ -1455,6 +1457,159 @@ static void test_tile_flags_program(void)
     CHECK(printed("done") && !shows("FAIL"));
 }
 
+/* ---- ONFRAME and RUN: the routine the system calls once a frame ---- */
+
+static size_t counted_live;
+static char *counting_alloc(unsigned n)
+{
+    char *p = malloc(n);
+    if (p)
+        counted_live += malloc_usable_size(p);
+    return p;
+}
+static void counting_free(char *p)
+{
+    if (p)
+        counted_live -= malloc_usable_size(p);
+    free(p);
+}
+
+static void test_game_callbacks(void)
+{
+    seed_count = 0;
+    /* a routine by name: it gets the frames that went by, the actors move between calls, and a result that is not 0 ends RUN */
+    run_program(
+        "gfx(8)\n"
+        "newmap(20, 12)\n"
+        "a = actor(1, 10, 10)\n"
+        "actorvel(a, 1, 0)\n"
+        "def update(k)\n"
+        "  actoruser(a, actoruser(a) + k)\n"
+        "  if actoruser(a) >= 5 then\n"
+        "    return 7\n"
+        "  endif\n"
+        "  return 0\n"
+        "enddef\n"
+        "print \"on=\" + str(onframe(\"update\"));\n"
+        "print \"run=\" + str(run());\n"
+        "print \"x=\" + str(actorx(a));\n"
+        "print \"u=\" + str(actoruser(a));\n");
+    CHECK(printed("on=0") && printed("run=7") && printed("x=15") && printed("u=5") && printed("Ready."));
+    CHECK(env.game == NULL && presents == 5);
+    run_jump = 2;                                   /* the frames that went by arrive in the argument */
+    run_program(
+        "gfx(8)\n"
+        "a = actor(1, 0, 0)\n"
+        "def update(k)\n"
+        "  actoruser(a, actoruser(a) + k)\n"
+        "  return actoruser(a) >= 6\n"
+        "enddef\n"
+        "onframe(\"update\")\n"
+        "run()\n"
+        "print \"u=\" + str(actoruser(a));\n");
+    run_jump = 1;
+    CHECK(printed("u=7") && printed("Ready."));   /* (the first frame counts as 1, then 2 each: 1 3 5 7) */
+
+    /* what the routine assigns: a variable the program already has is changed, one the routine makes is its own */
+    run_program("gfx(8)\nc = 10\ndef u(k)\n  c = c + 1\n  d = 5\n  return c >= 13\nenddef\nonframe(\"u\")\nrun()\nprint \"c=\" + str(c) + \" d=\" + str(d);\n");
+    CHECK(printed("Ready."));
+    CHECK(printed("c=13 d=0"));   /* c is the program's and changes; d is made inside the routine and is gone after it */
+
+    run_program("def make(n)\n  f = lambda (k) (return n + k)\n  return f\nenddef\ng = make(7)\nh = make(20)\nr1 = g(1)\nr2 = h(1)\nr3 = g(2)\nprint \"r=\" + str(r1) + \"/\" + str(r2) + \"/\" + str(r3);\nx = 5\nq = lambda (k) (return x + k)\nx = 100\nr4 = q(1)\nprint \"s=\" + str(r4);\n");
+    CHECK(printed("r=8/21/9") && printed("s=101") && printed("Ready."));   /* a lambda keeps the parameters of the routine that made it, one set for each; the program's variables it reads are looked up when it runs */
+    run_program("gfx(8)\ndef make(n)\n  f = lambda (k) (return n + k)\n  return f\nenddef\ng = make(3)\nonframe(g)\nprint \"r=\" + str(run());\nonframe(make(40))\nprint \"t=\" + str(run());\n");
+    CHECK(printed("r=4") && printed("t=41") && printed("Ready."));   /* such a closure is a routine ONFRAME takes, kept in a variable or straight from the call */
+
+    /* a lambda, in a variable (the routine itself, not its name) */
+    run_program("gfx(8)\nf = lambda (k) (return k * 0 + 3)\nonframe(f)\nprint \"r=\" + str(run());\n");
+    CHECK(printed("r=3") && printed("Ready."));
+
+    /* WAITFRAME inside the loop is an error, and so is a second RUN or ONFRAME */
+    run_program("gfx(8)\ndef u(k)\n  waitframe()\n  return 0\nenddef\nonframe(\"u\")\nrun()\nprint \"after\";\n");
+    CHECK(shows("WAITFRAME cannot be used while RUN is looping") && !printed("after") && !printed("Ready."));
+    run_program("gfx(8)\ndef u(k)\n  run()\n  return 0\nenddef\nonframe(\"u\")\nrun()\n");
+    CHECK(shows("RUN cannot be used while RUN is looping") && !printed("Ready."));
+    run_program("gfx(8)\ndef u(k)\n  onframe(0)\n  return 0\nenddef\nonframe(\"u\")\nrun()\n");
+    CHECK(shows("ONFRAME cannot be used while RUN is looping") && !printed("Ready."));
+    run_program("gfx(8)\ndef u(k)\n  return 1\nenddef\nonframe(\"u\")\nrun()\nwaitframe()\nprint \"ok\";\n");   /* after RUN it is allowed again */
+    CHECK(printed("ok") && printed("Ready."));
+
+    /* mistakes: no routine, a name that is not one, a number, a routine forgotten */
+    run_program("gfx(8)\nrun()\n");
+    CHECK(shows("ONFRAME(routine) says what to call each frame") && !printed("Ready."));
+    run_program("gfx(8)\nonframe(\"nothing\")\n");
+    CHECK(shows("there is no routine called \"nothing\"") && !printed("Ready."));
+    run_program("gfx(8)\nonframe(5)\n");
+    CHECK(shows("the routine is a name in quotes, or a lambda in a variable") && !printed("Ready."));
+    run_program("gfx(8)\ndef u(k)\n  return 1\nenddef\nonframe(\"u\")\nonframe(0)\nrun()\n");
+    CHECK(shows("ONFRAME(routine) says what to call each frame") && !printed("Ready."));
+
+    /* an error inside the routine stops the program, once; END inside it ends the program */
+    run_program("gfx(8)\ndef u(k)\n  actorpos(99, 1, 1)\n  return 0\nenddef\nonframe(\"u\")\nrun()\nprint \"after\";\n");
+    CHECK(shows("no actor") || shows("actor") );
+    CHECK(!printed("after") && !printed("Ready."));
+    run_program("gfx(8)\ndef u(k)\n  print \"in\";\n  end\nenddef\nonframe(\"u\")\nrun()\nprint \"after\";\n");
+    CHECK(printed("in") && !printed("after") && printed("Ready."));
+
+    /* Ctrl+C ends a loop whose routine never asks to stop */
+    fresh();
+    CHECK(put_file("/sd/t.bas", "gfx(8)\ndef u(k)\n  return 0\nenddef\nonframe(\"u\")\nrun()\nprint \"after\";\n") > 0);
+    type("LOAD t\nRUN\n^C");
+    CHECK(go() == -1 && shows("Break") && !shows("after"));
+    type("PRINT 1\n");
+    CHECK(go() == -1 && last_row_of("1") > row_of("Break") && env.game == NULL);
+
+    /* a long run that hands the interpreter a string every frame: its memory must not grow with the number of frames (compared after 500 frames and after 4000) */
+    {
+        mb_set_memory_manager(counting_alloc, counting_free);
+        size_t grown[2];   /* what each run added (the environment of the one before is left standing by fresh()) */
+        const int frames[2] = {500, 4000};
+        for (int i = 0; i < 2; i++) {
+            char prog[600];
+            snprintf(prog, sizeof prog,
+                     "gfx(8)\n"
+                     "a = actor(1, 0, 0)\n"
+                     "def u(k)\n"
+                     "  n = actoruser(a) + 1\n"
+                     "  actoruser(a, n)\n"
+                     "  if n >= %d then\n"
+                     "    return 1\n"
+                     "  endif\n"
+                     "  return \"frame \" + str(n) + \" of the long run\"\n"
+                     "enddef\n"
+                     "onframe(\"u\")\n"
+                     "run()\n"
+                     "print \"u=\" + str(actoruser(a));\n",
+                     frames[i]);
+            const size_t before = counted_live;
+            run_program(prog);
+            char want[24];
+            snprintf(want, sizeof want, "u=%d", frames[i]);
+            CHECK(printed(want) && printed("Ready."));
+            grown[i] = counted_live - before;
+        }
+        mb_set_memory_manager(NULL, NULL);
+        CHECK(grown[0] > 0 && grown[1] < grown[0] + 16 * 1024);   /* 3500 more frames, less than 16 KB more */
+    }
+}
+
+/* examples/walk2.bas: walk.bas with the frame loop in RUN(); B ends it */
+static void test_game_example2(void)
+{
+    static char text[4096];
+    FILE *f = fopen("basic/examples/walk2.bas", "rb");
+    CHECK(f != NULL);
+    const size_t n = fread(text, 1, sizeof text - 1, f);
+    fclose(f);
+    text[n] = 0;
+    seed_count = 0;
+    run_held = PLAT_BTN_RIGHT | PLAT_BTN_B;
+    run_program(text);
+    run_held = 0;
+    CHECK(printed("Ready.") && !shows("Error"));
+    CHECK(presents >= 1);
+}
+
 int main(void)
 {
     test_basics();
@@ -1472,6 +1627,8 @@ int main(void)
     test_game_world();
     test_game_input_and_errors();
     test_game_example();
+    test_game_callbacks();
+    test_game_example2();
     test_file_functions();
     test_lib_functions();
     test_tile_flags_program();

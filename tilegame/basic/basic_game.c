@@ -35,6 +35,10 @@ struct basic_game {
     uint16_t order[4 * BG_MAX_ACTORS];
     uint32_t last_frame;            /* the frame number WAITFRAME last got (0: it has not been called) */
     char bg;                        /* the character of a graphics string that is pixel 0, see-through ('.' unless PALETTE changed it) */
+    mb_value_t frame_fn;            /* the routine ONFRAME gave, held by a reference, called by RUN once a frame */
+    int has_frame_fn;
+    int frame_fn_ref;               /* a lambda, which holds a reference (a routine made with DEF belongs to the program: unreferencing it would destroy it) */
+    int in_run;                     /* RUN is looping: WAITFRAME is an error */
 };
 typedef struct basic_game basic_game_t;
 
@@ -72,10 +76,21 @@ static void free_world(basic_env_t *e, basic_game_t *G)
     tg_actors_set_wrap(&G->actors, 0, 0);
 }
 
+static void release_frame_fn(basic_env_t *e, basic_game_t *G)
+{
+    if (G->has_frame_fn && G->frame_fn_ref && e->bas) {
+        void *no_context = NULL;
+        mb_unref_value(e->bas, &no_context, G->frame_fn);
+    }
+    G->has_frame_fn = 0;
+    G->frame_fn_ref = 0;
+}
+
 static void free_all(basic_env_t *e)
 {
     basic_game_t *G = e->game;
     if (G) {
+        release_frame_fn(e, G);
         free_world(e, G);
         unmem(e, G->tiles);
         unmem(e, G->sprites);
@@ -924,7 +939,102 @@ FUNC(waitframe)
     NEED_GAME();
     if (!e->hooks.wait_frame || !e->hooks.present)
         return fail(s, l, SE_RN_INVALID_ID_USAGE, "This machine has no tile screen for WAITFRAME");
+    if (G->in_run)
+        return fail(s, l, SE_RN_INVALID_ID_USAGE, "WAITFRAME cannot be used while RUN is looping: RUN waits for each frame itself");
     RET(show_and_wait(e, G));
+    return MB_FUNC_OK;
+}
+
+/*
+ * ONFRAME(routine): the routine RUN() calls once a frame. The routine is a name ("update", a routine made with DEF) or a lambda kept in a variable (f = lambda (k) (return ...), then ONFRAME(f)); it takes one parameter, the number of
+ * frames that went by (as WAITFRAME returns), and a result that is not 0 ends RUN. ONFRAME(0) forgets it.
+ */
+FUNC(onframe)
+{
+    mb_value_t v;
+    OPEN();
+    mb_make_nil(v);
+    CK(mb_pop_value(s, l, &v));
+    CLOSE();
+    NEED_GAME();
+    if (G->in_run)
+        return fail(s, l, SE_RN_INVALID_ID_USAGE, "ONFRAME cannot be used while RUN is looping");
+    if (v.type == MB_DT_INT && v.value.integer == 0) {
+        release_frame_fn(e, G);
+        RET(0);
+        return MB_FUNC_OK;
+    }
+    if (v.type == MB_DT_STRING) {
+        const char *name = v.value.string ? v.value.string : "";
+        char upper[65];   /* (MY-BASIC keeps its names in capitals) */
+        size_t k = 0;
+        for (; name[k] && k < sizeof upper - 1; k++)
+            upper[k] = (char)toupper((unsigned char)name[k]);
+        upper[k] = 0;
+        mb_value_t found;
+        mb_make_nil(found);
+        if (mb_get_routine(s, l, upper, &found) != MB_FUNC_OK || found.type != MB_DT_ROUTINE)
+            return fail(s, l, SE_RN_INVALID_ID_USAGE, "ONFRAME(routine): there is no routine called \"%s\" (DEF makes one)", name);
+        v = found;
+    }
+    if (v.type != MB_DT_ROUTINE)
+        return fail(s, l, SE_RN_INVALID_ID_USAGE, "ONFRAME(routine): the routine is a name in quotes, or a lambda in a variable");
+    mb_routine_type_e type;
+    CK(mb_get_routine_type(s, v, &type));
+    const int is_lambda = type == MB_RT_LAMBDA;
+    if (is_lambda)
+        CK(mb_ref_value(s, l, v));
+    release_frame_fn(e, G);
+    G->frame_fn = v;
+    G->has_frame_fn = 1;
+    G->frame_fn_ref = is_lambda;
+    RET(0);
+    return MB_FUNC_OK;
+}
+
+/*
+ * RUN(): the frame loop, with the program's routine in it: for each frame it draws and waits (as WAITFRAME does), moves the actors, and calls the routine ONFRAME gave with
+ * the number of frames that went by. It ends when the routine returns a number that is not 0 (RUN returns that number), at END, Ctrl+C or an error.
+ */
+FUNC(run)
+{
+    OPEN();
+    CLOSE();
+    NEED_GAME();
+    if (!e->hooks.wait_frame || !e->hooks.present)
+        return fail(s, l, SE_RN_INVALID_ID_USAGE, "This machine has no tile screen for RUN");
+    if (!G->has_frame_fn)
+        return fail(s, l, SE_RN_INVALID_ID_USAGE, "RUN(): ONFRAME(routine) says what to call each frame");
+    if (G->in_run)
+        return fail(s, l, SE_RN_INVALID_ID_USAGE, "RUN cannot be used while RUN is looping");
+    G->in_run = 1;
+    int result = MB_FUNC_OK;
+    int answer = 0;
+    while (result == MB_FUNC_OK) {
+        if (e->stop) {
+            result = MB_FUNC_BYE;
+            break;
+        }
+        mb_value_t arg, ret;
+        mb_make_nil(ret);
+        arg.type = MB_DT_INT;
+        arg.value.integer = show_and_wait(e, G);
+        result = mb_eval_routine(s, l, G->frame_fn, &arg, 1, &ret);
+        if (result == MB_FUNC_OK) {
+            if (ret.type == MB_DT_INT && ret.value.integer != 0) {
+                answer = (int)ret.value.integer;
+                break;
+            }
+            if (ret.type == MB_DT_REAL && ret.value.float_point != 0) {
+                answer = 1;
+                break;
+            }
+        }
+    }
+    G->in_run = 0;
+    if (result != MB_FUNC_OK)
+        return result;
+    RET(answer);
     return MB_FUNC_OK;
 }
 
@@ -1017,7 +1127,7 @@ static const struct { const char *name; mb_func_t fn; } functions[] = {
     F(newmap), F(wrap), F(tile), F(gettile), F(tilefill), F(tilestr), F(settileflags), F(tileflag), F(tilebox), F(camera), F(camx), F(camy),
     F(actor), F(actorfree), F(actorpos), F(actorx), F(actory), F(actorvel), F(actortile), F(actorsize), F(actorflip), F(actorhide), F(actorprio),
     F(actorbox), F(actoruser), F(ysort), F(actormove), F(hitx), F(hity), F(hittile), F(hitflags), F(lastx), F(lasty), F(actorhit),
-    F(waitframe), F(textmode), F(frames), F(millis), F(btn), F(pressed),
+    F(waitframe), F(onframe), F(run), F(textmode), F(frames), F(millis), F(btn), F(pressed),
 };
 
 void basic_game_register(struct mb_interpreter_t *s)

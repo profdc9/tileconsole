@@ -49,6 +49,20 @@ graphics used is freed. A program that does not use these functions never sees t
 frame (60 a second), moves the actors by their velocities and returns how many frames went by since the last call (1 if the program kept up; the first call returns 1; at most 4).
 A program that is slow only looks choppier: velocities are per frame that went by, so the speed stays the same. `FRAMES()` is the frame counter, `MILLIS()` the clock. `TEXTMODE()` puts the text screen up at once, in the middle of a program, for a `PRINT` or an `INPUT`; the graphics are kept, and the next `WAITFRAME()` shows the picture again (when the program ends the text screen comes back by itself).
 
+**A routine for each frame (a prototype).** Instead of a `while ... waitframe() ... wend` loop, a program can give the system a routine and let it run the loop:
+
+    def update(k)                  ' k is the number of frames that went by, as waitframe() returns it
+      h = actormove(p, 2, 0)
+      return btn(0, "b")           ' a result that is not 0 ends the loop
+    enddef
+    onframe("update")
+    r = run()
+
+`onframe(routine)` names the routine, a string (`"update"`, a routine made with `def`) or a lambda kept in a variable (`f = lambda (k) (return btn(0, "b"))`, then `onframe(f)`); `onframe(0)` forgets it.
+`run()` then loops: draw and wait for the frame as `waitframe()` does, move the actors, call the routine with the frames that went by. It ends when the routine returns a number that is not 0 (`run()`
+returns it), at `end`, at Ctrl+C, or at an error (also one in the routine). `waitframe()` inside the loop is an error, and so are `run()` and `onframe()`; after `run()` has ended `waitframe()` works again.
+The routine can read and change the program's variables (`p` above, or a counter `c = c + 1`); a variable it makes new is its own and is gone when it returns. `examples/walk2.bas` is `walk.bas` this way.
+
 **Graphics** (everything is 8 bits a pixel: a colour is an entry 0 to 255 in the palette, and entry 0 is see-through)
 
 | function | what it does |
@@ -104,8 +118,7 @@ Actors are in front of the map. With `wrap(1)` an actor's position is kept withi
 
 A mistake (an actor that is not there, a number out of range, a map that was not made) stops the program with a line that says what, and the function's name.
 
-Not here yet: following an actor with the camera (`camera(actorx(a) - 160, actory(a) - 120)` does it), animation tables, loading tiles and maps from files, more than one tile layer, sound, and a
-routine that is called once a frame instead of a loop.
+Not here yet: following an actor with the camera (`camera(actorx(a) - 160, actory(a) - 120)` does it), animation tables, loading tiles and maps from files, more than one tile layer, sound.
 
 ## File functions
 
@@ -169,3 +182,8 @@ These are the functions of MY-BASIC's wiki modules (bit operation, miscellaneous
 ## Limits
 
 A program is at most `BASIC_PROGRAM_MAX` (64 KB) of text. The prompt line is as long as the screen line allows. MY-BASIC's callbacks carry no pointer, so there is one environment at a time.
+
+Without PSRAM (not tried on the board yet): the board code already falls back to the C library's heap for everything when the PSRAM is missing or fails its self-test, which leaves
+about 210 KB of SRAM. The environment takes about 69 KB of that (most of it the program buffer, `BASIC_PROGRAM_MAX`), the graphics state about 20 KB plus 32 KB of tiles and sprites at 8 by 8 pixels (128 KB at
+16 by 16, which does not fit), and the RAM disk 96 KB if there is no card. TDE needs about 1 MB, so it would not run; `editor/editor.c` (a 32 KB buffer, `AMAX`) is the smaller editor that could take its place for
+that configuration, reading and writing the file through tilefs as `editsd` does. Measuring this needs a build that ignores the PSRAM.
