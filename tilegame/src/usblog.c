@@ -6,7 +6,7 @@
 #define USBLOG_HOT
 #endif
 
-#define MAGIC 0x55534C47u   /* "USLG" */
+#define MAGIC (0x55534C47u ^ USBLOG_ENTRIES)   /* "USLG", with the size in it: a ring left in RAM by a build with another size is not taken for one */
 
 void usblog_init(usblog_t *r)
 {
@@ -24,7 +24,7 @@ bool usblog_valid(const usblog_t *r)
 /* Called from interrupt handlers and from the program at once: the slot is taken with one atomic add, so each caller has its own. */
 USBLOG_HOT void usblog_add(usblog_t *r, uint32_t t, uint8_t core, uint8_t type, uint16_t x, uint32_t a, uint32_t b, uint32_t c, uint32_t d)
 {
-    usblog_entry_t *e = &r->e[__atomic_fetch_add(&r->head, 1, __ATOMIC_RELAXED) & (USBLOG_ENTRIES - 1)];
+    usblog_entry_t *e = &r->e[__atomic_fetch_add(&r->head, 1, __ATOMIC_RELAXED) % USBLOG_ENTRIES];
     e->t = t;
     e->type = type;
     e->core = core;
@@ -51,7 +51,7 @@ size_t usblog_serialize(const usblog_t *r, void (*out)(void *ctx, const void *da
     const uint32_t header[8] = {0x4C425355u /* "USBL" */, 1, sizeof(usblog_entry_t), count, r->head, r->closed, 0, 0};
     out(ctx, header, sizeof header);
     const uint32_t first = r->head - count;   /* the number of the oldest event held */
-    const uint32_t start = first & (USBLOG_ENTRIES - 1);
+    const uint32_t start = first % USBLOG_ENTRIES;
     const uint32_t to_end = USBLOG_ENTRIES - start < count ? USBLOG_ENTRIES - start : count;
     out(ctx, &r->e[start], to_end * sizeof(usblog_entry_t));
     if (count > to_end)

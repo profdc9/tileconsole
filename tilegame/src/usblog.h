@@ -8,7 +8,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define USBLOG_ENTRIES 4096   /* a power of two */
+#define USBLOG_ENTRIES 682    /* 24 bytes each: with the header the ring is 16 KB of RAM (it was 4096, 96 KB) */
 
 typedef struct {
     uint32_t t;               /* microseconds */
@@ -20,7 +20,8 @@ typedef struct {
 
 typedef struct {
     uint32_t magic, magic_inv;   /* both right: the ring was initialised (RAM at power on is random) */
-    uint32_t head;               /* events added since the ring was initialised; the newest is entry (head - 1) % USBLOG_ENTRIES */
+    uint32_t head;               /* events added since the ring was initialised; the newest is entry (head - 1) % USBLOG_ENTRIES (not a power of two: after
+                                  * 4 billion events, when head wraps, the order of the ring is off once) */
     uint32_t closed;             /* 0 while running; USBLOG_CLOSED_* once the program is going down */
     usblog_entry_t e[USBLOG_ENTRIES];
 } usblog_t;
