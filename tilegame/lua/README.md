@@ -159,7 +159,9 @@ for one instruction; the hook looks at the keys (and, with the tile screen up, k
 would make every instruction about twice as slow. Without such a timer (`async_ticks` 0, as in the tests) the environment counts instructions instead.
 
 On the board Lua's small blocks (up to 512 bytes) are in SRAM, up to 64 KB; anything bigger, and anything beyond that, is in the PSRAM (`lua_alloc` in `../demo/devkit.c`). `HEAP` shows
-how much is where.
+how much is in SRAM. The share is a build setting, `cmake -DLUA_SRAM_KB=n` (0: all of Lua's memory in the PSRAM). Measured with `bench.lua`: with all of it in the PSRAM, ordinary
+code and calls were only 2-6% slower (the 16 KB cache holds what a loop keeps using), but making strings was 2.7 times slower (every allocation goes through the PSRAM pool) and
+`tile()` 2.9 times. Putting the game's own state (the actors) in SRAM as well made no measurable difference, so it stays in the PSRAM: SRAM is what the graphics need.
 
 ## Losing the picture (board)
 

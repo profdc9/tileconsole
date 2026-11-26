@@ -385,7 +385,10 @@ static int in_psram(const void *p)
 /* Lua's memory: small blocks in SRAM while its share lasts (the PSRAM is reached through the same 16 KB cache as the code in flash, and Lua is about twice
  * as fast with its tables, strings and stack in SRAM), the rest in the PSRAM pool. A block that grows past LUA_SMALL, or a realloc when the share is used
  * up, moves to the PSRAM; one that shrinks may move back. The SRAM share leaves room for the game's graphics, which must be in SRAM. */
-#define LUA_SRAM_SHARE (64 * 1024)
+#ifndef LUA_SRAM_KB
+#define LUA_SRAM_KB 64   /* (cmake -DLUA_SRAM_KB=n; 0 puts all of Lua's memory in the PSRAM) */
+#endif
+#define LUA_SRAM_SHARE (LUA_SRAM_KB * 1024)
 #define LUA_SMALL 512
 static size_t lua_sram;   /* what Lua has in SRAM */
 

@@ -143,4 +143,6 @@ set_source_files_properties(${TDE_SOURCES} ${TDE_OS_SOURCES} PROPERTIES COMPILE_
 set_source_files_properties(${TDE_DIR}/src/main.c PROPERTIES COMPILE_OPTIONS "-w;-fsigned-char;-DTDE_BOARD;-D__UNIX__;-D__TILEGAME__;-DNDEBUG;-Dmain=tde_main;-I${CMAKE_CURRENT_LIST_DIR}/shim;-I${TDE_DIR}/src;-I${TDE_DIR}/os")
 set_source_files_properties(${DEMO_DIR}/devkit.c PROPERTIES COMPILE_OPTIONS "-I${TDE_DIR}/os")
 target_link_options(devkit PRIVATE -Wl,--wrap=fopen,--wrap=stat,--wrap=chmod,--wrap=access,--wrap=utime,--wrap=unlink,--wrap=remove,--wrap=rmdir,--wrap=rename,--wrap=mkdir,--wrap=getcwd,--wrap=chdir,--wrap=realpath,--wrap=opendir,--wrap=readdir,--wrap=closedir)
+set(LUA_SRAM_KB 64 CACHE STRING "devkit: Lua's share of SRAM for its small blocks, in KB (0: all of Lua's memory in the PSRAM)")
+target_compile_definitions(devkit PRIVATE LUA_SRAM_KB=${LUA_SRAM_KB})
 target_compile_definitions(devkit PRIVATE DEVKIT_BOARD=1 PLAT_PSRAM=1 $<$<BOOL:${USBLOG_TEST_PANIC}>:USBLOG_TEST_PANIC=1> PICO_STACK_SIZE=0x1000 PICO_CORE1_STACK_SIZE=0x800)
