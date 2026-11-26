@@ -145,12 +145,20 @@ static int setup(tl_env_t *e, int size_log2)
     return r;
 }
 
-static tl_game_t *need_game(lua_State *L)
+/* The environment the functions belong to, kept by tl_game_open (there is one at a time): looking it up on every call cost as much as a check. */
+static tl_env_t *E;
+
+static tl_game_t *make_game(lua_State *L)
 {
-    tl_env_t *e = tl_env_current();
-    if (!e->game && !setup(e, 3))
+    if (!setup(E, 3))
         luaL_error(L, "not enough memory for the graphics");
-    return e->game;
+    return E->game;
+}
+
+static inline tl_game_t *need_game(lua_State *L)
+{
+    tl_game_t *G = E->game;
+    return G ? G : make_game(L);
 }
 
 static void need_world(lua_State *L, tl_game_t *G)
@@ -161,8 +169,9 @@ static void need_world(lua_State *L, tl_game_t *G)
 
 /* ---- arguments ---- */
 
-/* A whole number: any number, rounded down (a pixel position divided by 8 is a tile position), kept in range. */
-static int iarg(lua_State *L, int i)
+/* A whole number: any number, rounded down (a pixel position divided by 8 is a tile position), kept in range. An integer (or a float with nothing after the
+ * point) is taken as it is, which is most of the time: converting each argument to a float and back was a quarter of the cost of a call. */
+static int iarg_float(lua_State *L, int i)
 {
     const lua_Number v = luaL_checknumber(L, i);
     if (v >= 2147483647.0f)
@@ -170,6 +179,13 @@ static int iarg(lua_State *L, int i)
     if (v <= -2147483648.0f)
         return INT32_MIN;
     return (int)floorf((float)v);
+}
+
+static inline int iarg(lua_State *L, int i)
+{
+    int isnum;
+    const lua_Integer v = lua_tointegerx(L, i, &isnum);
+    return isnum ? (int)v : iarg_float(L, i);
 }
 
 static int iopt(lua_State *L, int i, int def)
@@ -195,6 +211,16 @@ static int32_t fixed(lua_Number v)
     if (v <= -2147483648.0f)
         return INT32_MIN;
     return (int32_t)floorf((float)v + 0.5f);
+}
+
+/* The argument as pixels in 24.8: a whole number of pixels is shifted, anything else goes through the float. */
+static inline int32_t fixed_arg(lua_State *L, int i)
+{
+    int isnum;
+    const lua_Integer v = lua_tointegerx(L, i, &isnum);
+    if (isnum && v >= -8388608 && v <= 8388607)
+        return (int32_t)v * 256;
+    return fixed(luaL_checknumber(L, i));
 }
 
 /* A position or a velocity (24.8) for Lua: a whole number of pixels is an integer (so it prints as 118, not 118.0), a fraction a float. */
@@ -223,7 +249,7 @@ static int l_gfx(lua_State *L)
     const int size = iarg(L, 1);
     if (size != 8 && size != 16)
         return luaL_error(L, "gfx(size): the size of a tile is 8 or 16");
-    if (!setup(tl_env_current(), size == 8 ? 3 : 4))
+    if (!setup(E, size == 8 ? 3 : 4))
         return luaL_error(L, "not enough memory for the graphics");
     return 0;
 }
@@ -322,7 +348,7 @@ static int l_sprpix(lua_State *L) { return set_pixel(L, 1); }
 
 static int l_newmap(lua_State *L)
 {
-    tl_env_t *e = tl_env_current();
+    tl_env_t *e = E;
     tl_game_t *G = need_game(L);
     const int w = iarg(L, 1), h = iarg(L, 2);
     if (w < 1 || h < 1 || (long)w * h > TL_MAP_MAX)
@@ -469,13 +495,19 @@ static int l_camy(lua_State *L)
 
 /* ---- actors ---- */
 
-static tg_actor_t *actor_arg(lua_State *L, tl_game_t *G, int i, const char *who)
+static tg_actor_t *no_actor(lua_State *L, const char *who, int id)
+{
+    luaL_error(L, "%s: there is no actor %d", who, id);
+    return NULL;
+}
+
+/* (as tg_actor, without the call) */
+static inline tg_actor_t *actor_arg(lua_State *L, tl_game_t *G, int i, const char *who)
 {
     const int id = iarg(L, i);
-    tg_actor_t *a = tg_actor(&G->actors, id);
-    if (!a)
-        luaL_error(L, "%s: there is no actor %d", who, id);
-    return a;
+    if ((unsigned)id < TL_MAX_ACTORS && (G->pool[id].flags & TG_ACTOR_ACTIVE))
+        return &G->pool[id];
+    return no_actor(L, who, id);
 }
 
 /*
@@ -551,7 +583,7 @@ static int l_actorpos(lua_State *L)
         push_px(L, a->y);
         return 2;
     }
-    tg_actor_set_pos(a, fixed(luaL_checknumber(L, 2)), fixed(luaL_checknumber(L, 3)));
+    tg_actor_set_pos(a, fixed_arg(L, 2), fixed_arg(L, 3));
     return 0;
 }
 
@@ -579,8 +611,8 @@ static int l_actorvel(lua_State *L)
         push_px(L, a->vy);
         return 2;
     }
-    a->vx = fixed(luaL_checknumber(L, 2));
-    a->vy = fixed(luaL_checknumber(L, 3));
+    a->vx = fixed_arg(L, 2);
+    a->vy = fixed_arg(L, 3);
     return 0;
 }
 
@@ -728,7 +760,7 @@ static int l_actormove(lua_State *L)
     tl_game_t *G = need_game(L);
     need_world(L, G);
     actor_arg(L, G, 1, "actormove");
-    lua_pushinteger(L, tg_actor_move(&G->actors, iarg(L, 1), &G->world, fixed(luaL_checknumber(L, 2)), fixed(luaL_checknumber(L, 3))));
+    lua_pushinteger(L, tg_actor_move(&G->actors, iarg(L, 1), &G->world, fixed_arg(L, 2), fixed_arg(L, 3)));
     return 1;
 }
 
@@ -976,7 +1008,7 @@ static void need_screen(lua_State *L, tl_env_t *e, const char *who)
 
 static int l_waitframe(lua_State *L)
 {
-    tl_env_t *e = tl_env_current();
+    tl_env_t *e = E;
     tl_game_t *G = need_game(L);
     need_screen(L, e, "waitframe");
     if (G->in_run)
@@ -1017,7 +1049,7 @@ static int l_onframe(lua_State *L)
  */
 static int l_run(lua_State *L)
 {
-    tl_env_t *e = tl_env_current();
+    tl_env_t *e = E;
     tl_game_t *G = need_game(L);
     need_screen(L, e, "run");
     if (G->frame_ref == LUA_NOREF)
@@ -1045,7 +1077,7 @@ static int l_run(lua_State *L)
 static int l_textmode(lua_State *L)
 {
     (void)L;
-    tl_env_t *e = tl_env_current();
+    tl_env_t *e = E;
     if (e->game_active) {
         e->game_active = 0;
         e->hooks.frame();
@@ -1062,34 +1094,46 @@ static int l_frames(lua_State *L)
 
 static int l_millis(lua_State *L)
 {
-    tl_env_t *e = tl_env_current();
+    tl_env_t *e = E;
     lua_pushinteger(L, (lua_Integer)e->hooks.millis());
     return 1;
 }
 
-static int button_mask(const char *name)
+/* A button's name, in any case: by its length and first letter (a name is looked up on every btn call), then the rest. 0 if it is not one. */
+static int button_mask(const char *name, size_t len)
 {
-    static const struct { const char *name; int mask; } names[] = {
-        {"up", PLAT_BTN_UP}, {"down", PLAT_BTN_DOWN}, {"left", PLAT_BTN_LEFT}, {"right", PLAT_BTN_RIGHT}, {"a", PLAT_BTN_A}, {"b", PLAT_BTN_B},
-        {"x", PLAT_BTN_X}, {"y", PLAT_BTN_Y}, {"start", PLAT_BTN_START}, {"select", PLAT_BTN_SELECT}, {"l", PLAT_BTN_L}, {"r", PLAT_BTN_R},
-    };
-    for (size_t i = 0; i < sizeof names / sizeof *names; i++)
-        if (same_name(name, names[i].name))
-            return names[i].mask;
-    return 0;
+    const int c = tolower((unsigned char)name[0]);
+    switch (len) {
+    case 1:
+        return c == 'a' ? PLAT_BTN_A : c == 'b' ? PLAT_BTN_B : c == 'x' ? PLAT_BTN_X : c == 'y' ? PLAT_BTN_Y : c == 'l' ? PLAT_BTN_L : c == 'r' ? PLAT_BTN_R : 0;
+    case 2:
+        return same_name(name, "up") ? PLAT_BTN_UP : 0;
+    case 4:
+        return same_name(name, "down") ? PLAT_BTN_DOWN : same_name(name, "left") ? PLAT_BTN_LEFT : 0;
+    case 5:
+        return same_name(name, "right") ? PLAT_BTN_RIGHT : same_name(name, "start") ? PLAT_BTN_START : 0;
+    case 6:
+        return same_name(name, "select") ? PLAT_BTN_SELECT : 0;
+    default:
+        return 0;
+    }
 }
 
 /* btn(player, button): true while the button is held. The button is a number (1 up, 2 down, 4 left, 8 right, 16 A, 32 B, 64 X, 128 Y, 256 Start, 512 Select,
  * 1024 L, 2048 R; add them for any of several) or its name: "up", "a", "start" ... pressed(player, button): it went down since the last frame. */
 static int button_state(lua_State *L, int kind)
 {
-    tl_env_t *e = tl_env_current();
+    tl_env_t *e = E;
     const int player = iarg(L, 1);
     int mask = 0;
-    if (lua_type(L, 2) == LUA_TNUMBER)
+    const int type = lua_type(L, 2);
+    if (type == LUA_TNUMBER) {
         mask = iarg(L, 2);
-    else if (lua_type(L, 2) == LUA_TSTRING)
-        mask = button_mask(lua_tostring(L, 2));
+    } else if (type == LUA_TSTRING) {
+        size_t len;
+        const char *name = lua_tolstring(L, 2, &len);
+        mask = button_mask(name, len);
+    }
     if (!mask)
         return luaL_error(L, "%s(player, button): a number, or \"up\" \"down\" \"left\" \"right\" \"a\" \"b\" \"x\" \"y\" \"start\" \"select\" \"l\" \"r\"",
                           kind ? "pressed" : "btn");
@@ -1107,6 +1151,7 @@ static int l_pressed(lua_State *L) { return button_state(L, 1); }
 #define F(n) {#n, l_##n}
 void tl_game_open(lua_State *L)
 {
+    E = tl_env_current();
     static const luaL_Reg functions[] = {
         F(gfx), F(palette), F(tiledef), F(sprdef), F(tilerow), F(sprrow), F(tilepix), F(sprpix),
         F(newmap), F(wrap), F(tile), F(gettile), F(tilefill), F(tilestr), F(settileflags), F(tileflag), F(tilebox), F(camera), F(camx), F(camy), F(follow), F(followlimit),
