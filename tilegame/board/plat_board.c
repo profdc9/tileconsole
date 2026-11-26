@@ -7,7 +7,8 @@
  *  - Core 0: the game. plat_present() gives core 1 a copy of the game's state through a spinlock-guarded mailbox, and
  *    core 1 takes the newest one at the start of a frame.
  *  - Input: a NES gamepad on three GPIO pins, read once per frame.
- *  - Audio: the game's callback is called from core 1 and its samples go out as HDMI audio packets.
+ *  - Audio: the game's callback is called from core 1 and its samples go out as HDMI audio packets, and (PLAT_I2S) to the
+ *    board's I2S DAC as well.
  */
 #include <stdarg.h>
 #include <stdio.h>
@@ -29,6 +30,11 @@
 
 #if PLAT_PSRAM
 #include "psram.h"
+#endif
+#if PLAT_I2S
+#include "hardware/dma.h"
+#include "hardware/pio.h"
+#include "i2s_out.pio.h"
 #endif
 #include "platform.h"
 #include "tilegfx.h"
@@ -176,6 +182,78 @@ static int16_t audio_buf[AUDIO_CHUNK * 2];
 static int audio_pos = AUDIO_CHUNK;
 static int audio_cs_counter;
 
+#if PLAT_I2S
+/* ---- I2S: the same sound to the DAC on the board, through PIO, with a DMA channel that plays a ring buffer for ever. HDMI sets the pace: each block
+ * the audio pump mixes for it is copied into the ring as well, a little ahead of where the DMA reads. Both run at exactly 48 kHz off the crystal (the
+ * PIO's divider is 164 + 1/16 at 504 MHz), so the distance holds; when it does not (the start, when HDMI fills its queue in a rush, or a stall),
+ * the ring is cleared and the writing starts again half a ring ahead. ---- */
+
+#define I2S_RING_BITS 11                                  /* the ring: 2 KB, 512 frames (10.7 ms); the DMA wraps its read address at this size */
+#define I2S_FRAMES ((1u << I2S_RING_BITS) / 4u)
+static uint32_t i2s_ring[I2S_FRAMES] __attribute__((aligned(1u << I2S_RING_BITS)));
+static int i2s_dma = -1;
+static uint32_t i2s_w;                                    /* where the next frame is written */
+
+static void i2s_init(void)
+{
+    PIO pio;
+    uint sm, offset;
+    if (!pio_claim_free_sm_and_add_program(&i2s_out_program, &pio, &sm, &offset))
+        return;
+    const int dma = dma_claim_unused_channel(false);
+    if (dma < 0)
+        return;
+    pio_gpio_init(pio, PLAT_I2S_DATA_PIN);
+    pio_gpio_init(pio, PLAT_I2S_CLOCK_PIN);
+    pio_gpio_init(pio, PLAT_I2S_CLOCK_PIN + 1);
+    pio_sm_set_consecutive_pindirs(pio, sm, PLAT_I2S_DATA_PIN, 1, true);
+    pio_sm_set_consecutive_pindirs(pio, sm, PLAT_I2S_CLOCK_PIN, 2, true);
+    pio_sm_config c = i2s_out_program_get_default_config(offset);
+    sm_config_set_out_pins(&c, PLAT_I2S_DATA_PIN, 1);
+    sm_config_set_sideset_pins(&c, PLAT_I2S_CLOCK_PIN);   /* BCK, and LRCK on the next pin */
+    sm_config_set_out_shift(&c, false, true, 32);         /* MSB first, a frame a word */
+    sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_TX);
+    const uint32_t div = (uint32_t)(((uint64_t)clock_get_hz(clk_sys) * 4u) / PLAT_AUDIO_RATE);   /* 64 cycles a frame, as 24.8 */
+    sm_config_set_clkdiv_int_frac8(&c, div >> 8, (uint8_t)(div & 0xFF));
+    pio_sm_init(pio, sm, offset + i2s_out_offset_start, &c);
+
+    dma_channel_config d = dma_channel_get_default_config((uint)dma);
+    channel_config_set_transfer_data_size(&d, DMA_SIZE_32);
+    channel_config_set_read_increment(&d, true);
+    channel_config_set_write_increment(&d, false);
+    channel_config_set_ring(&d, false, I2S_RING_BITS);
+    channel_config_set_dreq(&d, pio_get_dreq(pio, sm, true));
+    dma_channel_configure((uint)dma, &d, &pio->txf[sm], i2s_ring, dma_encode_endless_transfer_count(), true);
+    pio_sm_set_enabled(pio, sm, true);
+    i2s_w = I2S_FRAMES / 2;
+    i2s_dma = dma;
+}
+
+static void __not_in_flash_func(i2s_clear)(void)
+{
+    for (uint32_t i = 0; i < I2S_FRAMES; i++) {
+        i2s_ring[i] = 0;
+        __asm__ volatile("" ::: "memory");   /* (not a call to memset, which is in flash) */
+    }
+}
+
+static void __not_in_flash_func(i2s_push)(const int16_t *lr, int frames)
+{
+    if (i2s_dma < 0)
+        return;
+    const uint32_t p = ((uint32_t)dma_hw->ch[i2s_dma].read_addr - (uint32_t)(uintptr_t)i2s_ring) / 4u % I2S_FRAMES;
+    const uint32_t ahead = (i2s_w - p) % I2S_FRAMES;
+    if (ahead < (uint32_t)frames || ahead > I2S_FRAMES - 2u * (uint32_t)frames) {   /* the DMA has caught up, or this would run into it */
+        i2s_clear();
+        i2s_w = (p + I2S_FRAMES / 2) % I2S_FRAMES;
+    }
+    for (int i = 0; i < frames; i++) {
+        i2s_ring[i2s_w] = (uint32_t)(uint16_t)lr[2 * i] | (uint32_t)(uint16_t)lr[2 * i + 1] << 16;
+        i2s_w = (i2s_w + 1) % I2S_FRAMES;
+    }
+}
+#endif
+
 static void __not_in_flash_func(audio_pump)(void)
 {
     plat_audio_fn fn = audio_fn;
@@ -187,6 +265,9 @@ static void __not_in_flash_func(audio_pump)(void)
             if (audio_pos >= AUDIO_CHUNK) {
                 const uint32_t t0 = time_us_32();
                 fn(audio_buf, AUDIO_CHUNK, audio_user);
+#if PLAT_I2S
+                i2s_push(audio_buf, AUDIO_CHUNK);
+#endif
                 const uint32_t dt = time_us_32() - t0;
                 audio_calls++;
                 audio_us_total += dt;
@@ -453,6 +534,9 @@ bool plat_init(void)
     hstx_di_queue_init();
     video_output_set_vsync_callback(vsync);
     video_output_init(640, 480);
+#if PLAT_I2S
+    i2s_init();   /* (after video_output_init, which claims DMA channels 0 and 1 by number and panics if they are taken; and after the clock is set) */
+#endif
     pico_hdmi_set_audio_sample_rate(PLAT_AUDIO_RATE);
     video_output_set_scanline_pointer_callback(scanline_ptr);
     video_output_set_background_task(background);
@@ -726,6 +810,10 @@ plat_buttons_t plat_buttons_released(int p) { return p >= 0 && p < PLAT_MAX_PLAY
 bool plat_audio_start(plat_audio_fn fn, void *user)
 {
     audio_fn = NULL;   /* stop the pump while the callback is replaced */
+#if PLAT_I2S
+    if (!fn)
+        i2s_clear();   /* (or the DMA plays the ring's last 10 ms round and round) */
+#endif
     audio_user = user;
     audio_pos = AUDIO_CHUNK;
     audio_fn = fn;

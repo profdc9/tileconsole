@@ -4,7 +4,8 @@ A platform layer (`include/platform.h`) for small console-style games built on [
 loop, time, buttons and an audio callback. One header, one backend per target:
 
 - `sdl/plat_sdl.c`: desktop (SDL2). Arrows, Z X A S, Return and Right Shift are the buttons.
-- `board/plat_board.c`: the RP2350 board: HSTX HDMI through upstream pico_hdmi, a NES gamepad on GPIO, and HDMI audio.
+- `board/plat_board.c`: the RP2350 board: HSTX HDMI through upstream pico_hdmi, a NES gamepad on GPIO, and HDMI audio, which also goes to
+  the board's I2S DAC (`board/i2s_out.pio`).
 
 `demo/game_demo.c` is a portable demo that uses only `platform.h`. `make check` runs the SDL backend's headless tests;
 `make game_demo` builds the desktop demo. MIT licensed.
@@ -12,6 +13,8 @@ loop, time, buttons and an audio callback. One header, one backend per target:
 Board build: `cmake -S board -B build -DCPU_MHZ=504 [-DDEMO_AUTOPLAY=ON]` (needs `PICO_SDK_PATH`; expects `tilegfx` and
 `hstx-free` next to this directory, override with `-DTILEGFX_DIR=` and `-DHSTX_FREE_DIR=`). The gamepad is a NES pad
 on GPIO 20 (clock), 21 (latch), 26 (data), set by `PLAT_NES_*`. `DEMO_AUTOPLAY` lets the demo press its own buttons.
+The sound also goes out as I2S on GPIO 9 (data), 10 (BCK) and 11 (LRCK), the EmuBoard2350's DAC (`-DPLAT_I2S=OFF` turns it off;
+`PLAT_I2S_DATA_PIN`, `PLAT_I2S_CLOCK_PIN` move it; LRCK is the pin after BCK).
 The board prints fps, render time, underruns and the audio queue level on USB serial once a second.
 
 ## The platformer

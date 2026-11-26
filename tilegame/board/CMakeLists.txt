@@ -36,6 +36,9 @@ set(USB_PRE_DELAY_US 0 CACHE STRING "With USBLOG: wait (us) before a control tra
 set(USB_FS_INT_MS 0 CACHE STRING "With USBLOG: the shortest polling interval (ms) given to a full-speed interrupt endpoint; 0: as the device asks")
 option(USBLOG_TEST_PANIC "devkit: the STACK command panics, to try the USB log on the board" OFF)
 option(DEMO_NO_MUSIC "With DEMO_AUTOPLAY: no jingle, so the effects can be heard alone" OFF)
+option(PLAT_I2S "The sound also goes to an I2S DAC on the board (PIO and a DMA channel), as well as to HDMI" ON)
+set(PLAT_I2S_DATA_PIN 9 CACHE STRING "With PLAT_I2S: the data pin (the EmuBoard2350, the M2 layout: 9)")
+set(PLAT_I2S_CLOCK_PIN 10 CACHE STRING "With PLAT_I2S: the BCK pin; LRCK is the next one (M2: 10 and 11)")
 
 function(tilegame_board_app name source)
     add_executable(${name} ${source} ${ARGN} plat_board.c ${TILEGFX_DIR}/tilegfx.c ${TILEGFX_DIR}/scene.c ${TILESND_DIR}/snd.c)
@@ -53,6 +56,11 @@ function(tilegame_board_app name source)
     endif()
     target_link_libraries(${name} pico_stdlib pico_multicore hardware_vreg hardware_clocks hardware_dma
                           hardware_irq hardware_gpio hardware_sync pico_hdmi)
+    if(PLAT_I2S)
+        pico_generate_pio_header(${name} ${CMAKE_CURRENT_LIST_DIR}/i2s_out.pio OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/${name}_pio)
+        target_link_libraries(${name} hardware_pio)
+        target_compile_definitions(${name} PRIVATE PLAT_I2S=1 PLAT_I2S_DATA_PIN=${PLAT_I2S_DATA_PIN} PLAT_I2S_CLOCK_PIN=${PLAT_I2S_CLOCK_PIN})
+    endif()
     if(PLAT_USB_HID)
         target_sources(${name} PRIVATE usb_hid.c xinput_host.c ${CMAKE_CURRENT_LIST_DIR}/../src/xinput.c ${CMAKE_CURRENT_LIST_DIR}/../src/hid_kbd.c ${CMAKE_CURRENT_LIST_DIR}/../src/keymap.c ${CMAKE_CURRENT_LIST_DIR}/../src/hid_pad.c
                        ${CMAKE_CURRENT_LIST_DIR}/../src/hid_mouse.c ${CMAKE_CURRENT_LIST_DIR}/../src/mouse_acc.c)

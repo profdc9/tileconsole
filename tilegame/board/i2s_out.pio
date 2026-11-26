@@ -1,0 +1,20 @@
+; SPDX-License-Identifier: MIT
+; I2S out for a DAC on the board: 16-bit stereo, one 32-bit word a frame (right channel in the upper half, left in the lower: the order
+; of an int16 left, right pair in memory), MSB first. The data pin is the OUT pin; side-set bit 0 is BCK, bit 1 is LRCK (the pin after BCK).
+; Each bit takes two cycles: the data changes while BCK is low and the DAC takes it as BCK rises. LRCK changes one bit before the MSB of
+; a channel, as I2S has it (high for the right channel, low for the left). Two cycles a bit, 64 a frame: the PIO runs at 64 x the sample rate.
+
+.program i2s_out
+.side_set 2
+                        ;         LRCK BCK
+right_ch:
+    out pins, 1         side 0b10
+    jmp x-- right_ch      side 0b11
+    out pins, 1         side 0b00       ; the right channel's last bit; LRCK goes low for the left
+    set x, 14           side 0b01
+left_ch:
+    out pins, 1         side 0b00
+    jmp x-- left_ch       side 0b01
+    out pins, 1         side 0b10       ; the left channel's last bit; LRCK goes high for the right
+public start:
+    set x, 14           side 0b11
