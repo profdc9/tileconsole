@@ -81,6 +81,74 @@ void tg_actor_set_pos(tg_actor_t *a, int32_t x, int32_t y)
     a->y = y;
 }
 
+void tg_actors_set_anims(tg_actors_t *p, const tg_anim_t *tables, uint8_t n)
+{
+    p->anims = tables;
+    p->n_anims = tables ? n : 0;
+}
+
+static const tg_anim_t *table_of(const tg_actors_t *p, int number)
+{
+    return (number >= 1 && number <= p->n_anims && p->anims[number - 1].frames && p->anims[number - 1].count) ? &p->anims[number - 1] : NULL;
+}
+
+static uint8_t ticks_of(const tg_anim_frame_t *f) { return f->ticks ? f->ticks : 1; }
+
+bool tg_actor_play(tg_actors_t *p, int id, int number, bool restart)
+{
+    tg_actor_t *a = tg_actor(p, id);
+    if (!a || number < 0 || number > p->n_anims)
+        return false;
+    const tg_anim_t *t = table_of(p, number);
+    if (!t) {
+        a->anim = a->anim_pos = a->anim_left = a->anim_back = a->anim_done = 0;
+        return true;
+    }
+    if (a->anim == number && !a->anim_done && !restart)
+        return true;
+    a->anim = (uint8_t)number;
+    a->anim_pos = 0;
+    a->anim_back = a->anim_done = 0;
+    a->anim_left = ticks_of(&t->frames[0]);
+    a->tile = t->frames[0].tile;
+    return true;
+}
+
+/* Moves one animation on by `frames`. */
+static void animate(const tg_actors_t *p, tg_actor_t *a, int frames)
+{
+    const tg_anim_t *t = table_of(p, a->anim);
+    if (!t || a->anim_done)
+        return;
+    if (a->anim_pos >= t->count)   /* (a table that got shorter) */
+        a->anim_pos = (uint8_t)(t->count - 1);
+    while (frames > 0) {
+        if (a->anim_left > frames) {
+            a->anim_left = (uint8_t)(a->anim_left - frames);
+            break;
+        }
+        frames -= a->anim_left;
+        if (t->mode == TG_ANIM_ONCE) {
+            if (a->anim_pos + 1 >= t->count) {
+                a->anim_done = 1;
+                a->anim_left = 0;
+                break;
+            }
+            a->anim_pos++;
+        } else if (t->mode == TG_ANIM_PINGPONG && t->count > 1) {
+            if (!a->anim_back && a->anim_pos + 1 >= t->count)
+                a->anim_back = 1;
+            else if (a->anim_back && a->anim_pos == 0)
+                a->anim_back = 0;
+            a->anim_pos = (uint8_t)(a->anim_back ? a->anim_pos - 1 : a->anim_pos + 1);
+        } else {
+            a->anim_pos = (uint8_t)((a->anim_pos + 1) % t->count);
+        }
+        a->tile = t->frames[a->anim_pos].tile;
+        a->anim_left = ticks_of(&t->frames[a->anim_pos]);
+    }
+}
+
 void tg_actors_step(tg_actors_t *p, int frames)
 {
     if (frames <= 0)
@@ -89,6 +157,8 @@ void tg_actors_step(tg_actors_t *p, int frames)
         tg_actor_t *a = &p->a[i];
         if (!(a->flags & TG_ACTOR_ACTIVE))
             continue;
+        if (a->anim)
+            animate(p, a, frames);
         const int32_t x = p->wrap_w ? wrapped(saturate((int64_t)a->x + (int64_t)a->vx * frames), p->wrap_w) : saturate((int64_t)a->x + (int64_t)a->vx * frames);
         const int32_t y = p->wrap_h ? wrapped(saturate((int64_t)a->y + (int64_t)a->vy * frames), p->wrap_h) : saturate((int64_t)a->y + (int64_t)a->vy * frames);
         tg_actor_set_pos(a, x, y);

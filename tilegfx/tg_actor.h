@@ -28,6 +28,26 @@
 
 #define TG_ACTORS_YSORT 1                      /* tg_actors_t.flags: the lower on the screen, the nearer (prio is not used) */
 
+/*
+ * Animation tables. The caller keeps the tables (tg_actors_set_anims); an actor plays one by its number (1 .. n, 0: none). tg_actors_step
+ * advances every playing animation by the frames that went by and sets the actor's `tile` to the current frame's, so a sequence of sprites needs
+ * no code of the program's. A frame lasts `ticks` frames (0 counts as 1).
+ */
+#define TG_ANIM_LOOP 0                         /* 0 1 2 0 1 2 ... */
+#define TG_ANIM_ONCE 1                         /* 0 1 2, then stays on the last frame and `anim_done` is set */
+#define TG_ANIM_PINGPONG 2                     /* 0 1 2 1 0 1 2 ... (the ends are shown once each turn) */
+
+typedef struct {
+    uint16_t tile;                             /* the sprite tile (the first of the grid, as tg_actor_t.tile) */
+    uint8_t ticks;                             /* frames it is shown */
+} tg_anim_frame_t;
+
+typedef struct {
+    const tg_anim_frame_t *frames;
+    uint8_t count;                             /* 0: an empty table, which does nothing */
+    uint8_t mode;                              /* TG_ANIM_* */
+} tg_anim_t;
+
 typedef struct {                               /* a tile that stopped an actor, as it was then (the map may change after) */
     int32_t tx, ty;                            /* its tile coordinates (outside the map, those of the border tile that stopped it) */
     uint16_t tile;                             /* its tile number */
@@ -43,6 +63,9 @@ typedef struct {
     uint8_t pal, above;                        /* as tg_sprite_t */
     uint8_t prio;                              /* 0 in front; actors with the same prio are in front in order of their number */
     uint8_t hit_x, hit_y, hit_w, hit_h;        /* the box for collisions, in pixels from the top left; hit_w or hit_h 0: the whole grid */
+    uint8_t anim;                              /* the animation table playing, 1 .. n_anims; 0: none (tg_actor_play) */
+    uint8_t anim_pos, anim_left;               /* the frame it is on, and the frames left of it */
+    uint8_t anim_back, anim_done;              /* going backwards (ping-pong); a TG_ANIM_ONCE animation has reached its last frame and its time is up */
     uint16_t user;                             /* the program's: a type, a state, an animation counter */
     int32_t last_x, last_y;                    /* where it was before its position last changed (24.8): by tg_actor_move, tg_actors_step or the program (tg_actor_set_pos) */
     tg_touch_t touch[5];                       /* the last tile that stopped it on each side, set by tg_actor_move; [0] left, [1] right, [2] up, [3] down, and [4] the trigger tile it last
@@ -55,6 +78,8 @@ typedef struct {
     uint16_t n;                                /* at most 16383 */
     int32_t wrap_w, wrap_h;                    /* the world's size in pixels where it repeats, 0: it does not (tg_actors_set_wrap) */
     uint8_t flags;                             /* TG_ACTORS_* */
+    const tg_anim_t *anims;                    /* the animation tables (tg_actors_set_anims) */
+    uint8_t n_anims;
     uint8_t sprite_log2;                       /* the size of a sprite tile, as g->sprite_tile_log2; tg_actors_draw takes it from g */
     uint16_t hist[256];                        /* tg_actors_draw's work space */
     uint8_t used[TG_MAX_SPRITES];              /* the sprite slots taken at the last draw */
@@ -75,7 +100,16 @@ int tg_actor_alloc(tg_actors_t *p);            /* the lowest free number: a clea
 void tg_actor_free(tg_actors_t *p, int id);
 tg_actor_t *tg_actor(tg_actors_t *p, int id);  /* NULL for a number that is not an active actor */
 
-/* x += vx * frames, y += vy * frames for every active actor (modulo the world's size if it wraps). */
+/* The animation tables: `n` of them (at most 255), kept by the caller as long as an actor plays one. Table number i (1 .. n) is tables[i - 1]. */
+void tg_actors_set_anims(tg_actors_t *p, const tg_anim_t *tables, uint8_t n);
+
+/*
+ * Starts animation `number` on the actor: its tile becomes the first frame's. Playing the one that is already playing, and has not ended, does nothing
+ * unless `restart`. A number that is 0, or has no table or no frames, stops the animation (the tile stays). Returns false for a number past n_anims.
+ */
+bool tg_actor_play(tg_actors_t *p, int id, int number, bool restart);
+
+/* x += vx * frames, y += vy * frames for every active actor (modulo the world's size if it wraps), and the same number of frames of every playing animation. */
 void tg_actors_step(tg_actors_t *p, int frames);
 
 /* Sets the position (24.8); the old one becomes last_x and last_y if it is different. */

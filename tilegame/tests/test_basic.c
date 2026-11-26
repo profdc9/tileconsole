@@ -946,6 +946,78 @@ static void test_game_actors(void)
     CHECK(printed("0") && printed("4321"));
 }
 
+static void test_game_anim(void)
+{
+    /* a looping table: 5 for 2 frames, 6 for 2, 7 for 2; waitframe() moves it on by the frames that went by */
+    run_program(
+        "gfx(8)\n"
+        "print \"anim\";\n"
+        "print animdef(1, \"loop\", 2, \"5 6 7\");\n"
+        "a = actor(1, 0, 0)\n"
+        "print actoranim(a);\n"
+        "print actoranim(a, 1);\n"
+        "print actortile(a);\n"
+        "waitframe()\n"
+        "print actortile(a);\n"
+        "waitframe()\n"
+        "print actortile(a);\n"
+        "waitframe()\n"
+        "print actortile(a);\n"
+        "waitframe()\n"
+        "print actortile(a);\n"
+        "print animframe(a);\n"
+        "print actoranim(a, 1);\n"                 /* already playing: not restarted */
+        "print actortile(a);\n"
+        "print actoranim(a, 1, 1);\n"              /* restart */
+        "print actortile(a);\n"
+        "print actoranim(a, 0);\n"
+        "waitframe()\n"
+        "waitframe()\n"
+        "print actortile(a);\n");
+    {
+        static const char *const want[] = {"3", "0", "1", "5", "5", "6", "6", "7", "2", "1", "7", "1", "5", "0", "5"};
+        const int r = row_of("anim");
+        CHECK(r >= 0);
+        for (unsigned i = 0; i < sizeof want / sizeof *want; i++)
+            CHECK(!strcmp(row(r + 1 + (int)i), want[i]));
+    }
+
+    /* a table of one-shot frames with their own times, a ping-pong one, the finished test, and the mistakes */
+    run_program(
+        "gfx(8)\n"
+        "print \"once\";\n"
+        "animdef(2, \"once\", 1, \"1:2 2 3:3\")\n"
+        "animdef(3, 2, 1, \"10, 11, 12\")\n"
+        "a = actor(1, 0, 0) : b = actor(1, 0, 0)\n"
+        "actoranim(a, 2) : actoranim(b, 3)\n"
+        "for i = 1 to 7\n"
+        "  waitframe()\n"
+        "  print str(actortile(a)) + \" \" + str(animdone(a)) + \" \" + str(actortile(b)) + \" \" + str(animframe(b));\n"
+        "next\n");
+    {
+        /* after 1, 2 ... 7 frames. a: 1 for 2 frames, 2 for 1, 3 for 3 (done at 6). b: 10 11 12 11 10 ..., one frame each */
+        static const char *const want[] = {"1 0 11 1", "2 0 12 2", "3 0 11 1", "3 0 10 0", "3 0 11 1", "3 1 12 2", "3 1 11 1"};
+        const int r = row_of("once");
+        CHECK(r >= 0);
+        for (unsigned i = 0; i < sizeof want / sizeof *want; i++)
+            CHECK(!strcmp(row(r + 1 + (int)i), want[i]));
+    }
+    run_program("gfx(8) : animdef(0, 0, 1, \"1\")\n");
+    CHECK(shows("Error:"));
+    run_program("gfx(8) : animdef(1, \"spin\", 1, \"1\")\n");
+    CHECK(shows("Error:"));
+    run_program("gfx(8) : animdef(1, 0, 1, \"1 x\")\n");
+    CHECK(shows("Error:"));
+    run_program("gfx(8) : animdef(1, 0, 1, \"1:0\")\n");
+    CHECK(shows("Error:"));
+    run_program("gfx(8) : animdef(1, 0, 1, \"300\")\n");
+    CHECK(shows("Error:"));
+    run_program("gfx(8) : a = actor(1, 0, 0) : actoranim(a, 33)\n");
+    CHECK(shows("Error:"));
+    run_program("gfx(8) : print animdone(5)\n");
+    CHECK(shows("Error:"));
+}
+
 static void test_game_world(void)
 {
     /* collisions: flags, and an actor that stops flush against a wall */
@@ -1593,6 +1665,24 @@ static void test_game_callbacks(void)
     }
 }
 
+/* examples/anim.bas: the walk cycle follows the arrow keys */
+static void test_game_example_anim(void)
+{
+    static char text[4096];
+    FILE *f = fopen("basic/examples/anim.bas", "rb");
+    CHECK(f != NULL);
+    const size_t n = fread(text, 1, sizeof text - 1, f);
+    fclose(f);
+    text[n] = 0;
+    seed_count = 0;
+    run_held = PLAT_BTN_RIGHT | PLAT_BTN_B;
+    strcat(text, "\nprint \"anim=\" + str(actoranim(p)) + \" x=\" + str(actorx(p));\n");
+    run_program(text);
+    run_held = 0;
+    CHECK(printed("Ready.") && !shows("Error"));
+    CHECK(printed("anim=2 x=161"));
+}
+
 /* examples/walk2.bas: walk.bas with the frame loop in RUN(); B ends it */
 static void test_game_example2(void)
 {
@@ -1766,10 +1856,12 @@ int main(void)
     test_game_tilestr();
     test_game_textmode();
     test_game_actors();
+    test_game_anim();
     test_game_world();
     test_game_input_and_errors();
     test_game_example();
     test_game_callbacks();
+    test_game_example_anim();
     test_game_example2();
     test_game_follow();
     test_file_functions();

@@ -16,6 +16,8 @@
 #define BG_MAX_ACTORS 128
 #define BG_TILES 256                /* tiles in the map's set and in the sprite sheet */
 #define BG_MAP_MAX (1 << 20)        /* the most tiles in a map */
+#define BG_MAX_ANIMS 32             /* animation tables, numbered from 1 */
+#define BG_ANIM_FRAMES 32           /* frames in a table */
 #define BG_STEP_MAX 4               /* WAITFRAME moves the actors for at most this many frames at once */
 
 /* The state of a run. Its tiles, sprites and window maps are what the display reads (the board wants them in SRAM: alloc hook, fast = 1). */
@@ -33,6 +35,8 @@ struct basic_game {
     tg_actors_t actors;
     tg_actor_t pool[BG_MAX_ACTORS];
     uint16_t order[4 * BG_MAX_ACTORS];
+    tg_anim_t anims[BG_MAX_ANIMS];
+    tg_anim_frame_t anim_frames[BG_MAX_ANIMS][BG_ANIM_FRAMES];
     uint32_t last_frame;            /* the frame number WAITFRAME last got (0: it has not been called) */
     char bg;                        /* the character of a graphics string that is pixel 0, see-through ('.' unless PALETTE changed it) */
     mb_value_t frame_fn;            /* the routine ONFRAME gave, held by a reference, called by RUN once a frame */
@@ -136,6 +140,9 @@ static int setup_state(basic_env_t *e, int size_log2)
     G->follow_limits = 1;
     tg_actors_init(&G->actors, G->pool, BG_MAX_ACTORS, G->order);
     G->actors.sprite_log2 = (uint8_t)size_log2;   /* (collision boxes before the first draw) */
+    for (int i = 0; i < BG_MAX_ANIMS; i++)
+        G->anims[i].frames = G->anim_frames[i];
+    tg_actors_set_anims(&G->actors, G->anims, BG_MAX_ANIMS);
     return 1;
 }
 
@@ -722,17 +729,23 @@ FUNC(actorvel)
 
 FUNC(actortile)
 {
-    int id, tile;
+    int id, tile = 0, set = 0;
     OPEN();
     CK(arg_int(s, l, &id));
-    CK(arg_int(s, l, &tile));
+    if (mb_has_arg(s, l)) {
+        CK(arg_int(s, l, &tile));
+        set = 1;
+    }
     CLOSE();
     NEED_GAME();
     NEED_ACTOR("ACTORTILE");
-    if (tile < 0 || tile >= BG_TILES)
-        return fail(s, l, SE_RN_INDEX_OUT_OF_BOUND, "ACTORTILE(actor, tile): tile is a sprite, 0 to %d", BG_TILES - 1);
-    a->tile = (uint16_t)tile;
-    RET(0);
+    if (set) {
+        if (tile < 0 || tile >= BG_TILES)
+            return fail(s, l, SE_RN_INDEX_OUT_OF_BOUND, "ACTORTILE(actor, tile): tile is a sprite, 0 to %d", BG_TILES - 1);
+        a->tile = (uint16_t)tile;
+        RET(0);
+    } else
+        RET(a->tile);
     return MB_FUNC_OK;
 }
 
@@ -1226,6 +1239,145 @@ static int button_state(struct mb_interpreter_t *s, void **l, int kind)
 FUNC(btn) { return button_state(s, l, 0); }
 FUNC(pressed) { return button_state(s, l, 1); }
 
+/* ---- animation tables ---- */
+
+/*
+ * ANIMDEF(n, mode, ticks, frames): table n (1 to 32) is the list of sprites in `frames`, "3 4 5 4" or "3:6 4:2" (a sprite, and after a colon the frames it is shown, if not
+ * `ticks`), 32 at most. The mode is "loop" (0), "once" (1) or "pingpong" (2). Making a table again replaces it, also for actors that play it.
+ */
+static int parse_mode(const mb_value_t *v, int *mode)
+{
+    static const char *const names[] = {"loop", "once", "pingpong"};
+    if (v->type == MB_DT_INT)
+        *mode = (int)v->value.integer;
+    else if (v->type == MB_DT_REAL)
+        *mode = (int)v->value.float_point;
+    else if (v->type == MB_DT_STRING && v->value.string) {
+        *mode = -1;
+        for (int i = 0; i < 3; i++)
+            if (same_name(v->value.string, names[i]))
+                *mode = i;
+    } else
+        *mode = -1;
+    return *mode >= 0 && *mode <= 2;
+}
+
+/* A whole number of at most `max` at *p (after spaces and commas); returns -1 if there is none. */
+static int read_number(const char **p, int max)
+{
+    while (**p == ' ' || **p == ',' || **p == '\t')
+        (*p)++;
+    if (**p < '0' || **p > '9')
+        return -1;
+    long v = 0;
+    while (**p >= '0' && **p <= '9') {
+        v = v * 10 + (**p - '0');
+        if (v > max)
+            v = max + 1;
+        (*p)++;
+    }
+    return v > max ? -2 : (int)v;
+}
+
+FUNC(animdef)
+{
+    int n, ticks;
+    mb_value_t mv;
+    char *text = NULL;
+    OPEN();
+    CK(arg_int(s, l, &n));
+    mb_make_nil(mv);
+    CK(mb_pop_value(s, l, &mv));
+    CK(arg_int(s, l, &ticks));
+    CK(mb_pop_string(s, l, &text));
+    CLOSE();
+    NEED_GAME();
+    int mode;
+    if (n < 1 || n > BG_MAX_ANIMS)
+        return fail(s, l, SE_RN_INDEX_OUT_OF_BOUND, "ANIMDEF(n, mode, ticks, frames): n is 1 to %d", BG_MAX_ANIMS);
+    if (!parse_mode(&mv, &mode))
+        return fail(s, l, SE_RN_INDEX_OUT_OF_BOUND, "ANIMDEF(n, mode, ticks, frames): the mode is \"loop\", \"once\" or \"pingpong\" (or 0, 1, 2)");
+    if (ticks < 1 || ticks > 255)
+        return fail(s, l, SE_RN_INDEX_OUT_OF_BOUND, "ANIMDEF(n, mode, ticks, frames): ticks is 1 to 255");
+    tg_anim_frame_t tmp[BG_ANIM_FRAMES];
+    int count = 0;
+    const char *p = text ? text : "";
+    for (;;) {
+        const int sprite = read_number(&p, BG_TILES - 1);
+        if (sprite == -1 && !*(p += strspn(p, " ,\t")))
+            break;
+        if (sprite < 0)
+            return fail(s, l, SE_RN_INDEX_OUT_OF_BOUND, "ANIMDEF(n, mode, ticks, frames): frames is sprite numbers 0 to %d, each with :frames if it is not %d long, like \"3 4:6 5\"", BG_TILES - 1, ticks);
+        int t = ticks;
+        if (*p == ':') {
+            p++;
+            t = read_number(&p, 255);
+            if (t < 1)
+                return fail(s, l, SE_RN_INDEX_OUT_OF_BOUND, "ANIMDEF(n, mode, ticks, frames): after a colon, how many frames the sprite is shown, 1 to 255");
+        }
+        if (count >= BG_ANIM_FRAMES)
+            return fail(s, l, SE_RN_INDEX_OUT_OF_BOUND, "ANIMDEF(n, mode, ticks, frames): at most %d frames", BG_ANIM_FRAMES);
+        tmp[count].tile = (uint16_t)sprite;
+        tmp[count].ticks = (uint8_t)t;
+        count++;
+    }
+    memcpy(G->anim_frames[n - 1], tmp, (size_t)count * sizeof tmp[0]);
+    G->anims[n - 1].count = (uint8_t)count;
+    G->anims[n - 1].mode = (uint8_t)mode;
+    RET(count);
+    return MB_FUNC_OK;
+}
+
+/* ACTORANIM(a, n [, restart]): the actor plays table n (0: none; the sprite stays as it was). If it is already playing n and has not finished it nothing happens, so a program can say what
+ * it should be playing every frame; restart = 1 starts it over. ACTORANIM(a) is the number it is playing, 0 if none (or if it was an empty table). */
+FUNC(actoranim)
+{
+    int id, n = 0, restart = 0, set = 0;
+    OPEN();
+    CK(arg_int(s, l, &id));
+    if (mb_has_arg(s, l)) {
+        CK(arg_int(s, l, &n));
+        set = 1;
+        if (mb_has_arg(s, l))
+            CK(arg_int(s, l, &restart));
+    }
+    CLOSE();
+    NEED_GAME();
+    NEED_ACTOR("ACTORANIM");
+    if (set) {
+        if (n < 0 || n > BG_MAX_ANIMS)
+            return fail(s, l, SE_RN_INDEX_OUT_OF_BOUND, "ACTORANIM(actor, n): n is 0 to %d", BG_MAX_ANIMS);
+        tg_actor_play(&G->actors, id, n, restart != 0);
+    }
+    RET(a->anim);
+    return MB_FUNC_OK;
+}
+
+/* ANIMDONE(a): 1 if the actor's "once" animation has shown its last frame for its whole time. ANIMFRAME(a): which frame of its table it is on, from 0 (0 if none plays). */
+FUNC(animdone)
+{
+    int id;
+    OPEN();
+    CK(arg_int(s, l, &id));
+    CLOSE();
+    NEED_GAME();
+    NEED_ACTOR("ANIMDONE");
+    RET(a->anim && a->anim_done ? 1 : 0);
+    return MB_FUNC_OK;
+}
+
+FUNC(animframe)
+{
+    int id;
+    OPEN();
+    CK(arg_int(s, l, &id));
+    CLOSE();
+    NEED_GAME();
+    NEED_ACTOR("ANIMFRAME");
+    RET(a->anim ? a->anim_pos : 0);
+    return MB_FUNC_OK;
+}
+
 /* ---- registration, and the run ---- */
 
 #define F(n) {#n, bf_##n}
@@ -1233,7 +1385,7 @@ static const struct { const char *name; mb_func_t fn; } functions[] = {
     F(gfx), F(palette), F(tiledef), F(sprdef), F(tilerow), F(sprrow), F(tilepix), F(sprpix),
     F(newmap), F(wrap), F(tile), F(gettile), F(tilefill), F(tilestr), F(settileflags), F(tileflag), F(tilebox), F(camera), F(camx), F(camy), F(follow), F(followlimit),
     F(actor), F(actorfree), F(actorpos), F(actorx), F(actory), F(actorvel), F(actortile), F(actorsize), F(actorflip), F(actorhide), F(actorprio),
-    F(actorbox), F(actoruser), F(ysort), F(actormove), F(hitx), F(hity), F(hittile), F(hitflags), F(lastx), F(lasty), F(actorhit),
+    F(actorbox), F(actoruser), F(animdef), F(actoranim), F(animdone), F(animframe), F(ysort), F(actormove), F(hitx), F(hity), F(hittile), F(hitflags), F(lastx), F(lasty), F(actorhit),
     F(waitframe), F(onframe), F(run), F(textmode), F(frames), F(millis), F(btn), F(pressed),
 };
 

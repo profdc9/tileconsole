@@ -228,6 +228,8 @@ write. MY-BASIC has `mb_eval_routine`, which should do it (not checked).
 
 **Status.** The functions are in `tilegame/basic/basic_game.c` (reference: `tilegame/basic/README.md`, example: `basic/examples/walk.bas`, tests: `tests/test_basic.c` with a fake tile
 screen). Not as planned above: `newmap`, `actorpos`, `actorvel`, `actormove`, `actorhit` and `actoruser` are the names used (`MAP` and `MOVE` would clash with MY-BASIC's), the camera is
+
+**Animation tables** (`tg_anim_t`, `tg_actors_set_anims`, `tg_actor_play`): the caller keeps up to 255 tables of frames (a sprite tile and the number of frames it is shown), loop, once or ping-pong. An actor plays one by its number (`anim`, 0 is none); `tg_actors_step` moves every playing animation on by the frames that went by (the same call that applies the velocities) and sets the actor's `tile`, so a program needs no animation code of its own. A once animation sets `anim_done` when its last frame's time is up. BASIC: `animdef`, `actoranim`, `animdone`, `animframe`.
 set by `camera(x, y)` and not followed by `FOLLOW`, there are no animation tables, `TILES(file)` and `LOADMAP(file)` are replaced by `tiledef`/`tilerow` and `newmap`/`tile`/`tilefill`
 (no file format yet), there is one map (layer 0), `FRAMEMS()` and the callback model are not done, and the first `WAITFRAME()` returns 1 (there is no earlier frame to count from).
 Added: `wrap`, `settileflags`, `tilebox`, `ysort`, `hitx`/`hity`/`hittile`/`hitflags` (the recorded tile of a stop or a touch of a trigger), `lastx`/`lasty`. The picture goes away when the program ends.

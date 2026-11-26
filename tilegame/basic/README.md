@@ -107,11 +107,14 @@ changing a tile while it is on screen can show for a frame as it was and as it i
 | `actorhit(a, b)` | 1 if the collision boxes of the two overlap (two actors; not a tile) |
 | `hitx(a, side)`, `hity(a, side)`, `hittile(a, side)`, `hitflags(a, side)` | the tile that last stopped the actor on that side (1 or `"left"`, 2 `"right"`, 4 `"up"`, 8 `"down"`), or 16 or `"touch"` for the trigger tile it last touched (the first of those the move found, in row order), as it was at that moment: its tile coordinates, its tile number and its flags. A later `tile` that changes the map does not change them, so a program can tell that it hit a door or a spike even if it has since turned it into floor. Where several tiles are along the edge, it is the first (the top one for left and right, the left one for up and down); off the edge of a map it is the border tile that stopped it. They are 0 until the first one of the kind and kept until the next, so use what `actormove` returns to know that this move had one |
 | `lastx(a)`, `lasty(a)` | where the actor was before its position last changed (by `actormove`, `actorpos` or its velocity at `waitframe()`; a move to the same place does not count), in pixels. Right after `actormove` says 16 for the first touch of a trigger, this is where it was before the move, which is clear of the trigger, so `actorpos(a, lastx(a), lasty(a))` puts it back, as if the trigger had stopped it (set `actorvel(a, 0, 0)` too if it has a velocity). Once it stands on the trigger, the last position is already inside it, so keep your own copy from before the touch if you need it |
-| `actortile(a, sprite)`, `actorsize(a, cols, rows)` | which sprite; a grid of up to 4 by 4 sprites (taken row by row from the number) for a big character |
+| `actortile(a, sprite)`, `actortile(a)`, `actorsize(a, cols, rows)` | which sprite; a grid of up to 4 by 4 sprites (taken row by row from the number) for a big character |
 | `actorflip(a, f)`, `actorhide(a, on)` | mirror it (1 across, 2 down, 3 both); do not draw it |
 | `actorbox(a, x, y, w, h)` | the part of it that collides, in pixels from its top left (the whole of it if w or h is 0) |
 | `actorprio(a, p)`, `ysort(on)` | who is in front (0 in front, 255 behind; the same: the lower number); with `ysort(1)` the one lower on the screen is in front |
 | `actoruser(a)`, `actoruser(a, n)` | a number (0 to 65535) the program keeps in an actor: its kind, or its state |
+| `animdef(n, mode, ticks, frames)` | table n (1 to 32) of sprites to show one after the other. `frames` is the sprite numbers in a string, `"2 1 3 1"`, each shown for `ticks` frames (1 to 255), or for as many as it says after a colon: `"2:10 1 3:10 1"`; 32 frames at most (a string in a program is 128 characters at most, so a longer one is joined). The mode is `"loop"` (or 0: 2 1 3 1 2 1 3 1 ...), `"once"` (1: stops on the last frame) or `"pingpong"` (2: 10 11 12 11 10 11 ...). Returns the number of frames; a table made again replaces the old one, also for actors that play it |
+| `actoranim(a, n [, restart])`, `actoranim(a)` | the actor plays table n from now on (0: none; its sprite stays as it is). `WAITFRAME()` (and `RUN()`) moves every playing animation on by the frames that went by and sets the actor's sprite, so the program has nothing to do. Asking for the table it is already playing does nothing, so a program can say `actoranim(p, 2)` every frame while the key is down and `actoranim(p, 1)` when it is not; with `restart` 1 it starts over. Without n it returns the table playing (0: none). The first sprite is shown at once. `actortile` while an animation plays is undone by the animation's next frame; stop it with `actoranim(a, 0)` first |
+| `animdone(a)`, `animframe(a)` | 1 once a `"once"` animation has shown its last frame for its whole time (starting it again clears it); the frame the animation is on, counted from 0 (so a program can make a sound on the step) |
 
 Actors are in front of the map. With `wrap(1)` an actor's position is kept within the map, and one near the seam is seen on both sides of it.
 
@@ -120,7 +123,9 @@ Actors are in front of the map. With `wrap(1)` an actor's position is kept withi
 
 A mistake (an actor that is not there, a number out of range, a map that was not made) stops the program with a line that says what, and the function's name.
 
-Not here yet: animation tables, loading tiles and maps from files, more than one tile layer, sound.
+`examples/anim.bas` is a creature whose feet are animated by two tables.
+
+Not here yet: loading tiles and maps from files, more than one tile layer, sound.
 
 ## File functions
 

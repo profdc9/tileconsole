@@ -670,9 +670,119 @@ static void test_overlap(void)
     CHECK(!tg_actors_overlap(&p, -1, 0) && !tg_actors_overlap(&p, 0, 3));
 }
 
+/* ---- animation tables ---- */
+
+/* The frame an animation should show after `t` frames, worked out from the table alone (the reference for tg_actors_step). */
+static int model_tile(const tg_anim_t *t, int elapsed)
+{
+    int seq[64], n = 0;                                 /* the sequence of frames, one entry for each frame shown */
+    for (int i = 0; i < t->count; i++)
+        seq[n++] = i;
+    if (t->mode == TG_ANIM_PINGPONG)
+        for (int i = t->count - 2; i >= 1; i--)         /* back down, without repeating the ends */
+            seq[n++] = i;
+    int at = elapsed, pos = 0;
+    for (;;) {
+        const int f = seq[pos % n];
+        const int d = t->frames[f].ticks ? t->frames[f].ticks : 1;
+        if (at < d)
+            return t->frames[f].tile;
+        at -= d;
+        pos++;
+        if (t->mode == TG_ANIM_ONCE && pos >= n)
+            return t->frames[t->count - 1].tile;
+    }
+}
+
+static void test_anim(void)
+{
+    static const tg_anim_frame_t walk[] = {{10, 3}, {11, 1}, {12, 0}, {13, 2}};      /* (0 ticks counts as 1) */
+    static const tg_anim_frame_t one[] = {{20, 5}};
+    static const tg_anim_t tables[] = {
+        {walk, 4, TG_ANIM_LOOP}, {walk, 4, TG_ANIM_ONCE}, {walk, 4, TG_ANIM_PINGPONG}, {one, 1, TG_ANIM_PINGPONG}, {NULL, 0, 0}, {one, 1, TG_ANIM_ONCE},
+    };
+    tg_actor_t store[4];
+    uint16_t order[16];
+    tg_actors_t p;
+    tg_actors_init(&p, store, 4, order);
+    const int a = tg_actor_alloc(&p);
+    CHECK(!tg_actor_play(&p, a, 1, false));                  /* no tables yet */
+    tg_actors_set_anims(&p, tables, 6);
+    CHECK(!tg_actor_play(&p, a, 7, false) && !tg_actor_play(&p, 3, 1, false) && !tg_actor_play(&p, a, -1, false));
+    CHECK(tg_actor(&p, a)->anim == 0);
+
+    /* every mode, stepped one frame at a time and in uneven jumps, against the model */
+    for (int number = 1; number <= 3; number++)
+        for (int jump = 1; jump <= 4; jump++) {
+            CHECK(tg_actor_play(&p, a, number, true));
+            tg_actor_t *ac = tg_actor(&p, a);
+            CHECK(ac->tile == 10 && ac->anim == number);
+            int elapsed = 0;
+            for (int step = 0; step < 60; step++) {
+                tg_actors_step(&p, jump);
+                elapsed += jump;
+                CHECK(ac->tile == model_tile(&tables[number - 1], elapsed));
+            }
+            CHECK(ac->anim_done == (number == 2));
+        }
+
+    /* once: stops on the last frame after its time is up, not before */
+    CHECK(tg_actor_play(&p, a, 2, true));
+    tg_actors_step(&p, 6);                                   /* 3 + 1 + 1 = 5 frames to the last frame, which lasts 2 */
+    CHECK(tg_actor(&p, a)->tile == 13 && !tg_actor(&p, a)->anim_done);
+    tg_actors_step(&p, 1);
+    CHECK(tg_actor(&p, a)->tile == 13 && tg_actor(&p, a)->anim_done);
+    tg_actors_step(&p, 100);
+    CHECK(tg_actor(&p, a)->tile == 13 && tg_actor(&p, a)->anim_done);
+    CHECK(tg_actor_play(&p, a, 2, false) && !tg_actor(&p, a)->anim_done && tg_actor(&p, a)->tile == 10);   /* a finished one starts again */
+
+    /* playing the same one again does not restart it, unless asked */
+    tg_actors_step(&p, 3);
+    CHECK(tg_actor(&p, a)->tile == 11);
+    CHECK(tg_actor_play(&p, a, 2, false) && tg_actor(&p, a)->tile == 11);
+    CHECK(tg_actor_play(&p, a, 2, true) && tg_actor(&p, a)->tile == 10);
+    CHECK(tg_actor_play(&p, a, 1, false) && tg_actor(&p, a)->tile == 10 && tg_actor(&p, a)->anim == 1);   /* another one does */
+
+    /* one frame tables, an empty table, and stopping */
+    CHECK(tg_actor_play(&p, a, 4, true) && tg_actor(&p, a)->tile == 20);
+    tg_actors_step(&p, 50);
+    CHECK(tg_actor(&p, a)->tile == 20);
+    CHECK(tg_actor_play(&p, a, 6, true));
+    tg_actors_step(&p, 5);
+    CHECK(tg_actor(&p, a)->tile == 20 && tg_actor(&p, a)->anim_done);
+    CHECK(tg_actor_play(&p, a, 5, true) && tg_actor(&p, a)->anim == 0 && tg_actor(&p, a)->tile == 20);   /* an empty table stops it; the tile stays */
+    CHECK(tg_actor_play(&p, a, 3, true));
+    tg_actors_step(&p, 1);
+    CHECK(tg_actor_play(&p, a, 0, true) && tg_actor(&p, a)->anim == 0);
+    const uint16_t kept = tg_actor(&p, a)->tile;
+    tg_actors_step(&p, 30);
+    CHECK(tg_actor(&p, a)->tile == kept);
+
+    /* hide and free do not stop the clock of the others; a freed actor does not animate and a new one starts clean */
+    const int b = tg_actor_alloc(&p);
+    CHECK(tg_actor_play(&p, b, 1, true));
+    tg_actor_free(&p, b);
+    tg_actors_step(&p, 3);
+    CHECK(tg_actor(&p, b) == NULL);
+    const int c = tg_actor_alloc(&p);
+    CHECK(c == b && tg_actor(&p, c)->anim == 0 && tg_actor(&p, c)->tile == 0);
+
+    /* a table that shrank under a playing actor */
+    CHECK(tg_actor_play(&p, a, 1, true));
+    tg_actors_step(&p, 7);
+    static const tg_anim_t shorter[] = {{walk, 2, TG_ANIM_LOOP}};
+    tg_actors_set_anims(&p, shorter, 1);
+    tg_actors_step(&p, 1);
+    CHECK(tg_actor(&p, a)->tile == 10 || tg_actor(&p, a)->tile == 11);
+    tg_actors_set_anims(&p, NULL, 5);
+    CHECK(p.n_anims == 0);
+    tg_actors_step(&p, 5);                                   /* a playing actor with no tables: nothing happens */
+}
+
 int main(void)
 {
     test_pool();
+    test_anim();
     for (unsigned sl = 3; sl <= 4; sl++)
         for (unsigned depth = 4; depth <= 8; depth += 4)
             for (int ys = 0; ys < 2; ys++) {
