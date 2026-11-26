@@ -112,8 +112,10 @@ NULL
  * display beyond the bottom of the screen.
  * jmh 990430: turned into a 2d array, removed the signature.
  * jmh 050710: added the viewer screen as another array.
+ * tilegame: constant, so that it stays in flash (10 KB of RAM on the board); help_screen in the editor's state points at it, or at
+ * the copy a help file (tde.hlp) was read into (config.c).
  */
-char help_screen[2][HELP_HEIGHT][HELP_WIDTH+1] = { {
+const char help_text[2][HELP_HEIGHT][HELP_WIDTH+1] = { {
 "ษออออออออออออออออออออออออออออออออออออ HELP ออออออออออออออออออออออออออออออออออออป",
 "บฺฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฟ  ฺฤฤฤฤฤฤฤฤฤฤฤฤฤฟ   ฺฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฤฟบ",
 "บณ # = Shift   @ = Alt   ^ = Ctrl ณ  ณ ^\\ for Menu ณ   ณ abort command     ^[ ณบ",
@@ -356,7 +358,7 @@ NULL
 };
 
 
-char help_screen[2][HELP_HEIGHT][HELP_WIDTH+1] = { {
+const char help_text[2][HELP_HEIGHT][HELP_WIDTH+1] = { {
 "+==================================== HELP ====================================+",
 "|+--------------------------------+  +-------------+   +----------------------+|",
 "|| # = Shift   @ = Alt   ^ = Ctrl |  | ^\\ for Menu |   | abort command     ^[ ||",

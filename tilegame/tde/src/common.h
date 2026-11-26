@@ -83,7 +83,7 @@ extern unsigned char upper_lower[];     /* unsigned by jmh 980808 */
  */
 extern const char * const tde_help;     /* added by jmh 010528 */
 extern const char * const credit_screen[];
-extern char help_screen[2][HELP_HEIGHT][HELP_WIDTH+1];
+extern const char help_text[2][HELP_HEIGHT][HELP_WIDTH+1];   /* tilegame: the built-in help (help_screen points at it, or at a copy) */
 extern const char * const regx_help[];
 extern const char * const replace_help[];
 extern const char * const wildcard_help[];

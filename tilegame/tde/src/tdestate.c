@@ -138,9 +138,12 @@ size_t tde_state_live_blocks( void )
 }
 
 /* (help.c is data only, and does not see the editor's headers) */
+extern const char help_text[2][HELP_HEIGHT][HELP_WIDTH+1];
+
 void help_state_init( void )
 {
    { static const int tmpl_help_dim[2][2] = { { 25, 80 }, { 25, 80 } }; memcpy( &help_dim, &tmpl_help_dim, sizeof help_dim ); }
+   help_screen = help_text;   /* the built-in help, until a help file replaces it (new_help_screen in config.c) */
 }
 
 tde_state_t *tde_state_create( void )

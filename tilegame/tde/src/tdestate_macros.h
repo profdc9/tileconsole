@@ -60,6 +60,7 @@
 #define syntax_color (tde->syntax_color)
 #define stat_screen (tde->stat_screen)
 #define help_dim (tde->help_dim)
+#define help_screen (tde->help_screen)
 #define init_wd (tde->init_wd)
 #define browser_window (tde->browser_window)
 #define nfa_status (tde->nfa_status)

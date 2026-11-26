@@ -91,6 +91,7 @@ enum {
    int syntax_color[SHL_NUM_COLORS]; \
    char *stat_screen[STATS_COUNT+1]; \
    int help_dim[2][2]; \
+   const char (*help_screen)[HELP_HEIGHT][HELP_WIDTH+1]; \
    char init_wd[PATH_MAX]; \
    TDE_WIN *browser_window; \
    int nfa_status; \

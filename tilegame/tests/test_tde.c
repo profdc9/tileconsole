@@ -266,6 +266,7 @@ static void put_file(const char *name, const char *data, size_t len)
 static char dump_dir[64];
 
 static const char *second_keys, *second_cmd;   /* a second run of the editor after the first, in the same process */
+static int second_without_hlp;   /* run_twice: tde.hlp is deleted before the second run */
 
 static void child(const char *keys, const char *cmdline)
 {
@@ -322,6 +323,8 @@ static void child(const char *keys, const char *cmdline)
     if (pool_free_bytes(editor_pool) != pool_fresh)
         _exit(12);   /* the editor left blocks in the pool */
     if (second_keys) {   /* the editor again, with a new state: it must start as it did the first time */
+        if (second_without_hlp)
+            fs_unlink("/sd/tde/tde.hlp");
         parse_keys(second_keys);
         args[0] = program;   /* (the first run left its own path in argv[0], which went with its state) */
         n = 1;
@@ -577,6 +580,8 @@ static void test_search_and_dirs(void)
     CHECK(run("{A-F1}/sd/tde/*.cfg\n", "a.txt") && ROW_HAS(3, "/sd/tde/*.cfg") && ROW_HAS(8, "tde.cfg") && !ROW_HAS(8, "tde.hlp"));
 }
 
+static int run_twice(const char *keys1, const char *cmd1, const char *keys2, const char *cmd2);
+
 static void test_menus_and_help(void)
 {
     fresh_files();
@@ -585,6 +590,10 @@ static void test_menus_and_help(void)
     /* the help is the one in tde.hlp, which the editor reads next to tde.cfg (the built-in one says ^B ^L ^X, where the configuration has Alt: @B @L @X) */
     CHECK(run("{F1}", "a.txt") && ROW_HAS(17, "box") && ROW_HAS(17, "@B") && ROW_HAS(18, "line") && ROW_HAS(18, "@L") && ROW_HAS(19, "stream") && ROW_HAS(19, "@X"));
     CHECK(run("{F1}{ESC}", "a.txt") && ROW_HAS(0, "1a"));                                  /* Esc leaves the help */
+    /* without tde.hlp the built-in help shows (it is constant), also in a run after one that read the file: that run's copy went with its state */
+    second_without_hlp = 1;
+    CHECK(run_twice("{F1}{ESC}{F3}", "a.txt", "{F1}", "a.txt") && ROW_HAS(17, "box") && ROW_HAS(17, "^B") && ROW_HAS(19, "^X") && !ROW_HAS(17, "@B"));
+    second_without_hlp = 0;
     /* the menu (Ctrl+\) with its entries, and a letter picks one */
     CHECK(run("{C-\\}", "a.txt") && ROW_HAS(0, "File   Search   Block   Toggles   Other") && ROW_HAS(2, "a) Directory") && ROW_HAS(2, "Alt+F1"));
     CHECK(run("{C-\\}{ESC}", "a.txt") && ROW_HAS(0, "1a"));

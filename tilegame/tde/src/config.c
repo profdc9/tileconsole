@@ -2231,6 +2231,20 @@ int  viewer = FALSE;
 int  wid;
 int  c;
 int  i;
+char (*hs)[HELP_HEIGHT][HELP_WIDTH+1];
+
+   /*
+    * tilegame: the built-in help is constant (it stays in flash); the first help file read gets a copy of it to change, which the
+    * editor's tracked malloc frees with the rest of its state.
+    */
+   if (help_screen == help_text) {
+      hs = malloc( sizeof(help_text) );
+      if (hs == NULL)
+         return( FALSE );
+      memcpy( hs, help_text, sizeof(help_text) );
+      help_screen = (const char (*)[HELP_HEIGHT][HELP_WIDTH+1])hs;
+   } else
+      hs = (char (*)[HELP_HEIGHT][HELP_WIDTH+1])help_screen;
 
    wid = 0;
    for (c = 0; c < HELP_HEIGHT; c++) {
@@ -2244,8 +2258,8 @@ int  i;
       }
       if (i > HELP_WIDTH)
          i = HELP_WIDTH;
-      memcpy( help_screen[type][c], line_in, i );
-      memset( help_screen[type][c]+i, ' ', HELP_WIDTH-i );
+      memcpy( hs[type][c], line_in, i );
+      memset( hs[type][c]+i, ' ', HELP_WIDTH-i );
       if (i > wid)
          wid = i;
    }
@@ -2253,7 +2267,7 @@ int  i;
       help_dim[type][0] = c;
       help_dim[type][1] = wid;
       while (--c >= 0)
-         help_screen[type][c][wid] = '\0';
+         hs[type][c][wid] = '\0';
    }
 
    if (viewer != ERROR) {
