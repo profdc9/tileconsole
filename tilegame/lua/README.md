@@ -166,7 +166,47 @@ A mistake (an actor that is not there, a number out of range, a map that was not
 
 `examples/layers.lua` uses all four layers.
 
-Not here yet: loading tiles and maps from files, sound.
+Not here yet: loading tiles and maps from files.
+
+## Sound
+
+`tl_sound.c` plays through tilesnd (`../../tilesnd`), which mixes 16 voices at 48000 samples a second on the machine's audio thread (on the board core 1, into the HDMI
+audio). The voices are numbered 1 to 16; each plays one note at a time: a tone (a pulse wave, a triangle, two kinds of noise, or a 32-step wavetable) or a sample, through
+its envelope, at its volume and its place between left and right. A program uses as many voices as it likes, for anything: one for the jump, one for the coins, three for
+the music.
+
+    envelope(1, 0, 200, 0, 20)     -- a blip: gone in 200 ms
+    tone(1, "pulse", 72)           -- C5 (60 is middle C)
+    tone(2, "triangle", "E3", 500) -- E3 for half a second
+    slide(1, 84, 100)              -- up an octave in 100 ms
+
+| function | what it does |
+|---|---|
+| `tone(v, kind, note [, ms])` | a tone on voice v. kind: `"pulse"` (a square wave, or thinner, see `duty`), `"triangle"`, `"noise"` (a hiss), `"buzz"` (a short-cycle noise: metallic), `"wave"` (the voice's wavetable, see `wave`). The note is a number (MIDI's: 60 is middle C, 69 the A of 440 Hz, 61 the C sharp above middle C; a fraction is between two notes) or a name: `"C4"`, `"F#3"`, `"Bb5"` (an octave of 4 if none is given). For the noises the note is how fast they are clocked: higher is brighter. The tone holds until `release(v)`, or is let go after ms |
+| `play(v, n [, speed [, ms]])` | sample n on voice v. speed 1 is as it was recorded, 2 an octave up, 0.5 an octave down. It ends by itself at the end of the sample, unless the sample loops |
+| `release(v)` | lets go of the note: it fades out over the envelope's release time |
+| `silence([v])` | stops voice v at once, or every voice |
+| `playing(v)` | true while voice v makes sound (also a note that was started and has not reached the audio thread yet) |
+| `envelope(v [, attack, decay, sustain, release])` | how the voice's notes rise and fall: in `attack` ms to full, in `decay` ms down to `sustain` (a level, 0 to 255), held there until the note is let go, then in `release` ms to nothing. With sustain 0 a note ends by itself once it has decayed: a blip or a drum, with no `release` needed. `envelope(v)` is the default again: full at once, held, 5 ms to fade |
+| `volume(v, level)`, `pan(v, p)`, `duty(v, d)` | the voice's volume (0 to 255; 255 at first), its place from left to right (-128 to 127; 0, the middle, at first), and the pulse's duty (0 to 255: 128, at first, is a square wave, 64 thinner, 32 thinner still). They change the note playing and the ones after it |
+| `pitch(v, note)` | the tone's note now (a sample: its speed) |
+| `slide(v, note, ms)` | from the note the voice has to this one, evenly in semitones, over ms (a sample: to the speed) |
+| `wave(v, shape)` | the voice's wavetable, for `"wave"` tones: `"sine"` (at first), `"triangle"`, `"saw"`, `"square"`, a table of 32 numbers from -1 to 1, or a string of 32 bytes (as `sample` takes them). A note playing changes at once |
+| `mastervolume(level)` | all of the sound, 0 to 255 |
+| `note(name)`, `hz(f)` | the number of a note's name (`note("A4")` is 69), and the note of a frequency (`hz(440)` is 69, `hz(450)` about 69.39) |
+| `sample(n, data, rate [, first, last])` | makes sample n (1 to 32) from a string, one byte a sample (0 to 127, then 128 to 255 for -128 to -1: `"\0\127\0\129"`), or from a table of numbers from -1 to 1, recorded at `rate` samples a second (100 to 200000). With first and last, which count from 1 as `string.sub` does, those samples repeat after the rest has played, until `release(v)`. Making a sample again stops the voices that play it. Returns its length |
+| `loadsample(n, file [, first, last])` | the same from a WAV file: 8- or 16-bit PCM, mono or stereo (made mono), at any rate. Returns its length and its rate |
+
+A voice's settings (volume, pan, duty, envelope, wavetable) stay until they are changed, or until RUN or NEW. Ctrl+C stops every voice, in a program or at the prompt, and
+so do RUN, NEW, EDIT and BYE; RUN and NEW also put every voice back as it was at first and give the samples' memory back. A program that ends, even with an error, leaves
+what it started playing: a note that holds sounds on at the prompt until `release`, `silence()` or Ctrl+C. Lines typed at the prompt can play too.
+
+Slides and notes with a length move on whenever the environment looks at the keys: at each frame in `waitframe` and `run`, every 16 ms in a long computation, and at the
+prompt; so they are smooth to within a frame. A note reaches the speakers a few ms after the call (on the board about 17 ms: core 1 keeps that much ahead of the HDMI
+output). On a machine without sound (the desktop with no audio device) the functions do nothing and `playing` is false; samples are still made, so a program runs the
+same. On the board the samples are in the PSRAM.
+
+`examples/sound.lua` plays one sound for each button.
 
 ## Speed (board)
 

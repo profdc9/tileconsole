@@ -187,14 +187,14 @@ tde_ed: $(TDERELOBJ) $(TDEPLAT) include/platform.h
 	$(CC) $(CFLAGS) -w -U_FORTIFY_SOURCE $(INC) $(SDINC) -Itde/os $(TDERELOBJ) $(TDEPLAT) $(TDE_WRAP) -o $@ $(SDL) -lm
 
 # The development kit on the desktop: Lua and the editor in one program (EDIT runs the editor in the same process).
-DEVKITLUA = lua/tl_env.c lua/tl_game.c lua/tl_io.c $(LUACORE) $(TILEGFX)/tg_console.c $(TILEGFX)/tg_world.c $(TILEGFX)/tg_actor.c
+DEVKITLUA = lua/tl_env.c lua/tl_game.c lua/tl_io.c lua/tl_sound.c $(TILESND)/snd.c $(LUACORE) $(TILEGFX)/tg_console.c $(TILEGFX)/tg_world.c $(TILEGFX)/tg_actor.c
 devkit: demo/devkit.c $(TDERELOBJ) $(DEVKITLUA) $(TDEPLAT) include/platform.h build/devkit_lua.o
 	$(CC) $(CFLAGS) -w -U_FORTIFY_SOURCE $(INC) $(SDINC) -Itde/os -Ilua -I$(LUADIR) demo/devkit.c $(TDERELOBJ) build/devkit_lua.o $(filter-out tde/tdeapp.c,$(TDEPLAT)) $(TDE_WRAP) -o $@ $(SDL) -lm
 
 test_devkit: tests/test_devkit.c demo/devkit.c $(TDERELOBJ) $(DEVKITLUA) $(TDEPLAT) include/platform.h build/devkit_lua.o
 	$(CC) $(CFLAGS) -w -U_FORTIFY_SOURCE $(INC) $(SDINC) -Itde/os -Ilua -I$(LUADIR) tests/test_devkit.c $(TDERELOBJ) build/devkit_lua.o $(filter-out tde/tdeapp.c,$(TDEPLAT)) $(TDE_WRAP) -o $@ $(SDL) -lm -lpthread
 
-build/devkit_lua.o: $(DEVKITLUA) lua/tl_env.h lua/tl_game.h lua/tl_io.h
+build/devkit_lua.o: $(DEVKITLUA) lua/tl_env.h lua/tl_game.h lua/tl_io.h lua/tl_sound.h $(TILESND)/snd.h
 	@mkdir -p build/devkit_lua
 	for f in $(DEVKITLUA); do $(CC) -c $(LUAFLAGS) -O2 $(INC) $(SDINC) $$f -o build/devkit_lua/$$(basename $$f .c).o || exit 1; done
 	ld -r build/devkit_lua/*.o -o $@
@@ -234,13 +234,13 @@ LUADIR = third_party/lua
 LUACORE = $(addprefix $(LUADIR)/,lapi.c lcode.c lctype.c ldebug.c ldo.c ldump.c lfunc.c lgc.c llex.c lmem.c lobject.c lopcodes.c lparser.c lstate.c \
           lstring.c ltable.c ltm.c lundump.c lvm.c lzio.c lauxlib.c lbaselib.c lcorolib.c lmathlib.c lstrlib.c ltablib.c lutf8lib.c)
 LUAFLAGS = -std=gnu11 -Wall -Wextra -I$(LUADIR) -Ilua
-LUASRC = lua/tl_env.c lua/tl_game.c lua/tl_io.c $(LUACORE) $(TILEGFX)/tg_world.c $(TILEGFX)/tg_actor.c $(TILEGFX)/tg_console.c $(TILEGFX)/tg_text.c \
+LUASRC = lua/tl_env.c lua/tl_game.c lua/tl_io.c lua/tl_sound.c $(TILESND)/snd.c $(LUACORE) $(TILEGFX)/tg_world.c $(TILEGFX)/tg_actor.c $(TILEGFX)/tg_console.c $(TILEGFX)/tg_text.c \
          $(TILEGFX)/tg_text_cp437.c $(TILEGFX)/tg_font.c $(TILEGFX)/fonts/unscii16.c $(TILEFSSRC)
 
-tglua: lua/tl_main.c $(LUASRC) lua/tl_env.h lua/tl_game.h lua/tl_io.h sdl/plat_sdl.c src/mouse_acc.c include/platform.h $(TILEGFX)/tilegfx.c
+tglua: lua/tl_main.c $(LUASRC) lua/tl_env.h lua/tl_game.h lua/tl_io.h lua/tl_sound.h $(TILESND)/snd.h sdl/plat_sdl.c src/mouse_acc.c include/platform.h $(TILEGFX)/tilegfx.c
 	$(CC) $(LUAFLAGS) -O2 $(INC) $(SDINC) lua/tl_main.c $(LUASRC) sdl/plat_sdl.c src/mouse_acc.c $(TILEGFX)/tilegfx.c -o $@ $(SDL) -lm
 
-test_lua: tests/test_lua.c $(LUASRC) lua/tl_env.h lua/tl_game.h lua/tl_io.h $(TILEGFX)/tilegfx.c
+test_lua: tests/test_lua.c $(LUASRC) lua/tl_env.h lua/tl_game.h lua/tl_io.h lua/tl_sound.h $(TILESND)/snd.h $(TILEGFX)/tilegfx.c
 	$(CC) $(LUAFLAGS) -O1 -g -fsanitize=address,undefined $(INC) $(SDINC) tests/test_lua.c $(LUASRC) $(TILEGFX)/tilegfx.c -o $@ -lm -lpthread
 
 test_usblog: tests/test_usblog.c src/usblog.c src/usblog.h

@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: MIT */
 /* Tests of the Lua environment: it is typed at with scripted keys on a RAM disk and the screen and the files are looked at. */
 #include <malloc.h>
+#include <math.h>
 #include <pthread.h>
 #include <setjmp.h>
 #include <stdio.h>
@@ -10,6 +11,7 @@
 
 #include "lua.h"
 #include "platform.h"
+#include "snd.h"
 #include "tg_text.h"
 #include "tilefs.h"
 #include "tl_env.h"
@@ -39,6 +41,16 @@ static uint32_t now_ms;
 
 static int presents;
 
+/* The sound engine, and an audio thread played by the hooks: every frame, poll and frame wait mixes a block (the machine's thread would, now and then) */
+static snd_t tsnd;
+static int sound_on = 1;
+static int16_t sbuf[2 * 4800];
+static void pump(void)
+{
+    if (env.hooks.snd)
+        snd_render(&tsnd, sbuf, 64);
+}
+
 static int get_char(void)
 {
     if (script_pos >= script_len) {
@@ -54,6 +66,7 @@ static int polls;              /* the poll hook was called (a program ran with t
 
 static void frame(void)
 {
+    pump();
     now_ms += 17;
     if (env.game_active)
         frame_while_game++;
@@ -67,6 +80,7 @@ static uint32_t millis(void) { return now_ms += 1; }
 
 static void poll_hook(void)
 {
+    pump();
     polls++;
     if (++idle_frames > 1000000 && script_pos >= script_len && cut_armed)
         longjmp(cut, 1);
@@ -178,6 +192,7 @@ static int press_b_after;   /* B is held from this many frames on (0: never): th
 
 static uint32_t t_wait_frame(void)
 {
+    pump();
     now_ms += 17;
     if (++idle_frames > 100000 && script_pos >= script_len && cut_armed)
         longjmp(cut, 1);
@@ -251,6 +266,8 @@ static void fresh(void)
     }
     lua_bytes = 0;   /* (the state from before is not closed, as a cut may have left it half way: what it had does not count) */
     allocs = releases = fast_allocs = 0;
+    snd_init(&tsnd, PLAT_AUDIO_RATE);
+    hooks.snd = sound_on ? &tsnd : NULL;
     tl_env_init(&env, &screen, &hooks);
     game_frame = 100;
     press_b_after = 0;
@@ -1919,6 +1936,309 @@ static void test_game_example_layers(void)
     CHECK(image[0][0] == '6' && image[14][319] == '6' && image[15][100] == '7');   /* the panel, where it always is */
 }
 
+/* ---- sound ---- */
+
+static uint32_t tone_inc_of(uint32_t hz_q8) { return (uint32_t)(((uint64_t)hz_q8 << 24) / PLAT_AUDIO_RATE); }
+static uint32_t note_q8(int note) { return (uint32_t)(440.0f * 256.0f * exp2f(((float)note - 69.0f) / 12.0f) + 0.5f); }   /* as tl_sound.c works it out */
+static const snd_voice_t *voice(int v) { return &tsnd.voices[v - 1]; }   /* (Lua's numbering) */
+
+/* the loudest sample of the next `frames` frames the engine mixes */
+static int peak(int frames)
+{
+    int best = 0;
+    while (frames > 0) {
+        const int n = frames < 2400 ? frames : 2400;
+        snd_render(&tsnd, sbuf, n);
+        for (int i = 0; i < 2 * n; i++) {
+            const int a = sbuf[i] < 0 ? -sbuf[i] : sbuf[i];
+            best = a > best ? a : best;
+        }
+        frames -= n;
+    }
+    return best;
+}
+
+/* run_program, on the disk as it is (with files put there first) */
+static void run_here(const char *text)
+{
+    CHECK(put_file("/sd/t.lua", text) > 0);
+    type("LOAD t\nRUN\n");
+    CHECK(go() == -1);
+}
+
+static int put_bytes(const char *path, const void *data, size_t n)
+{
+    const int fd = fs_open(path, FS_WRONLY | FS_CREAT | FS_TRUNC);
+    if (fd < 0)
+        return fd;
+    const int w = fs_write(fd, data, n);
+    fs_close(fd);
+    return w;
+}
+
+/* A WAV file: the format (1 is PCM), channels, bits, rate and the sound; `claim` is the size the data chunk says it has (0: the real one); `extra` puts an
+ * odd-sized chunk before fmt and another between fmt and data; `no_data` leaves the data chunk out. */
+static int put_wav(const char *path, int format, int channels, int bits, int rate, const void *data, uint32_t bytes, uint32_t claim, int extra, int no_data)
+{
+    static uint8_t b[4096];
+    size_t n = 0;
+#define PUT4(s) (memcpy(b + n, s, 4), n += 4)
+#define LE16(v) (b[n++] = (uint8_t)(v), b[n++] = (uint8_t)((v) >> 8))
+#define LE32(v) (LE16(v), LE16((v) >> 16))
+    PUT4("RIFF");
+    LE32(0);
+    PUT4("WAVE");
+    if (extra) {
+        PUT4("LIST");
+        LE32(3);
+        b[n++] = 'a', b[n++] = 'b', b[n++] = 'c', b[n++] = 0;   /* (and the pad byte) */
+    }
+    PUT4("fmt ");
+    LE32(16);
+    LE16(format);
+    LE16(channels);
+    LE32((uint32_t)rate);
+    LE32((uint32_t)(rate * channels * bits / 8));
+    LE16(channels * bits / 8);
+    LE16(bits);
+    if (extra) {
+        PUT4("fact");
+        LE32(4);
+        LE32(12345);
+    }
+    if (!no_data) {
+        PUT4("data");
+        LE32(claim ? claim : bytes);
+        memcpy(b + n, data, bytes);
+        n += bytes;
+    }
+    const uint32_t riff = (uint32_t)n - 8;
+    memcpy(b + 4, &riff, 4);   /* (the tests run on little-endian machines) */
+#undef PUT4
+#undef LE16
+#undef LE32
+    return put_bytes(path, b, n);
+}
+
+static void test_sound_notes(void)
+{
+    /* a tone holds until it is let go; playing() sees it at once, before the audio thread has it */
+    run_program("tone(1, \"pulse\", 69)\nprint(playing(1))\nprint(playing(2))\n");
+    CHECK(printed("true") && printed("false") && printed("Ready."));
+    CHECK(voice(1)->kind == SND_PULSE && voice(1)->inc == tone_inc_of(440 * 256) && voice(1)->duty == 128 && voice(1)->vol == 255);
+    CHECK(peak(4800) > 30000);
+    type("release(1)\n");
+    CHECK(go() == -1 && voice(1)->kind == SND_OFF && peak(4800) == 0);
+    type("CLS\nprint(playing(1))\n");
+    CHECK(go() == -1 && printed("false") && !printed("true"));
+
+    /* notes by number and by name, and what they sound at */
+    run_program("print(\"n\")\nprint(note(\"C4\"))\nprint(note(\"A4\"))\nprint(note(\"Bb3\"))\nprint(note(\"c#\"))\nprint(note(\"C-1\"))\nprint(hz(440))\nprint(hz(880))\n"
+                "tone(2, \"triangle\", \"A5\")\ntone(3, \"wave\", 57)\ntone(4, \"noise\", 200)\ntone(5, \"buzz\", 60.5)\n");
+    {
+        static const char *const want[] = {"60.0", "69.0", "58.0", "61.0", "0.0", "69.0", "81.0"};
+        CHECK(rows_after("n", want, 7));
+    }
+    CHECK(voice(2)->kind == SND_TRIANGLE && voice(2)->inc == tone_inc_of(880 * 256));
+    CHECK(voice(3)->kind == SND_WAVE && voice(3)->inc == tone_inc_of(220 * 256) && voice(3)->wave[0] == 0 && voice(3)->wave[8] == 127 && voice(3)->wave[24] == -127);
+    CHECK(voice(4)->kind == SND_NOISE && voice(4)->inc == 0xFFFFFFFFu);   /* a noise is clocked at most once a sample */
+    CHECK(voice(5)->kind == SND_NOISE_SHORT && voice(5)->inc > tone_inc_of(note_q8(60)) && voice(5)->inc < tone_inc_of(note_q8(61)));
+
+    /* the voice's settings, for the note playing and the next ones; beyond the range is the nearest end */
+    run_program("volume(3, 100)\npan(3, -50)\nduty(3, 64)\ntone(3, \"pulse\", 60)\nvolume(4, 999)\npan(4, -999)\nduty(4, -5)\ntone(4, \"pulse\", 60)\n"
+                "tone(7, \"pulse\", 60)\nvolume(7, 50)\npan(7, 300)\n"
+                "envelope(5, 10, 20, 128, 30)\nenvelope(6, 10, 20, 128, 30)\nenvelope(6)\nmastervolume(128)\n");
+    CHECK(voice(3)->vol == 100 && voice(3)->pan == -50 && voice(3)->duty == 64);
+    CHECK(voice(4)->vol == 255 && voice(4)->pan == -128 && voice(4)->duty == 0);
+    CHECK(voice(7)->vol == 50 && voice(7)->pan == 127);
+    CHECK(voice(5)->attack_samples == 480 && voice(5)->decay_samples == 960 && voice(5)->sustain == 128 * 257 && voice(5)->release_samples == 1440);
+    CHECK(voice(6)->attack_samples == 0 && voice(6)->decay_samples == 0 && voice(6)->sustain == 65536 && voice(6)->release_samples == 240);
+    CHECK(tsnd.master == 129);
+
+    /* a note with a length is let go after it; release lets go at once; silence stops one voice, or all */
+    run_program("tone(1, \"pulse\", 60, 100)\ntone(2, \"pulse\", 60)\ntone(3, \"pulse\", 60)\ntone(4, \"pulse\", 60)\nrelease(2)\nsilence(3)\n");
+    CHECK(voice(1)->kind == SND_OFF && voice(2)->kind == SND_OFF && voice(3)->kind == SND_OFF && voice(4)->kind == SND_PULSE);
+    type("silence()\n");
+    CHECK(go() == -1 && voice(4)->kind == SND_OFF);
+    run_program("gfx(8)\ntone(1, \"pulse\", 60, 100)\nlocal t = millis()\nwhile playing(1) do waitframe() end\nlocal d = millis() - t\nprint(d >= 100 and d < 250)\n");
+    CHECK(printed("true") && !printed("false"));
+    /* a note whose envelope decays to nothing ends by itself */
+    run_program("gfx(8)\nenvelope(1, 0, 10, 0, 1)\ntone(1, \"pulse\", 60)\nprint(\"p\")\nprint(playing(1))\nfor i = 1, 20 do waitframe() end\nprint(playing(1))\n");
+    {
+        static const char *const want[] = {"true", "false"};
+        CHECK(rows_after("p", want, 2));
+    }
+
+    /* slides: to the note over the time; pitch: at once */
+    run_program("gfx(8)\ntone(1, \"pulse\", 60)\nslide(1, 72, 200)\nfor i = 1, 30 do waitframe() end\ntone(2, \"pulse\", 60)\npitch(2, \"C5\")\n"
+                "tone(3, \"pulse\", 60)\nslide(3, 72, 100000000)\n");
+    CHECK(voice(1)->inc == tone_inc_of(note_q8(72)) && voice(2)->inc == tone_inc_of(note_q8(72)));
+    CHECK(voice(3)->inc > tone_inc_of(note_q8(60)) && voice(3)->inc < tone_inc_of(note_q8(61)));   /* (a long way to go) */
+
+    /* wavetables */
+    run_program("wave(1, \"square\")\ntone(1, \"wave\", 69)\nlocal t = {}\nfor i = 1, 32 do t[i] = (i - 1) / 31 * 2 - 1 end\nwave(2, t)\ntone(2, \"wave\", 69)\n"
+                "wave(3, string.rep(\"\\200\", 32))\ntone(3, \"wave\", 69)\nwave(4, \"saw\")\nwave(5, \"triangle\")\n");
+    CHECK(voice(1)->wave[0] == 127 && voice(1)->wave[31] == -127 && voice(2)->wave[0] == -127 && voice(2)->wave[31] == 127 && voice(3)->wave[5] == -56);
+    CHECK(peak(4800) > 30000);
+
+    /* what is wrong is said */
+    run_program("tone(1, \"sine\", 60)\n");
+    CHECK(shows("tone: the kind is \"pulse\""));
+    run_program("tone(17, \"pulse\", 60)\n");
+    CHECK(shows("tone: the voice is 1 to 16"));
+    run_program("volume(1.5, 3)\n");
+    CHECK(shows("volume: the voice is a whole number"));
+    run_program("tone(1, \"pulse\", \"H4\")\n");
+    CHECK(shows("tone: a note is a number (60 is middle C)"));
+    run_program("tone(1, \"pulse\", 0/0)\n");
+    CHECK(shows("tone: a note is a number"));
+    run_program("print(note(\"C4x\"))\n");
+    CHECK(shows("note: a note is a number"));
+    run_program("hz(0)\n");
+    CHECK(shows("hz(frequency): the frequency is more than 0"));
+    run_program("wave(1, {1, 2})\n");
+    CHECK(shows("wave(voice, shape)"));
+    run_program("wave(1, \"round\")\n");
+    CHECK(shows("wave(voice, shape)"));
+}
+
+static void test_sound_samples(void)
+{
+    /* from a string (8 bits) and from a table (16 bits, looping); a speed */
+    run_program("print(sample(1, string.rep(\"\\127\", 100), 8000))\nprint(sample(2, {0, 0.5, -0.5, 1}, 24000, 2, 4))\nplay(1, 1)\nplay(2, 2, 2)\n"
+                "print(playing(2))\nsample(3, \"abc\", 8000)\nplay(3, 3)\npitch(3, 0.5)\n");
+    CHECK(printed("100") && printed("4") && printed("true") && !shows("Error"));
+    const snd_sample_t *s1 = voice(1)->sample, *s2 = voice(2)->sample;
+    CHECK(voice(1)->kind == SND_OFF && s1->length == 100 && s1->bits == 8 && s1->rate == 8000 && ((const int8_t *)s1->data)[99] == 127 && s1->loop_end == 0);
+    CHECK(voice(2)->kind == SND_PCM && s2->length == 4 && s2->bits == 16 && s2->rate == 24000 && s2->loop_start == 1 && s2->loop_end == 4);
+    CHECK(((const int16_t *)s2->data)[1] == 16384 && ((const int16_t *)s2->data)[2] == -16384 && ((const int16_t *)s2->data)[3] == 32767);
+    CHECK(voice(2)->inc_int == 1 && voice(2)->inc_frac == 0);   /* 24000 at speed 2 is the 48000 of the output */
+    CHECK(voice(3)->sample->length == 3);
+    CHECK(allocs == 3 && releases == 0);
+    /* a sample made again while it plays: the voice stops first, and the old memory is given back once the audio thread has let go */
+    type("sample(2, \"xyz\", 8000)\n");
+    CHECK(go() == -1 && voice(2)->kind == SND_OFF && allocs == 4 && releases == 1);
+    CHECK(freed_by_new());   /* NEW gives every sample back */
+
+    /* WAV files: 16-bit stereo (made mono), 8-bit mono with a loop, other chunks skipped (one of odd size), a data chunk that is cut off */
+    fresh();
+    const int16_t st[6] = {1000, 3000, -2000, -4000, 32767, 32767};
+    const uint8_t m8[4] = {128, 255, 0, 200};
+    const int16_t cut16[2] = {5, -5};
+    CHECK(put_wav("/sd/st.wav", 1, 2, 16, 22050, st, sizeof st, 0, 1, 0) > 0);
+    CHECK(put_wav("/sd/m8.wav", 1, 1, 8, 11025, m8, sizeof m8, 0, 0, 0) > 0);
+    CHECK(put_wav("/sd/cut.wav", 1, 1, 16, 8000, cut16, sizeof cut16, 100, 0, 0) > 0);
+    run_here("print(\"w\")\nlocal n, r = loadsample(1, \"st.wav\")\nprint(n)\nprint(r)\nn, r = loadsample(2, \"m8.wav\", 2)\nprint(n)\nprint(r)\n"
+             "print(loadsample(3, \"cut.wav\"))\nplay(1, 1)\nplay(2, 2)\nplay(3, 3)\n");
+    {
+        static const char *const want[] = {"3", "22050", "4", "11025"};
+        CHECK(rows_after("w", want, 4) && !shows("Error"));
+    }
+    const snd_sample_t *w1 = voice(1)->sample, *w2 = voice(2)->sample, *w3 = voice(3)->sample;
+    CHECK(w1->bits == 16 && w1->length == 3 && w1->rate == 22050 && ((const int16_t *)w1->data)[0] == 2000 && ((const int16_t *)w1->data)[1] == -3000 &&
+          ((const int16_t *)w1->data)[2] == 32767);
+    CHECK(w2->bits == 8 && w2->length == 4 && w2->loop_start == 1 && w2->loop_end == 4 && voice(2)->kind == SND_PCM);
+    CHECK(((const int8_t *)w2->data)[0] == 0 && ((const int8_t *)w2->data)[1] == 127 && ((const int8_t *)w2->data)[2] == -128 && ((const int8_t *)w2->data)[3] == 72);
+    CHECK(w3->length == 2 && ((const int16_t *)w3->data)[1] == -5);
+
+    /* files that are not what loadsample takes */
+    const int16_t one[1] = {0};
+    CHECK(put_file("/sd/text.wav", "this is not a RIFF file at all") > 0);
+    CHECK(put_wav("/sd/f24.wav", 1, 1, 24, 8000, one, 2, 0, 0, 0) > 0);
+    CHECK(put_wav("/sd/float.wav", 3, 1, 16, 8000, one, 2, 0, 0, 0) > 0);
+    CHECK(put_wav("/sd/nodata.wav", 1, 1, 16, 8000, one, 2, 0, 1, 1) > 0);
+    CHECK(put_wav("/sd/empty.wav", 1, 1, 16, 8000, one, 0, 0, 0, 0) > 0);
+    static const struct { const char *call, *says; } bad[] = {
+        {"loadsample(1, \"text.wav\")", "loadsample: text.wav: not a WAV file"},
+        {"loadsample(1, \"f24.wav\")", "f24.wav: not 8- or 16-bit PCM"},
+        {"loadsample(1, \"float.wav\")", "float.wav: not 8- or 16-bit PCM"},
+        {"loadsample(1, \"nodata.wav\")", "nodata.wav: no sound in it (no data chunk)"},
+        {"loadsample(1, \"empty.wav\")", "empty.wav: no sound in it (an empty data chunk)"},
+        {"loadsample(1, \"gone.wav\")", "loadsample: cannot open gone.wav"},
+        {"loadsample(1, \"m8.wav\", 3, 9)", "loadsample: the loop is two whole numbers, the first and last"},
+        {"sample(1, \"\", 8000)", "sample: the data is empty"},
+        {"sample(1, \"x\", 50)", "sample: the rate is 100 to 200000"},
+        {"sample(33, \"x\", 8000)", "sample: the sample is 1 to 32"},
+        {"sample(1, \"xyz\", 8000, 2, 9)", "sample: the loop is two whole numbers"},
+        {"sample(1, 5, 8000)", "sample(n, data, rate): the data is"},
+        {"play(1, 9)", "play: there is no sample 9"},
+        {"sample(1, \"x\", 8000) play(1, 1, 0)", "play: the speed is more than 0"},
+        {"sample(1, \"x\", 8000) play(1, 1) pitch(1, -1)", "pitch: a sample's speed is more than 0"},
+    };
+    for (size_t i = 0; i < sizeof bad / sizeof *bad; i++) {
+        type("CLS\n");
+        char line[200];
+        snprintf(line, sizeof line, "%s\n", bad[i].call);
+        type(line);
+        CHECK(go() == -1);
+        if (!shows(bad[i].says))
+            printf("expected: %s\n", bad[i].says);
+        CHECK(shows(bad[i].says));
+    }
+    run_program("sample(1, {1, \"a\"}, 8000)\n");
+    CHECK(shows("sample: entry 2 of the table is not a number") && allocs == releases);   /* (what it had taken is given back) */
+    CHECK(freed_by_new());
+}
+
+static void test_sound_lifetime(void)
+{
+    /* Ctrl+C stops the sound, in a program and at the prompt */
+    fresh();
+    CHECK(put_file("/sd/hold.lua", "tone(1, \"pulse\", 60)\nwhile true do end\n") > 0);
+    type("LOAD hold\nRUN\n^C");
+    CHECK(go() == -1 && shows("Break") && voice(1)->kind == SND_OFF && peak(4800) == 0);
+    type("tone(2, \"pulse\", 60)\n");
+    CHECK(go() == -1 && voice(2)->kind == SND_PULSE);
+    type("^C");
+    CHECK(go() == -1 && voice(2)->kind == SND_OFF);
+    /* a program that ends, even with an error, leaves what it started */
+    run_program("tone(1, \"pulse\", 60)\nerror(\"oops\")\n");
+    CHECK(shows("oops") && voice(1)->kind == SND_PULSE);
+    /* NEW and RUN: quiet, and every voice as it was at first */
+    type("volume(2, 10)\nNEW\ntone(2, \"pulse\", 60)\n");
+    CHECK(go() == -1 && voice(1)->kind == SND_OFF && voice(2)->kind == SND_PULSE && voice(2)->vol == 255);
+    /* BYE (and EDIT) leave quietly */
+    type("BYE\n");
+    CHECK(go() == TL_EXIT_BYE && peak(64) == 0 && voice(2)->kind == SND_OFF);
+
+    /* many commands at once: the queue fills, and the functions wait for the audio thread to make room */
+    run_program("for i = 1, 300 do volume(1, i % 256) end\nprint(\"done\")\n");
+    CHECK(printed("done") && voice(1)->vol == 300 % 256);
+
+    /* a machine without sound: the functions do nothing, and samples are still made */
+    sound_on = 0;
+    run_program("tone(1, \"pulse\", 60)\nprint(playing(1))\nprint(sample(1, \"abc\", 8000))\nplay(1, 1)\nslide(1, 2, 100)\nsilence()\nprint(\"quiet\")\n");
+    CHECK(printed("false") && printed("3") && printed("quiet") && !shows("Error") && voice(1)->kind == SND_OFF);
+    CHECK(freed_by_new());
+    sound_on = 1;
+}
+
+/* examples/sound.lua: all its buttons pressed at every frame for 30 frames, then B */
+static void test_sound_example(void)
+{
+    const char *text = read_example("sound.lua");
+    fresh();
+    went_down = PLAT_BTN_A | PLAT_BTN_X | PLAT_BTN_Y | PLAT_BTN_UP | PLAT_BTN_START;
+    press_b_after = 30;
+    CHECK(put_file("/sd/sound.lua", text) > 0);
+    type("LOAD sound\nRUN\n");
+    CHECK(go() == -1);
+    CHECK(printed("Ready.") && !shows("Error"));
+    CHECK(pixels('2') == 5 * 32 * 32);                                 /* every square lit: each of the five voices was playing */
+    CHECK(voice(5)->sample && voice(5)->sample->length == 2400 && voice(5)->sample->bits == 16);
+    for (int v = 1; v <= 5; v++)
+        CHECK(voice(v)->kind == SND_OFF);                               /* silence() at the end */
+    CHECK(voice(4)->wave[0] == -127 && voice(4)->wave[16] == 127);      /* (the triangle) */
+}
+
+static void test_sound(void)
+{
+    test_sound_notes();
+    test_sound_samples();
+    test_sound_lifetime();
+    test_sound_example();
+}
+
 static void test_game(void)
 {
     test_game_draw();
@@ -1950,6 +2270,7 @@ int main(void)
     test_edit_and_exit();
     test_gaps();
     test_game();
+    test_sound();
     printf("all %d checks passed\n", checks);
     return 0;
 }

@@ -13,6 +13,7 @@
 #include "platform.h"
 #include "tg_text.h"
 #include "tilefs.h"
+#include "snd.h"
 #include "tilegfx.h"
 #include "tl_env.h"
 
@@ -20,6 +21,13 @@ static tg_text_t screen;
 static tg_t g;                 /* not on the stack: it is 2.3 KB and the board's stack is small */
 static fs_posix_t host;
 static tl_env_t env;
+/* The sound engine (tilesnd): Lua's sound functions queue commands to it, the platform's audio thread (core 1 on the board) mixes. */
+static snd_t sound;
+static void audio_cb(int16_t *lr, int frames, void *user)
+{
+    (void)user;
+    snd_render(&sound, lr, frames);
+}
 
 void plat_sdl_window_scale(int scale);   /* sdl/plat_sdl.c */
 
@@ -83,6 +91,9 @@ int main(int argc, char **argv)
         fprintf(stderr, "no SDL timer: Ctrl+C cannot stop a program\n");
         hooks.async_ticks = 0;
     }
+    snd_init(&sound, PLAT_AUDIO_RATE);
+    if (plat_audio_start(audio_cb, NULL))
+        hooks.snd = &sound;
     tl_env_init(&env, &screen, &hooks);
     for (;;) {
         const int r = tl_env_run(&env);

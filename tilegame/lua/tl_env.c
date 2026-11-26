@@ -3,6 +3,7 @@
 
 #include "tl_game.h"
 #include "tl_io.h"
+#include "tl_sound.h"
 
 #include <ctype.h>
 #include <stdarg.h>
@@ -92,6 +93,7 @@ static int next_key(tl_env_t *e)
         const int ch = e->hooks.getchar();
         if (ch >= 0)
             return ch;
+        tl_sound_tick(e);
         e->hooks.frame();
     }
 }
@@ -130,7 +132,8 @@ static int read_line(tl_env_t *e, char *out, int size, int history)
                     e->history_count++;
             }
             return 1;
-        case 3:
+        case 3:   /* (Ctrl+C also stops the sound) */
+            tl_sound_silence(e);
             tg_console_gotoxy(&e->con, col + len, row);
             tg_console_puts(&e->con, "^C\n");
             out[0] = 0;
@@ -220,6 +223,7 @@ int tl_env_read_line(tl_env_t *e, char *out, int size)
 /* Now and then shows the screen (or keeps the machine going, while the game's picture is up) and looks for Ctrl+C; other keys are kept for io.read. */
 void tl_env_poll(tl_env_t *e)
 {
+    tl_sound_tick(e);
     const uint32_t now = e->hooks.millis();
     if (now - e->last_poll < POLL_MS)
         return;
@@ -303,12 +307,14 @@ static int open_libs(lua_State *L)
     lua_register(L, "print", l_print);
     tl_io_open(L);
     tl_game_open(L);
+    tl_sound_open(L);
     return 0;
 }
 
 static void close_state(tl_env_t *e)
 {
     tl_game_reset(e);
+    tl_sound_reset(e);
     if (e->L) {
         running = 0;
         lua_close(e->L);
@@ -373,6 +379,8 @@ static int call(tl_env_t *e, int nresults)
     const int r = lua_pcall(L, 0, nresults, 0);
     running = 0;
     lua_sethook(L, NULL, 0, 0);
+    if (e->stop)   /* Ctrl+C stops the sound too (a program that ends, even with an error, leaves what it started playing) */
+        tl_sound_silence(e);
     ACTIVITY(e, 1);
     e->game_active = 0;   /* (the text screen is back) */
     if (e->con.col != 0)
@@ -782,6 +790,7 @@ void tl_env_init(tl_env_t *e, tg_text_t *screen, const tl_hooks_t *hooks)
     with(e, ATTR_HEAD, "TILEGAME LUA");
     say(e, "  %s\n", LUA_RELEASE);
     say(e, "Type HELP for the commands, or Lua at once.\n\n");
+    tl_sound_init(e);
     open_state(e);
 }
 
@@ -802,6 +811,7 @@ int tl_env_run(tl_env_t *e)
         memcpy(e->command, e->line, sizeof e->command);
         const int r = run_line(e, e->command);
         if (r >= 0) {
+            tl_sound_silence(e);   /* (the editor, or what comes after BYE, starts quiet) */
             e->exit_code = r;
             return r;
         }

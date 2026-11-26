@@ -31,6 +31,7 @@
 #include "tde_os.h"
 #include "tg_text.h"
 #include "tilefs.h"
+#include "snd.h"
 #include "tilegfx.h"
 #include "tl_env.h"
 
@@ -58,6 +59,13 @@ static tg_text_t *screen_p;
 static tg_text_t screen;
 #endif
 static tg_t g;
+/* The sound engine (tilesnd): Lua's sound functions queue commands to it, the platform's audio thread (core 1 on the board) mixes. */
+static snd_t sound;
+static void audio_cb(int16_t *lr, int frames, void *user)
+{
+    (void)user;
+    snd_render(&sound, lr, frames);
+}
 #ifdef DEVKIT_BOARD
 static tl_env_t *env_p;   /* (in the PSRAM: it holds the program text) */
 #define env (*env_p)
@@ -639,6 +647,9 @@ static void devkit(void)
     const char *usb_note = save_usblog();
 #endif
     hooks.async_ticks = start_ticks();
+    snd_init(&sound, PLAT_AUDIO_RATE);
+    if (plat_audio_start(audio_cb, NULL))
+        hooks.snd = &sound;
     tl_env_init(&env, &screen, &hooks);
 #if PLAT_USB_HID && USBLOG && defined(DEVKIT_BOARD)
     if (usb_note)

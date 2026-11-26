@@ -21,6 +21,7 @@
 #define TL_NAME_MAX 260
 
 struct lua_State;
+struct snd;
 
 typedef struct {
     int (*getchar)(void);       /* the next typed character as plat_getchar gives it, or -1 */
@@ -48,6 +49,9 @@ typedef struct {
     /* 1: the machine calls tl_env_tick() about every 16 ms (from a timer interrupt or another thread), which is how a running program is made to look at
      * the keys; 0: the environment counts Lua instructions for it instead, which makes Lua code about twice as slow */
     int async_ticks;
+    /* optional (NULL: no sound; the sound functions of tl_sound.h do nothing): tilesnd's engine, already playing on the machine's audio thread
+     * (plat_audio_start with snd_render). The environment is the only one that queues commands to it, always from the thread it runs on. */
+    struct snd *snd;
 } tl_hooks_t;
 
 enum { TL_EXIT_BYE = 0, TL_EXIT_EDIT = 1 };
