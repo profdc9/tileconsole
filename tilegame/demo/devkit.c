@@ -48,7 +48,15 @@ FILE *__real_fopen(const char *name, const char *mode);
 int __real_mkdir(const char *path, mode_t mode);   /* the C library's own (the editor's fopen is answered from tilefs) */
 #endif
 
+#ifdef DEVKIT_BOARD
+/* The text screen (4 KB) is kept where core 0's start-up stack was, in SCRATCH_Y: main moves to the stack below before devkit() runs and
+ * nothing goes back to the old one, so the bank would otherwise stand idle. */
+extern char __StackBottom[], __StackTop[];
+static tg_text_t *screen_p;
+#define screen (*screen_p)
+#else
 static tg_text_t screen;
+#endif
 static tg_t g;
 #ifdef DEVKIT_BOARD
 static tl_env_t *env_p;   /* (in the PSRAM: it holds the program text) */
@@ -573,6 +581,13 @@ static int start_ticks(void)
 
 static void devkit(void)
 {
+#ifdef DEVKIT_BOARD
+    _Static_assert(sizeof(tg_text_t) <= 4096, "the text screen must fit in SCRATCH_Y");
+    if ((size_t)(__StackTop - __StackBottom) < sizeof(tg_text_t))
+        for (;;) {}
+    screen_p = (tg_text_t *)__StackBottom;
+    memset(screen_p, 0, sizeof *screen_p);
+#endif
 #ifdef DEVKIT_BOARD
     tl_hooks_t hooks = {.getchar = get_char, .frame = frame, .millis = plat_millis, .info = board_info, .wait_frame = plat_wait_frame,
                         .present = plat_present, .buttons = buttons, .alloc = game_alloc, .release = game_release,
