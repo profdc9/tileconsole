@@ -486,6 +486,45 @@ static void test_queue_and_misc(void)
         CHECK(snd_midi_hz(n) > snd_midi_hz(n - 1));
 }
 
+/* What the game thread can see of the audio thread: room in the queue, marks, the voices sounding. */
+static void test_progress(void)
+{
+    snd_t s;
+    fresh(&s);
+    CHECK(snd_room(&s) == SND_QUEUE_SIZE && snd_reached(&s, snd_mark(&s)) && snd_sounding(&s) == 0);
+    snd_play_tone(&s, 3, SND_PULSE, SND_HZ(440), 255, 0, 128, NULL);
+    const uint32_t m1 = snd_mark(&s);
+    CHECK(snd_room(&s) == SND_QUEUE_SIZE - 1 && !snd_reached(&s, m1) && snd_sounding(&s) == 0);   /* queued, not applied */
+    render(&s, 1);
+    CHECK(snd_reached(&s, m1) && snd_sounding(&s) == 1u << 3 && snd_room(&s) == SND_QUEUE_SIZE);
+
+    /* a percussive note ends by itself, and leaves the bits */
+    snd_set_adsr(&s, 5, 0, 1, 0, 1);
+    snd_play_tone(&s, 5, SND_TRIANGLE, SND_HZ(440), 255, 0, 0, NULL);
+    render(&s, 10);
+    CHECK(snd_sounding(&s) == ((1u << 3) | (1u << 5)));
+    render(&s, 100);
+    CHECK(snd_sounding(&s) == 1u << 3);
+
+    /* a stop: once its mark is reached, the voice is silent (a render of no frames applies commands too) */
+    snd_stop(&s, 3);
+    const uint32_t m2 = snd_mark(&s);
+    CHECK(!snd_reached(&s, m2) && snd_reached(&s, m1) && snd_sounding(&s) == 1u << 3);
+    render(&s, 0);
+    CHECK(snd_reached(&s, m2) && snd_sounding(&s) == 0);
+
+    /* the counters wrap */
+    fresh(&s);
+    s.q_head = s.q_tail = s.done = 0xFFFFFFF0u;
+    const uint32_t before = snd_mark(&s);
+    for (int i = 0; i < 32; i++)
+        CHECK(snd_set_volume(&s, i % SND_MAX_VOICES, 7));
+    const uint32_t m3 = snd_mark(&s);
+    CHECK(m3 == 0x10u && snd_reached(&s, before) && !snd_reached(&s, m3) && snd_room(&s) == SND_QUEUE_SIZE - 32);
+    render(&s, 1);
+    CHECK(snd_reached(&s, m3) && snd_room(&s) == SND_QUEUE_SIZE && s.voices[15].vol == 7);
+}
+
 /* One thread plays the game, another the audio device; the queue must hold up. */
 static snd_t shared;
 static int producer_done;
@@ -512,6 +551,10 @@ static void *producer(void *arg)
     }
     while (!snd_stop_all(&shared))
         sched_yield();
+    const uint32_t mark = snd_mark(&shared);   /* the game waits for the stop, as it does before giving a sample's memory back */
+    while (!snd_reached(&shared, mark))
+        sched_yield();
+    CHECK(snd_sounding(&shared) == 0);
     __atomic_store_n(&producer_done, 1, __ATOMIC_RELEASE);
     return NULL;
 }
@@ -547,6 +590,7 @@ int main(void)
     test_block_independence();
     test_silence();
     test_queue_and_misc();
+    test_progress();
     test_threads();
     printf("all %d checks passed\n", checks);
     return 0;

@@ -72,6 +72,8 @@ typedef struct snd {
     snd_voice_t voices[SND_MAX_VOICES];
     snd_cmd_t queue[SND_QUEUE_SIZE];
     uint32_t q_head, q_tail;             /* head: consumer (audio thread), tail: producer (game thread) */
+    uint32_t done;                       /* the head when the last snd_render ended (audio thread writes, game thread reads) */
+    uint32_t sounding;                   /* the voices making sound when the last snd_render ended, bit n for voice n (likewise) */
     int32_t acc[2][SND_BLOCK];
 } snd_t;
 
@@ -106,6 +108,17 @@ bool snd_key_off(snd_t *s, int voice);   /* start the release; the voice ends wh
 bool snd_stop(snd_t *s, int voice);      /* end it at once */
 bool snd_stop_all(snd_t *s);
 bool snd_set_master(snd_t *s, uint8_t vol);
+
+/*
+ * What the audio thread has done, for the game thread. snd_room is how many commands the queue has room for now. snd_mark is a mark after the
+ * commands queued so far; snd_reached is true once the audio thread has applied all of them and finished the snd_render that did, so that
+ * after snd_stop(v) and waiting for its mark, nothing reads what voice v played any more (a sample's memory can be given back). snd_sounding
+ * is the voices that were making sound when the last snd_render ended, bit n for voice n: a note queued since is not in it yet.
+ */
+int snd_room(const snd_t *s);
+uint32_t snd_mark(const snd_t *s);
+bool snd_reached(const snd_t *s, uint32_t mark);
+uint32_t snd_sounding(const snd_t *s);
 
 /* ---- audio thread ---- */
 

@@ -84,6 +84,20 @@ bool snd_stop(snd_t *s, int voice) { return cmd(s, OP_STOP, voice, 0, 0, 0, 0, N
 bool snd_stop_all(snd_t *s) { return cmd(s, OP_STOP_ALL, 0, 0, 0, 0, 0, NULL); }
 bool snd_set_master(snd_t *s, uint8_t vol) { return cmd(s, OP_SET_MASTER, 0, vol, 0, 0, 0, NULL); }
 
+int snd_room(const snd_t *s)
+{
+    return SND_QUEUE_SIZE - (int)(s->q_tail - __atomic_load_n(&s->q_head, __ATOMIC_ACQUIRE));
+}
+
+uint32_t snd_mark(const snd_t *s) { return s->q_tail; }
+
+bool snd_reached(const snd_t *s, uint32_t mark)
+{
+    return (int32_t)(__atomic_load_n(&s->done, __ATOMIC_ACQUIRE) - mark) >= 0;
+}
+
+uint32_t snd_sounding(const snd_t *s) { return __atomic_load_n(&s->sounding, __ATOMIC_ACQUIRE); }
+
 bool snd_set_adsr(snd_t *s, int voice, uint16_t attack_ms, uint16_t decay_ms, uint8_t sustain, uint16_t release_ms)
 {
     return cmd(s, OP_SET_ADSR, voice, sustain, 0, (int32_t)(attack_ms | ((uint32_t)decay_ms << 16)), release_ms, NULL);
@@ -406,6 +420,13 @@ SND_HOT void snd_render(snd_t *s, int16_t *lr, int frames)
         lr += 2 * n;
         frames -= n;
     }
+
+    uint32_t sounding = 0;
+    for (int i = 0; i < SND_MAX_VOICES; i++)
+        if (s->voices[i].kind != SND_OFF)
+            sounding |= 1u << i;
+    __atomic_store_n(&s->sounding, sounding, __ATOMIC_RELEASE);
+    __atomic_store_n(&s->done, head, __ATOMIC_RELEASE);
 }
 
 bool snd_voice_active(const snd_t *s, int voice)
