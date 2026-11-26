@@ -43,6 +43,12 @@ static struct {
     voice_t v[TL_VOICES];
     sample_t samples[TL_SAMPLES];
     uint32_t last_tick;
+    snd_instrument_t inst[SND_MAX_INSTRUMENTS];   /* for music: copied into each song (with its sample's address) by music() */
+    int inst_sample[SND_MAX_INSTRUMENTS];         /* a "sample" instrument's sample, from 1 */
+    snd_song_t *song;                             /* the music music() last started (NULL: none); the audio thread reads it while it plays */
+    uint32_t song_samples;                        /* the samples its instruments play, bit n for sample n + 1 */
+    uint32_t music_mark;                          /* the queue's mark after it was started */
+    int music_on;                                 /* started, and not stopped since (the audio thread says when it ends by itself) */
 } S;
 
 static tl_env_t *E;   /* the environment the functions belong to, kept by tl_sound_open (there is one at a time) */
@@ -154,10 +160,32 @@ static void voice_defaults(voice_t *vo)
     set_wave(vo->wave, "sine");
 }
 
-/* Stops what plays sample n (from 0) and waits for the audio thread to let go of it; 1 if it has. */
+static void instrument_defaults(void)
+{
+    for (int i = 0; i < SND_MAX_INSTRUMENTS; i++) {
+        snd_instrument_default(&S.inst[i]);
+        set_wave(S.inst[i].wave, "sine");
+        S.inst_sample[i] = 0;
+    }
+}
+
+/* Gives the song's memory back (after `free_ok`: the audio thread has let go of it; otherwise it is lost rather than freed while read). */
+static void drop_song(tl_env_t *e, int free_ok)
+{
+    if (free_ok)
+        unmem(e, S.song);
+    S.song = NULL;
+    S.song_samples = 0;
+    S.music_on = 0;
+}
+
+/* Stops what plays sample n (from 0), the music too if it plays it, and waits for the audio thread to let go of it; 1 if it has. */
 static int let_go(tl_env_t *e, int n)
 {
     snd_t *s = e->hooks.snd;
+    const int in_song = S.song && ((S.song_samples >> n) & 1);
+    if (in_song && s && room(e, 1))
+        snd_music_stop(s);
     for (int v = 0; v < TL_VOICES; v++) {
         voice_t *vo = &S.v[v];
         if (vo->kind == SND_PCM && vo->sample == n + 1) {
@@ -168,7 +196,10 @@ static int let_go(tl_env_t *e, int n)
             forget_motion(vo);
         }
     }
-    return settle(e);
+    const int settled = settle(e);
+    if (in_song)
+        drop_song(e, settled);
+    return settled;
 }
 
 /* Gives sample n's memory back (after `free_ok`: the audio thread has let go of it; otherwise it is kept, lost, rather than freed while read). */
@@ -186,13 +217,17 @@ void tl_sound_init(tl_env_t *e)
     memset(&S, 0, sizeof S);
     for (int v = 0; v < TL_VOICES; v++)
         voice_defaults(&S.v[v]);
+    instrument_defaults();
 }
 
 void tl_sound_silence(tl_env_t *e)
 {
     snd_t *s = e->hooks.snd;
-    if (s && room(e, 1))
+    if (s && room(e, 2)) {
+        snd_music_stop(s);
         snd_stop_all(s);
+    }
+    S.music_on = 0;
     for (int v = 0; v < TL_VOICES; v++) {
         S.v[v].kind = 0;
         S.v[v].sample = 0;
@@ -203,17 +238,21 @@ void tl_sound_silence(tl_env_t *e)
 void tl_sound_reset(tl_env_t *e)
 {
     snd_t *s = e->hooks.snd;
-    if (s && room(e, 2 + TL_VOICES)) {
+    if (s && room(e, 4 + TL_VOICES)) {
+        snd_music_stop(s);
+        snd_music_volume(s, 255);
         snd_stop_all(s);
         snd_set_master(s, 255);
         for (int v = 0; v < TL_VOICES; v++)
             snd_set_adsr(s, v, 0, 0, 255, 5);   /* (tilesnd's own default) */
     }
     const int settled = settle(e);
+    drop_song(e, settled);
     for (int n = 0; n < TL_SAMPLES; n++)
         drop_sample(e, n, settled);
     for (int v = 0; v < TL_VOICES; v++)
         voice_defaults(&S.v[v]);
+    instrument_defaults();
 }
 
 void tl_sound_tick(tl_env_t *e)
@@ -332,15 +371,18 @@ static float note_arg(lua_State *L, int i, const char *who)
     return 0;
 }
 
-static int kind_arg(lua_State *L, int i)
+/* A tone's kind (or, for an instrument, "sample" too: SND_PCM). */
+static int kind_arg(lua_State *L, int i, int instrument)
 {
     static const struct { const char *name; int kind; } kinds[] = {
-        {"pulse", SND_PULSE}, {"triangle", SND_TRIANGLE}, {"noise", SND_NOISE}, {"buzz", SND_NOISE_SHORT}, {"wave", SND_WAVE},
+        {"pulse", SND_PULSE}, {"triangle", SND_TRIANGLE}, {"noise", SND_NOISE}, {"buzz", SND_NOISE_SHORT}, {"wave", SND_WAVE}, {"sample", SND_PCM},
     };
     const char *name = lua_type(L, i) == LUA_TSTRING ? lua_tostring(L, i) : NULL;
-    for (size_t k = 0; name && k < sizeof kinds / sizeof *kinds; k++)
+    for (size_t k = 0; name && k < sizeof kinds / sizeof *kinds - !instrument; k++)
         if (!strcmp(name, kinds[k].name))
             return kinds[k].kind;
+    if (instrument)
+        luaL_error(L, "instrument: the kind is \"pulse\", \"triangle\", \"noise\", \"buzz\", \"wave\" or \"sample\"");
     luaL_error(L, "tone: the kind is \"pulse\", \"triangle\", \"noise\", \"buzz\" or \"wave\"");
     return 0;
 }
@@ -358,7 +400,7 @@ static int l_tone(lua_State *L)
 {
     tl_env_t *e = E;
     const int v = voice_arg(L, 1, "tone");
-    const int kind = kind_arg(L, 2);
+    const int kind = kind_arg(L, 2, 0);
     const float note = note_arg(L, 3, "tone");
     const uint32_t ms = ms_opt(L, 4);
     voice_t *vo = &S.v[v];
@@ -542,39 +584,46 @@ static int l_slide(lua_State *L)
 
 /* wave(voice, shape): the voice's table for "wave" tones: "sine" (the default), "triangle", "saw", "square", a table of 32 numbers from -1 to 1, or a
  * string of 32 bytes (signed: 0 to 127, then 128 to 255 for -128 to -1). A note playing changes at once. */
-static int l_wave(lua_State *L)
+/* A wavetable from argument i (a shape's name, a table of 32 numbers from -1 to 1, a string of 32 bytes) into w; 0 if it is none of them. */
+static int wave_from(lua_State *L, int i, int8_t *w, const char *who)
 {
-    const int v = voice_arg(L, 1, "wave");
-    int8_t *w = S.v[v].wave;
     size_t len = 0;
-    if (lua_type(L, 2) == LUA_TSTRING) {
-        const char *t = lua_tolstring(L, 2, &len);
+    if (lua_type(L, i) == LUA_TSTRING) {
+        const char *t = lua_tolstring(L, i, &len);
         if (len == WAVE_LEN) {
-            for (int i = 0; i < WAVE_LEN; i++)
-                w[i] = (int8_t)(uint8_t)t[i];
-            return 0;
+            for (int k = 0; k < WAVE_LEN; k++)
+                w[k] = (int8_t)(uint8_t)t[k];
+            return 1;
         }
         if (!strcmp(t, "sine") || !strcmp(t, "triangle") || !strcmp(t, "saw") || !strcmp(t, "square")) {
             set_wave(w, t);
-            return 0;
+            return 1;
         }
-    } else if (lua_type(L, 2) == LUA_TTABLE && lua_rawlen(L, 2) == WAVE_LEN) {
+    } else if (lua_type(L, i) == LUA_TTABLE && lua_rawlen(L, i) == WAVE_LEN) {
         int8_t tmp[WAVE_LEN];
-        for (int i = 0; i < WAVE_LEN; i++) {
-            lua_rawgeti(L, 2, i + 1);
+        for (int k = 0; k < WAVE_LEN; k++) {
+            lua_rawgeti(L, i, k + 1);
             int isnum;
             float x = (float)lua_tonumberx(L, -1, &isnum);
             lua_pop(L, 1);
             if (!isnum)
-                return luaL_error(L, "wave: entry %d of the table is not a number", i + 1);
+                return luaL_error(L, "%s: entry %d of the wave's table is not a number", who, k + 1);
             x = x < -1.0f ? -1.0f : x > 1.0f ? 1.0f : x;
-            tmp[i] = (int8_t)lrintf(x * 127.0f);
+            tmp[k] = (int8_t)lrintf(x * 127.0f);
         }
         memcpy(w, tmp, sizeof tmp);
-        return 0;
+        return 1;
     }
-    return luaL_error(L, "wave(voice, shape): \"sine\", \"triangle\", \"saw\", \"square\", a table of %d numbers (-1 to 1) or a string of %d bytes", WAVE_LEN,
-                      WAVE_LEN);
+    return 0;
+}
+
+static int l_wave(lua_State *L)
+{
+    const int v = voice_arg(L, 1, "wave");
+    if (!wave_from(L, 2, S.v[v].wave, "wave"))
+        return luaL_error(L, "wave(voice, shape): \"sine\", \"triangle\", \"saw\", \"square\", a table of %d numbers (-1 to 1) or a string of %d bytes",
+                          WAVE_LEN, WAVE_LEN);
+    return 0;
 }
 
 /* mastervolume(level): all of the sound, 0 to 255. */
@@ -826,6 +875,153 @@ static int l_loadsample(lua_State *L)
     return 2;
 }
 
+/* ---- music ---- */
+
+/* instrument(n, kind [, settings]): instrument n (0 to 31) of the music: kind as tone's, or "sample"; settings is a table of any of duty, attack, decay,
+ * sustain, release (as envelope's), volume (0 to 255), pan, wave (as wave's), sample (its number) and root (the note at which the sample plays as
+ * recorded; C4, 60, if not given). It is used by the music started after it. */
+static int l_instrument(lua_State *L)
+{
+    const int n = whole_arg(L, 1, "instrument", "the instrument");
+    if (n < 0 || n >= SND_MAX_INSTRUMENTS)
+        return luaL_error(L, "instrument: the instrument is 0 to %d", SND_MAX_INSTRUMENTS - 1);
+    snd_instrument_t in;
+    snd_instrument_default(&in);
+    set_wave(in.wave, "sine");
+    in.kind = (uint8_t)kind_arg(L, 2, 1);
+    int sample = 0;
+    if (!lua_isnoneornil(L, 3)) {
+        luaL_checktype(L, 3, LUA_TTABLE);
+        lua_pushnil(L);
+        while (lua_next(L, 3)) {
+            if (lua_type(L, -2) != LUA_TSTRING)
+                return luaL_error(L, "instrument: the settings have names (instrument(1, \"pulse\", {duty = 64, decay = 200}))");
+            const char *key = lua_tostring(L, -2);
+            const int vi = lua_gettop(L);
+            if (!strcmp(key, "duty"))
+                in.duty = (uint8_t)level_arg(L, vi);
+            else if (!strcmp(key, "attack"))
+                in.attack_ms = (uint16_t)lrintf(clamped(L, vi, 0.0f, 65535.0f));
+            else if (!strcmp(key, "decay"))
+                in.decay_ms = (uint16_t)lrintf(clamped(L, vi, 0.0f, 65535.0f));
+            else if (!strcmp(key, "sustain"))
+                in.sustain = (uint8_t)level_arg(L, vi);
+            else if (!strcmp(key, "release"))
+                in.release_ms = (uint16_t)lrintf(clamped(L, vi, 0.0f, 65535.0f));
+            else if (!strcmp(key, "volume"))
+                in.vol = (uint8_t)level_arg(L, vi);
+            else if (!strcmp(key, "pan"))
+                in.pan = (int8_t)lrintf(clamped(L, vi, -128.0f, 127.0f));
+            else if (!strcmp(key, "wave")) {
+                if (!wave_from(L, vi, in.wave, "instrument"))
+                    return luaL_error(L, "instrument: wave is \"sine\", \"triangle\", \"saw\", \"square\", a table of %d numbers or a string of %d bytes",
+                                      WAVE_LEN, WAVE_LEN);
+            } else if (!strcmp(key, "sample"))
+                sample = sample_arg(L, vi, "instrument") + 1;
+            else if (!strcmp(key, "root")) {
+                const float r = note_arg(L, vi, "instrument");
+                in.root = (int8_t)(r < 0.0f ? 0 : r > 127.0f ? 127 : (int)lrintf(r));
+            } else
+                return luaL_error(L, "instrument: there is no setting \"%s\" (duty, attack, decay, sustain, release, volume, pan, wave, sample, root)", key);
+            lua_pop(L, 1);
+        }
+    }
+    if (in.kind == SND_PCM && !sample)
+        return luaL_error(L, "instrument: a \"sample\" instrument says which one: {sample = n}");
+    S.inst[n] = in;
+    S.inst_sample[n] = sample;
+    return 0;
+}
+
+static void *song_alloc(void *ctx, size_t n) { return mem((tl_env_t *)ctx, n); }
+
+/* The music stops, and its memory is given back once the audio thread has let go of it. */
+static void stop_music(tl_env_t *e)
+{
+    snd_t *s = e->hooks.snd;
+    if (!S.song)
+        return;
+    if (s && room(e, 1))
+        snd_music_stop(s);
+    drop_song(e, settle(e));
+}
+
+/* music([first voice,] track, ...): plays the tracks (MML, one string each) on voices of their own, the first on `first voice` and the next ones
+ * after it (if not given, the last voices: four tracks are on 13 to 16), in place of any music playing. music() stops it. */
+static int l_music(lua_State *L)
+{
+    tl_env_t *e = E;
+    const int top = lua_gettop(L);
+    if (top == 0) {
+        stop_music(e);
+        return 0;
+    }
+    int arg = 1, first = -1;
+    if (lua_type(L, 1) == LUA_TNUMBER) {
+        first = voice_arg(L, 1, "music");
+        arg = 2;
+    }
+    const int n = top - arg + 1;
+    if (n < 1 || n > TL_VOICES)
+        return luaL_error(L, "music([first voice,] track, ...): 1 to %d tracks, each a string of MML", TL_VOICES);
+    const char *tracks[TL_VOICES];
+    for (int i = 0; i < n; i++)
+        tracks[i] = luaL_checkstring(L, arg + i);
+    if (first < 0)
+        first = TL_VOICES - n;
+    if (first + n > TL_VOICES)
+        return luaL_error(L, "music: %d tracks from voice %d do not fit in the %d voices", n, first + 1, TL_VOICES);
+    snd_instrument_t ins[SND_MAX_INSTRUMENTS];
+    uint32_t uses = 0;
+    for (int i = 0; i < SND_MAX_INSTRUMENTS; i++) {
+        ins[i] = S.inst[i];
+        const int k = S.inst_sample[i] - 1;
+        if (ins[i].kind == SND_PCM && k >= 0 && S.samples[k].data) {   /* (a sample that is not made: the instrument's notes are silent) */
+            ins[i].sample = &S.samples[k].s;
+            uses |= 1u << k;
+        }
+    }
+    char err[200];
+    snd_song_t *song = snd_mml_compile(tracks, n, ins, song_alloc, e, err, sizeof err);
+    if (!song)
+        return luaL_error(L, "music: %s", err);
+    snd_t *s = e->hooks.snd;
+    snd_song_t *old = S.song;
+    if (s && room(e, 1)) {
+        snd_music_play(s, song, first);   /* (the old song, if any, stops as this one starts) */
+        S.music_mark = snd_mark(s);
+    }
+    if (old) {
+        const int settled = settle(e);
+        S.song = old;
+        drop_song(e, settled);
+    }
+    S.song = song;
+    S.song_samples = uses;
+    S.music_on = s != NULL;
+    return 0;
+}
+
+/* musicplaying(): true while the music plays (music that loops plays until it is stopped). */
+static int l_musicplaying(lua_State *L)
+{
+    tl_env_t *e = E;
+    const snd_t *s = e->hooks.snd;
+    lua_pushboolean(L, s && S.song && S.music_on && (snd_music_playing(s) || !snd_reached(s, S.music_mark)));
+    return 1;
+}
+
+/* musicvolume(level): the music's volume, 0 to 255, from its next notes on. */
+static int l_musicvolume(lua_State *L)
+{
+    tl_env_t *e = E;
+    const int level = level_arg(L, 1);
+    snd_t *s = e->hooks.snd;
+    if (s && room(e, 1))
+        snd_music_volume(s, (uint8_t)level);
+    return 0;
+}
+
 /* ---- registration ---- */
 
 #define F(n) {#n, l_##n}
@@ -834,7 +1030,7 @@ void tl_sound_open(lua_State *L)
     E = tl_env_current();
     static const luaL_Reg functions[] = {
         F(tone), F(play), F(release), F(silence), F(playing), F(envelope), F(volume), F(pan), F(duty), F(pitch), F(slide), F(wave),
-        F(mastervolume), F(note), F(hz), F(sample), F(loadsample),
+        F(mastervolume), F(note), F(hz), F(sample), F(loadsample), F(instrument), F(music), F(musicplaying), F(musicvolume),
         {NULL, NULL},
     };
     for (const luaL_Reg *r = functions; r->func; r++)

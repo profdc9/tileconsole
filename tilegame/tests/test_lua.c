@@ -2231,12 +2231,126 @@ static void test_sound_example(void)
     CHECK(voice(4)->wave[0] == -127 && voice(4)->wave[16] == 127);      /* (the triangle) */
 }
 
+/* the inc of a tone voice at a MIDI note, as tilesnd's music works it out */
+static uint32_t music_inc(int note) { return (uint32_t)(((uint64_t)snd_midi_hz(note) << 24) / PLAT_AUDIO_RATE); }
+
+static void test_sound_music(void)
+{
+    /* one track: on the last voice; musicplaying sees it at once, and after the song's two quarter notes (a second at 120) it has ended */
+    run_program("gfx(8)\nmusic(\"c4 d4\")\nprint(\"m\")\nprint(musicplaying())\nfor i = 1, 1000 do waitframe() end\nprint(musicplaying())\n");
+    {
+        static const char *const want[] = {"true", "false"};
+        CHECK(rows_after("m", want, 2) && !shows("Error"));
+    }
+    /* tracks on the last voices, or from the voice given; a song that loops goes on playing at the prompt */
+    run_program("music(\"L c1\", \"L e1\", \"L g1\", \"L c1\")\n");
+    CHECK(voice(13)->kind == SND_PULSE && voice(14)->inc == music_inc(64) && voice(15)->inc == music_inc(67) && voice(16)->inc == music_inc(60));
+    CHECK(voice(12)->kind == SND_OFF);
+    type("print(musicplaying())\n");
+    CHECK(go() == -1 && printed("true"));
+    run_program("music(3, \"L c1\", \"L e1\")\n");
+    CHECK(voice(3)->inc == music_inc(60) && voice(4)->inc == music_inc(64) && voice(16)->kind == SND_OFF);
+
+    /* instruments: a tone's settings, a wavetable, a sample with its root note (it plays as recorded there) */
+    run_program("instrument(1, \"triangle\", {volume = 100, attack = 10, decay = 20, sustain = 50, release = 30, pan = -20})\n"
+                "instrument(2, \"wave\", {wave = \"square\"})\n"
+                "instrument(3, \"pulse\", {duty = 32})\n"
+                "sample(4, string.rep(\"\\100\", 1000), 24000, 1)\n"
+                "instrument(4, \"sample\", {sample = 4, root = \"C5\"})\n"
+                "music(1, \"L @1 c1\", \"L @2 c1\", \"L @3 c1\", \"L @4 o5 c1\", \"L @4 o6 c1\", \"L @0 c1\")\n");
+    CHECK(!shows("Error"));
+    CHECK(voice(1)->kind == SND_TRIANGLE && voice(1)->vol == 100 && voice(1)->pan == -20 && voice(1)->attack_samples == 480 && voice(1)->decay_samples == 960 &&
+          voice(1)->sustain == 50 * 257 && voice(1)->release_samples == 1440);
+    CHECK(voice(2)->kind == SND_WAVE && voice(2)->wave[0] == 127 && voice(2)->wave[31] == -127);
+    CHECK(voice(3)->kind == SND_PULSE && voice(3)->duty == 32);
+    CHECK(voice(4)->kind == SND_PCM && voice(4)->inc_int == 0 && voice(4)->inc_frac == 32768);   /* C5, the root: 24000 as recorded */
+    CHECK(voice(5)->kind == SND_PCM && voice(5)->inc_int == 1 && voice(5)->inc_frac == 0);       /* an octave up */
+    CHECK(voice(6)->kind == SND_PULSE && voice(6)->duty == 128 && voice(6)->vol == 255);         /* @0, as it is at first */
+    /* making a sample again that the music plays stops the music (and gives the song back) */
+    const int before = releases;
+    type("sample(4, \"abc\", 8000)\nprint(musicplaying())\n");
+    CHECK(go() == -1 && printed("false") && voice(4)->kind == SND_OFF && voice(1)->kind == SND_OFF && releases == before + 2);
+
+    /* stopping: music(), silence(), Ctrl+C, NEW; a new song in place of one; the music's volume */
+    run_program("music(\"L c1\")\n");
+    CHECK(voice(16)->kind == SND_PULSE && allocs == releases + 1);
+    type("music()\n");
+    CHECK(go() == -1 && voice(16)->kind == SND_OFF && allocs == releases);   /* the song is given back */
+    type("music(\"L c1\")\nmusic(\"L e1\", \"L g1\")\n");
+    CHECK(go() == -1 && voice(15)->inc == music_inc(64) && voice(16)->inc == music_inc(67) && allocs == releases + 1);
+    type("silence()\nprint(musicplaying())\n");
+    CHECK(go() == -1 && printed("false") && voice(15)->kind == SND_OFF && voice(16)->kind == SND_OFF);
+    type("CLS\nmusic(\"L c1\")\nprint(musicplaying())\n");
+    CHECK(go() == -1 && printed("true"));
+    type("^C");
+    CHECK(go() == -1 && voice(16)->kind == SND_OFF);
+    type("musicvolume(128)\nmusic(\"L v15 c1\")\n");
+    CHECK(go() == -1 && voice(16)->vol == 128);
+    CHECK(freed_by_new() && voice(16)->kind == SND_OFF);
+
+    /* what is wrong is said */
+    static const struct { const char *call, *says; } bad[] = {
+        {"music(\"c x\")", "music: track 1, at 3: 'x' is not an MML command"},
+        {"music(\"c\", \"c5\")", "music: track 2, at 1: a length is a number that divides 384"},
+        {"music(16, \"c\", \"e\")", "music: 2 tracks from voice 16 do not fit"},
+        {"music(17, \"c\")", "music: the voice is 1 to 16"},
+        {"music(1)", "music([first voice,] track, ...): 1 to 16 tracks"},
+        {"music(\"c\", 5, nil)", "bad argument #3 to 'music'"},
+        {"instrument(32, \"pulse\")", "instrument: the instrument is 0 to 31"},
+        {"instrument(1, \"sine\")", "instrument: the kind is"},
+        {"instrument(1, \"pulse\", {dutty = 3})", "instrument: there is no setting \"dutty\""},
+        {"instrument(1, \"pulse\", {1, 2})", "instrument: the settings have names"},
+        {"instrument(1, \"sample\")", "instrument: a \"sample\" instrument says which one"},
+        {"instrument(1, \"pulse\", {wave = 5})", "instrument: wave is"},
+        {"instrument(1, \"sample\", {sample = 40})", "instrument: the sample is 1 to 32"},
+        {"instrument(1, \"pulse\", {root = \"X\"})", "instrument: a note is a number"},
+    };
+    run_program("print(1)\n");
+    for (size_t i = 0; i < sizeof bad / sizeof *bad; i++) {
+        char line[200];
+        snprintf(line, sizeof line, "CLS\n%s\n", bad[i].call);
+        if (strchr(bad[i].call, '{')) {   /* (type() takes braces as key names: those go through a program) */
+            snprintf(line, sizeof line, "%s\n", bad[i].call);
+            run_program(line);
+        } else {
+            type(line);
+            CHECK(go() == -1);
+        }
+        if (!shows(bad[i].says))
+            printf("expected: %s\n", bad[i].says);
+        CHECK(shows(bad[i].says));
+    }
+
+    /* without sound: music is still made (and its mistakes found), and given back by NEW */
+    sound_on = 0;
+    run_program("music(\"L c1\")\nprint(musicplaying())\nmusicvolume(3)\n");
+    CHECK(printed("false") && !shows("Error") && allocs == releases + 1);
+    run_program("music(\"c y\")\n");
+    CHECK(shows("'y' is not an MML command"));
+    CHECK(freed_by_new());
+    sound_on = 1;
+}
+
+/* examples/music.lua: it starts the music and ends; the music plays on at the prompt */
+static void test_sound_example_music(void)
+{
+    run_program(read_example("music.lua"));
+    CHECK(printed("Ready.") && !shows("Error"));
+    type("print(musicplaying())\n");
+    CHECK(go() == -1 && printed("true"));
+    CHECK(voice(14)->kind == SND_PULSE && voice(15)->kind == SND_TRIANGLE);   /* (the harmony and the bass have no rests; the lead has, and the drums end by themselves) */
+    type("music()\n");
+    CHECK(go() == -1 && freed_by_new());
+}
+
 static void test_sound(void)
 {
     test_sound_notes();
     test_sound_samples();
     test_sound_lifetime();
     test_sound_example();
+    test_sound_music();
+    test_sound_example_music();
 }
 
 static void test_game(void)

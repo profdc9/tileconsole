@@ -41,7 +41,7 @@ set(PLAT_I2S_DATA_PIN 9 CACHE STRING "With PLAT_I2S: the data pin (the EmuBoard2
 set(PLAT_I2S_CLOCK_PIN 10 CACHE STRING "With PLAT_I2S: the BCK pin; LRCK is the next one (M2: 10 and 11)")
 
 function(tilegame_board_app name source)
-    add_executable(${name} ${source} ${ARGN} plat_board.c ${TILEGFX_DIR}/tilegfx.c ${TILEGFX_DIR}/scene.c ${TILESND_DIR}/snd.c)
+    add_executable(${name} ${source} ${ARGN} plat_board.c ${TILEGFX_DIR}/tilegfx.c ${TILEGFX_DIR}/scene.c ${TILESND_DIR}/snd.c ${TILESND_DIR}/snd_mml.c)
     target_include_directories(${name} PRIVATE ${CMAKE_CURRENT_LIST_DIR}/../include ${CMAKE_CURRENT_LIST_DIR}/../game ${TILEGFX_DIR} ${TILESND_DIR})
     target_compile_definitions(${name} PRIVATE PLAT_CPU_MHZ=${CPU_MHZ} "TG_HOT_SECTION=\".time_critical.tilegfx\"" "SND_HOT_SECTION=\".time_critical.tilesnd\"")
     target_compile_options(${name} PRIVATE -O2 -Wall -Wextra)

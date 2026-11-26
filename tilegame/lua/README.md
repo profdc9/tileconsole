@@ -208,6 +208,49 @@ same. On the board the samples are in the PSRAM.
 
 `examples/sound.lua` plays one sound for each button.
 
+### Music
+
+Music is written in MML (Music Macro Language): a string of notes for each track, as BASIC's `PLAY` had them, several tracks at once, each on a
+voice of its own and each with its instruments. The audio thread plays it by itself (tilesnd's sequencer, `../../tilesnd/snd_mml.c`), to within
+1.3 ms, whatever the program is doing: it goes on while a file loads, and at the prompt after the program has ended.
+
+    instrument(1, "pulse", {duty = 64, decay = 300, sustain = 120})
+    instrument(2, "triangle", {volume = 230})
+    music("t140 L @1 o5 l8 e g >c< g e4 g4 | f a >c< a f4 a4",
+          "L @2 o3 l2 c c | f f")
+
+| function | what it does |
+|---|---|
+| `music([first voice,] track, ...)` | plays the tracks (1 to 16 strings of MML), in place of any music that was playing: the first track on `first voice` and the others on the voices after it; without it, on the last voices (four tracks on 13 to 16), which leaves the first ones to the program's sound effects. A mistake in the MML stops the program with the track and the place: `music: track 2, at 14: 'x' is not an MML command`. `music()` stops the music |
+| `instrument(n, kind [, settings])` | instrument n (0 to 31) for the music's `@n`: kind as `tone`'s, or `"sample"`; settings is a table of any of `duty`, `attack`, `decay`, `sustain`, `release` (as `envelope`'s), `volume` (0 to 255, times the track's `v`), `pan`, `wave` (as `wave`'s), `sample` (its number) and `root` (the note at which the sample plays as it was recorded; `"C4"`, 60, if not given). Instrument 0, and any not made, is a square wave at full volume, held to the note's end. Music uses the instruments as they were when `music` was called |
+| `musicplaying()` | true while the music plays; music that loops plays until it is stopped |
+| `musicvolume(level)` | the music's volume, 0 to 255, from its next notes on (255 at first) |
+
+The MML (commands in lower or upper case, except `l` and `L`; spaces, new lines and `|` bar lines are left out):
+
+| MML | what it is |
+|---|---|
+| `c d e f g a b` | a note, then `+` or `#` (sharp) or `-` (flat), then its length: `4` a quarter note, `8` an eighth, `2` a half, `1` a whole ... (any number that divides 384, so `3`, `6`, `12` for triplets), or `%n` for n ticks (96 to a quarter note); then dots, each adding half of what the one before added (`4.` is a quarter and an eighth). No length: `l`'s |
+| `r` | a rest, its length the same way |
+| `n60,8` | a note by its MIDI number (60 is middle C); the length after a comma, or `l`'s |
+| `o4`, `>`, `<` | the octave (0 to 9; `o4` has middle C, and is the octave at first), one octave up, one down |
+| `l8` | the length of the notes and rests that have none (a quarter at first) |
+| `^8` | adds to the length of the note or rest before it (`c4^16`) |
+| `&` | between two notes: the same pitch makes one longer note; another pitch slurs to it, with no new attack |
+| `t120` | the tempo, quarter notes a minute (20 to 600; 120 at first); it is for all the tracks, from where it is |
+| `v15` | the track's volume, 0 to 15 (15 at first) |
+| `q8` | how much of its length a note sounds before it is let go, in eighths (8, all of it, at first; `q4` half: staccato) |
+| `@1` | the instrument (0 at first) |
+| `p-64` | the track's pan, -128 (left) to 127 (right); until it has one, the instrument's |
+| `k-12` | transposes the notes after it, -48 to 48 semitones |
+| `[ ... ]3` | repeats what is inside 3 times (2 with no number); they nest, up to 8 deep. A repeat is kept as a loop in the compiled music, so it takes no more memory however many times it goes round (unless its passes come out different, as `[c >]3`'s do: then it is written out) |
+| `L` | where the track starts again when it comes to its end: the music loops for ever. Without one the track ends |
+
+Each track loops on its own, so tracks that loop should be as long as each other. A track's settings (octave, length, volume, instrument ...) go on from
+one note to the next and through the repeats; `t` changes the tempo of every track. The music's voices are the program's voices too: a sound effect
+played on one of them is cut off by the track's next note, so effects belong on the others. `silence()`, Ctrl+C, RUN and NEW stop the music;
+making a sample again that an instrument of the music plays stops it too. `examples/music.lua` is eight bars on four tracks.
+
 ## Speed (board)
 
 `examples/bench.lua` measures what things cost. Lua compiles a program to bytecode once and allocates nothing for arithmetic, calls or table fields (only for new strings), so on the
