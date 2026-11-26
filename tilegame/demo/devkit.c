@@ -390,9 +390,11 @@ static int in_psram(const void *p)
     return pool && b >= (uintptr_t)PSRAM_BASE && b < (uintptr_t)PSRAM_BASE + psram_size();
 }
 
-/* Lua's memory: small blocks in SRAM while its share lasts (the PSRAM is reached through the same 16 KB cache as the code in flash, and Lua is about twice
- * as fast with its tables, strings and stack in SRAM), the rest in the PSRAM pool. A block that grows past LUA_SMALL, or a realloc when the share is used
- * up, moves to the PSRAM; one that shrinks may move back. The SRAM share leaves room for the game's graphics, which must be in SRAM. */
+/* Lua's memory: small blocks in SRAM while its share lasts (the PSRAM is reached through the same 16 KB cache as the code in flash: ordinary code is only a
+ * few percent slower with everything there, but making strings is 2.7 times slower), the rest in the PSRAM pool. A block that grows past LUA_SMALL, or a
+ * realloc when the share is used up, moves to the PSRAM; one that shrinks may move back. The SRAM share leaves room for the game's graphics, which must be in
+ * SRAM. The SRAM blocks go through the SDK's malloc, whose mutex costs more than the allocation itself; the allocators were measured, and the ways around
+ * that weighed, in lua/README.md (Speed). */
 #ifndef LUA_SRAM_KB
 #define LUA_SRAM_KB 64   /* (cmake -DLUA_SRAM_KB=n; 0 puts all of Lua's memory in the PSRAM) */
 #endif

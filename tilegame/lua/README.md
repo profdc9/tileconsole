@@ -182,6 +182,30 @@ how much is in SRAM. The share is a build setting, `cmake -DLUA_SRAM_KB=n` (0: a
 code and calls were only 2-6% slower (the 16 KB cache holds what a loop keeps using), but making strings was 2.7 times slower (every allocation goes through the PSRAM pool) and
 `tile()` 2.9 times. Putting the game's own state (the actors) in SRAM as well made no measurable difference, so it stays in the PSRAM: SRAM is what the graphics need.
 
+The allocators themselves, measured on the board on 2026-11-26 with a throwaway test (not in the tree): nanoseconds per free and malloc of a block of 16 to 72 bytes, the
+test loop's own time taken off. "Live" is how many blocks stay allocated while one at random is freed and a new one made (256 is about 12 KB, which fits the cache; 2048 about
+100 KB); "touched" also reads each block before freeing it and writes each new one, as Lua does with its objects.
+
+| allocator | malloc, free at once | 256 live | 2048 live | 2048 live, touched |
+|---|---|---|---|---|
+| C heap in SRAM, through the SDK's malloc mutex (Lua's small blocks now) | 732 | 745 | 720 | 719 |
+| C heap in SRAM, newlib's malloc called directly (no mutex) | 320 | 333 | 310 | 308 |
+| dlmalloc pool on a block of SRAM | 260 | 300 | 284 | 283 |
+| dlmalloc pool in the PSRAM (Lua's bigger blocks now) | 262 | 455 | 1447 | 3927 |
+| size classes (a free list per 8 bytes, no headers) in SRAM | 25 | 25 | 25 | 24 |
+| size classes in the PSRAM | 26 | 27 | 182 | 2512 |
+
+The SDK's mutex costs more than malloc and free themselves; newlib's malloc and dlmalloc (the same algorithm) cost the same in SRAM; in the PSRAM dlmalloc is 5 times slower once
+the blocks no longer fit the cache, and reading and writing the objects there costs about 2.5 µs each whatever the allocator. Allocation is about 1.4 µs of the 8.9 µs a string
+concatenation takes, and game code seldom allocates every frame, so it was left as it is. If it ever matters, the choices are:
+
+- Call newlib's malloc directly from `lua_alloc` (310 ns). Nothing is reserved, but it is only safe while core 0's main loop is the only thing that allocates (today core 1
+  runs only the HDMI loop, and the interrupts do not allocate).
+- Take the 64 KB share from the heap at start-up and run a dlmalloc pool on it (284 ns, no mutex). The 64 KB is then the share's even when Lua does not use it (now the share is
+  only a limit, and what Lua does not use is free for the rest).
+- Size classes (25 ns): not chosen. Lua's blocks come in dozens of sizes (strings of every length, the compiler's arrays, a function's code), each size in use holds at least
+  one page, and a page comes back only when every block in it is free, so the 64 KB would fill with half-empty pages.
+
 ## Losing the picture (board)
 
 The board watches its own picture: core 1 counts frames every quarter second, and a rate that is not 60 Hz twice in a row means the HDMI output has lost
