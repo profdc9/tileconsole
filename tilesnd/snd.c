@@ -16,7 +16,7 @@
 
 enum { ST_ATTACK, ST_DECAY, ST_SUSTAIN, ST_RELEASE };
 enum { OP_PLAY_PCM = 1, OP_PLAY_TONE, OP_SET_PITCH, OP_SET_FREQ, OP_SET_VOL, OP_SET_PAN, OP_SET_DUTY, OP_SET_ADSR,
-       OP_KEY_OFF, OP_STOP, OP_STOP_ALL, OP_SET_MASTER };
+       OP_KEY_OFF, OP_STOP, OP_STOP_ALL, OP_SET_MASTER, OP_MUSIC_PLAY, OP_MUSIC_STOP, OP_MUSIC_VOL };
 
 uint32_t snd_midi_hz(int note)
 {
@@ -31,6 +31,7 @@ void snd_init(snd_t *s, uint32_t rate)
     memset(s, 0, sizeof *s);
     s->rate = rate;
     s->master = 256;
+    s->music_vol = 255;
     for (int i = 0; i < SND_MAX_VOICES; i++) {
         snd_voice_t *v = &s->voices[i];
         v->sustain = ENV_ONE;
@@ -54,7 +55,7 @@ static bool push(snd_t *s, snd_cmd_t c)
 
 static bool cmd(snd_t *s, int op, int voice, uint8_t a, uint8_t b, int32_t x, int32_t y, const void *p)
 {
-    if (op != OP_STOP_ALL && op != OP_SET_MASTER && (voice < 0 || voice >= SND_MAX_VOICES))
+    if (op != OP_STOP_ALL && op != OP_SET_MASTER && op < OP_MUSIC_PLAY && (voice < 0 || voice >= SND_MAX_VOICES))
         return false;
     return push(s, (snd_cmd_t){.op = (uint8_t)op, .voice = (uint8_t)voice, .a = a, .b = b, .x = x, .y = y, .p = p});
 }
@@ -97,6 +98,28 @@ bool snd_reached(const snd_t *s, uint32_t mark)
 }
 
 uint32_t snd_sounding(const snd_t *s) { return __atomic_load_n(&s->sounding, __ATOMIC_ACQUIRE); }
+
+bool snd_music_play(snd_t *s, const snd_song_t *song, int first_voice)
+{
+    if (!song || first_voice < 0 || first_voice >= SND_MAX_VOICES)
+        return false;
+    return cmd(s, OP_MUSIC_PLAY, 0, (uint8_t)first_voice, 0, 0, 0, song);
+}
+
+bool snd_music_stop(snd_t *s) { return cmd(s, OP_MUSIC_STOP, 0, 0, 0, 0, 0, NULL); }
+bool snd_music_volume(snd_t *s, uint8_t vol) { return cmd(s, OP_MUSIC_VOL, 0, vol, 0, 0, 0, NULL); }
+bool snd_music_playing(const snd_t *s) { return __atomic_load_n(&s->music_on, __ATOMIC_ACQUIRE) != 0; }
+
+void snd_instrument_default(snd_instrument_t *in)
+{
+    memset(in, 0, sizeof *in);
+    in->kind = SND_PULSE;
+    in->duty = 128;
+    in->vol = 255;
+    in->sustain = 255;
+    in->release_ms = 5;
+    in->root = 60;
+}
 
 bool snd_set_adsr(snd_t *s, int voice, uint16_t attack_ms, uint16_t decay_ms, uint8_t sustain, uint16_t release_ms)
 {
@@ -181,38 +204,195 @@ static void pcm_set_pitch(const snd_t *s, snd_voice_t *v, uint32_t pitch_q16)
     v->inc_frac = (uint32_t)(inc & 0xFFFF);
 }
 
+/* Starting notes and setting envelopes: for the commands from the game thread and for the music. */
+static void voice_pcm(const snd_t *s, snd_voice_t *v, const snd_sample_t *sm, uint32_t pitch_q16, uint8_t vol, int8_t pan)
+{
+    if (!sm || !sm->data || sm->length == 0 || (sm->bits != 8 && sm->bits != 16))
+        return;
+    v->kind = SND_PCM;
+    v->sample = sm;
+    v->pos = v->frac = 0;
+    pcm_set_pitch(s, v, pitch_q16);
+    v->vol = vol;
+    v->pan = pan;
+    env_start(v);
+}
+
+static void voice_tone(const snd_t *s, snd_voice_t *v, unsigned kind, uint32_t hz_q8, uint8_t vol, int8_t pan, uint8_t duty, const int8_t *wave)
+{
+    if (kind < SND_PULSE || kind > SND_WAVE || (kind == SND_WAVE && !wave))
+        return;
+    v->kind = (uint8_t)kind;
+    v->phase = 0;
+    v->lfsr = 1;
+    v->inc = tone_inc(s, hz_q8);
+    v->duty = duty;
+    v->vol = vol;
+    v->pan = pan;
+    v->wave = wave;
+    env_start(v);
+}
+
+static void voice_adsr(const snd_t *s, snd_voice_t *v, uint32_t attack_ms, uint32_t decay_ms, uint8_t sustain, uint32_t release_ms)
+{
+    v->attack_samples = attack_ms * s->rate / 1000;
+    v->decay_samples = decay_ms * s->rate / 1000;
+    v->sustain = sustain == 255 ? ENV_ONE : (uint32_t)sustain * 257;
+    v->release_samples = release_ms * s->rate / 1000 ? release_ms * s->rate / 1000 : 1;
+}
+
+/* ---- music (audio thread) ---- */
+
+/* A speed of 2^(d/12) as 16.16: the pitch of a sample played d semitones from its root note. */
+SND_HOT static uint32_t semitones_q16(int d)
+{
+    static const uint32_t ratio[12] = {65536, 69433, 73562, 77936, 82570, 87480, 92682, 98193, 104032, 110218, 116772, 123715};
+    d = d < -96 ? -96 : d > 60 ? 60 : d;
+    const int octave = d >= 0 ? d / 12 : -((-d + 11) / 12);
+    const uint32_t r = ratio[d - 12 * octave];
+    return octave >= 0 ? r << octave : r >> -octave;
+}
+
+static uint32_t music_spt(const snd_t *s, uint32_t bpm)
+{
+    return (uint32_t)(((uint64_t)s->rate * 60u << 16) / ((uint64_t)bpm * SND_TICKS_PER_QUARTER));
+}
+
+/* Every voice the song's tracks play on falls silent. */
+static void music_silence(snd_t *s)
+{
+    const snd_song_t *song = s->song;
+    if (!song)
+        return;
+    for (int i = 0; i < song->tracks && s->music_first + i < SND_MAX_VOICES; i++)
+        s->voices[s->music_first + i].kind = SND_OFF;
+}
+
+SND_HOT static void music_note(snd_t *s, int i, const snd_event_t *ev)
+{
+    snd_track_state_t *st = &s->track[i];
+    const snd_instrument_t *in = &s->song->instrument[st->inst % SND_MAX_INSTRUMENTS];
+    snd_voice_t *v = &s->voices[s->music_first + i];
+    const uint8_t vol = (uint8_t)(((uint32_t)st->vol * in->vol / 255u) * s->music_vol / 255u);
+    const int8_t pan = st->pan == SND_PAN_INSTRUMENT ? in->pan : (int8_t)st->pan;
+    const int note = ev->a;
+    if ((ev->flags & SND_EV_SLUR) && v->kind != SND_OFF && v->stage != ST_RELEASE) {   /* no new attack: the pitch moves */
+        if (v->kind == SND_PCM)
+            pcm_set_pitch(s, v, semitones_q16(note - in->root));
+        else
+            v->inc = tone_inc(s, snd_midi_hz(note));
+        v->vol = vol;
+        v->pan = pan;
+        return;
+    }
+    voice_adsr(s, v, in->attack_ms, in->decay_ms, in->sustain, in->release_ms);
+    if (in->kind == SND_PCM)
+        voice_pcm(s, v, in->sample, semitones_q16(note - in->root), vol, pan);
+    else
+        voice_tone(s, v, in->kind, snd_midi_hz(note), vol, pan, in->duty, in->wave);
+}
+
+/* Runs track i's events until one that takes time (or the track's end). */
+SND_HOT static void music_run(snd_t *s, int i)
+{
+    const snd_track_t *tr = &s->song->track[i];
+    snd_track_state_t *st = &s->track[i];
+    for (int guard = 0; !st->ended && guard < 4096; guard++) {
+        if (st->idx >= tr->count) {
+            if (tr->loop < 0 || (uint32_t)tr->loop >= tr->count) {
+                st->ended = 1;
+                break;
+            }
+            st->idx = (uint32_t)tr->loop;
+            st->depth = 0;   /* (L is outside every loop) */
+        }
+        const snd_event_t *ev = &tr->events[st->idx++];
+        switch (ev->op) {
+        case SND_EV_NOTE:
+            music_note(s, i, ev);
+            st->off = ev->gate;
+            break;
+        case SND_EV_INST: st->inst = ev->a; break;
+        case SND_EV_VOL: st->vol = ev->a; break;
+        case SND_EV_PAN: st->pan = (int8_t)ev->a; break;
+        case SND_EV_TEMPO:
+            if (ev->gate)
+                s->music_spt = music_spt(s, ev->gate);
+            break;
+        case SND_EV_LOOP_START:
+            if (st->depth < SND_LOOP_DEPTH)
+                st->left[st->depth++] = ev->a ? (uint8_t)(ev->a - 1) : 0;
+            break;
+        case SND_EV_LOOP_END:
+            if (st->depth && st->left[st->depth - 1]) {
+                st->left[st->depth - 1]--;
+                if (ev->gate <= st->idx)
+                    st->idx -= ev->gate;
+            } else if (st->depth) {
+                st->depth--;
+            }
+            break;
+        default:   /* SND_EV_REST */
+            break;
+        }
+        if (ev->len) {
+            st->wait = ev->len;
+            break;
+        }
+    }
+}
+
+static void music_start(snd_t *s, const snd_song_t *song, int first)
+{
+    music_silence(s);
+    s->song = song;
+    s->music_first = (uint8_t)first;
+    s->music_spt = music_spt(s, 120);
+    s->music_acc = 0;
+    for (int i = 0; i < SND_MAX_VOICES; i++)
+        s->track[i] = (snd_track_state_t){.vol = 255, .pan = SND_PAN_INSTRUMENT, .ended = i >= song->tracks || first + i >= SND_MAX_VOICES};
+    for (int i = 0; i < song->tracks && first + i < SND_MAX_VOICES; i++)
+        music_run(s, i);
+}
+
+SND_HOT static void music_tick(snd_t *s)
+{
+    const snd_song_t *song = s->song;
+    for (int i = 0; i < song->tracks && s->music_first + i < SND_MAX_VOICES; i++) {
+        snd_track_state_t *st = &s->track[i];
+        if (st->off && --st->off == 0) {
+            snd_voice_t *v = &s->voices[s->music_first + i];
+            if (v->kind != SND_OFF && v->stage != ST_RELEASE)
+                env_release(v);
+        }
+        if (st->ended)
+            continue;
+        if (st->wait && --st->wait)
+            continue;
+        music_run(s, i);
+    }
+}
+
+/* The music moves on by `frames` frames (before they are mixed). */
+SND_HOT static void music_advance(snd_t *s, int frames)
+{
+    s->music_acc += (uint32_t)frames << 16;
+    while (s->song && s->music_acc >= s->music_spt) {
+        s->music_acc -= s->music_spt;
+        music_tick(s);
+    }
+}
+
 SND_HOT static void apply(snd_t *s, const snd_cmd_t *c)
 {
     snd_voice_t *v = &s->voices[c->voice % SND_MAX_VOICES];
     switch (c->op) {
-    case OP_PLAY_PCM: {
-        const snd_sample_t *sm = c->p;
-        if (!sm || !sm->data || sm->length == 0 || (sm->bits != 8 && sm->bits != 16))
-            return;
-        v->kind = SND_PCM;
-        v->sample = sm;
-        v->pos = v->frac = 0;
-        pcm_set_pitch(s, v, (uint32_t)c->x);
-        v->vol = c->a;
-        v->pan = (int8_t)c->b;
-        env_start(v);
+    case OP_PLAY_PCM:
+        voice_pcm(s, v, c->p, (uint32_t)c->x, c->a, (int8_t)c->b);
         break;
-    }
-    case OP_PLAY_TONE: {
-        const unsigned kind = c->a;
-        if (kind < SND_PULSE || kind > SND_WAVE || (kind == SND_WAVE && !c->p))
-            return;
-        v->kind = (uint8_t)kind;
-        v->phase = 0;
-        v->lfsr = 1;
-        v->inc = tone_inc(s, (uint32_t)c->x);
-        v->duty = c->b;
-        v->vol = (uint8_t)(c->y & 0xFF);
-        v->pan = (int8_t)((c->y >> 8) & 0xFF);
-        v->wave = c->p;
-        env_start(v);
+    case OP_PLAY_TONE:
+        voice_tone(s, v, c->a, (uint32_t)c->x, (uint8_t)(c->y & 0xFF), (int8_t)((c->y >> 8) & 0xFF), c->b, c->p);
         break;
-    }
     case OP_SET_PITCH:
         if (v->kind == SND_PCM)
             pcm_set_pitch(s, v, (uint32_t)c->x);
@@ -224,14 +404,9 @@ SND_HOT static void apply(snd_t *s, const snd_cmd_t *c)
     case OP_SET_VOL: v->vol = c->a; break;
     case OP_SET_PAN: v->pan = (int8_t)c->a; break;
     case OP_SET_DUTY: v->duty = c->a; break;
-    case OP_SET_ADSR: {
-        const uint32_t attack_ms = (uint32_t)c->x & 0xFFFF, decay_ms = (uint32_t)c->x >> 16, release_ms = (uint32_t)c->y;
-        v->attack_samples = attack_ms * s->rate / 1000;
-        v->decay_samples = decay_ms * s->rate / 1000;
-        v->sustain = c->a == 255 ? ENV_ONE : (uint32_t)c->a * 257;
-        v->release_samples = release_ms * s->rate / 1000 ? release_ms * s->rate / 1000 : 1;
+    case OP_SET_ADSR:
+        voice_adsr(s, v, (uint32_t)c->x & 0xFFFF, (uint32_t)c->x >> 16, c->a, (uint32_t)c->y);
         break;
-    }
     case OP_KEY_OFF:
         if (v->kind != SND_OFF && v->stage != ST_RELEASE)
             env_release(v);
@@ -245,6 +420,16 @@ SND_HOT static void apply(snd_t *s, const snd_cmd_t *c)
         break;
     case OP_SET_MASTER:
         s->master = unity(c->a);
+        break;
+    case OP_MUSIC_PLAY:
+        music_start(s, c->p, c->a);
+        break;
+    case OP_MUSIC_STOP:
+        music_silence(s);
+        s->song = NULL;
+        break;
+    case OP_MUSIC_VOL:
+        s->music_vol = c->a;
         break;
     }
 }
@@ -386,6 +571,8 @@ SND_HOT void snd_render(snd_t *s, int16_t *lr, int frames)
 
     while (frames > 0) {
         const int n = frames < SND_BLOCK ? frames : SND_BLOCK;
+        if (s->song)
+            music_advance(s, n);
 
         bool any = false;
         for (int i = 0; i < SND_MAX_VOICES; i++)
@@ -425,7 +612,12 @@ SND_HOT void snd_render(snd_t *s, int16_t *lr, int frames)
     for (int i = 0; i < SND_MAX_VOICES; i++)
         if (s->voices[i].kind != SND_OFF)
             sounding |= 1u << i;
+    uint32_t music_on = 0;
+    if (s->song)
+        for (int i = 0; i < s->song->tracks && !music_on; i++)
+            music_on = !s->track[i].ended;
     __atomic_store_n(&s->sounding, sounding, __ATOMIC_RELEASE);
+    __atomic_store_n(&s->music_on, music_on, __ATOMIC_RELEASE);
     __atomic_store_n(&s->done, head, __ATOMIC_RELEASE);
 }
 

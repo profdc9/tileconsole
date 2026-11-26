@@ -24,8 +24,10 @@ static int checks;
 
 static int16_t out[2 * MAXF];
 
-static void render(snd_t *s, int frames)
+static void render(snd_t *s, int frames)   /* (more than the buffer holds: in pieces, and the buffer has the last one) */
 {
+    for (; frames > MAXF; frames -= MAXF)
+        snd_render(s, out, MAXF);
     snd_render(s, out, frames);
 }
 
@@ -525,6 +527,356 @@ static void test_progress(void)
     CHECK(snd_reached(&s, m3) && snd_room(&s) == SND_QUEUE_SIZE && s.voices[15].vol == 7);
 }
 
+/* ---- music: MML and the sequencer ---- */
+
+static void *test_alloc(void *ctx, size_t n)
+{
+    (void)ctx;
+    return malloc(n);
+}
+
+static char mml_err[200];
+
+static snd_song_t *mml2(const char *a, const char *b)
+{
+    const char *tracks[2] = {a, b};
+    return snd_mml_compile(tracks, b ? 2 : 1, NULL, test_alloc, NULL, mml_err, sizeof mml_err);
+}
+
+static snd_song_t *mml(const char *a) { return mml2(a, NULL); }
+
+/* the events of track 0 are (op, a, len, gate) in that order */
+static bool events_are(const snd_song_t *s, int track, const int (*want)[4], int n)
+{
+    if (!s || (int)s->track[track].count != n)
+        return false;
+    for (int i = 0; i < n; i++) {
+        const snd_event_t *e = &s->track[track].events[i];
+        if (e->op != want[i][0] || e->a != want[i][1] || (int)e->len != want[i][2] || (int)e->gate != want[i][3])
+            return false;
+    }
+    return true;
+}
+
+static bool mml_fails(const char *text, const char *says)
+{
+    snd_song_t *s = mml(text);
+    free(s);
+    if (s || !strstr(mml_err, says)) {
+        printf("mml \"%s\": %s\n", text, s ? "(compiled)" : mml_err);
+        return false;
+    }
+    return true;
+}
+
+enum { N = SND_EV_NOTE, R = SND_EV_REST, I = SND_EV_INST, V = SND_EV_VOL, P = SND_EV_PAN, T = SND_EV_TEMPO, LS = SND_EV_LOOP_START, LE = SND_EV_LOOP_END };
+
+static void test_mml(void)
+{
+    snd_song_t *s;
+    {
+        static const int want[][4] = {{N, 60, 96, 96}, {N, 62, 96, 96}, {N, 64, 96, 96}};
+        CHECK(events_are(s = mml("cde"), 0, want, 3) && s->tracks == 1 && s->track[0].loop == -1);
+        free(s);
+    }
+    {   /* accidentals, octaves, default length, a rest, a dot */
+        static const int want[][4] = {{N, 73, 48, 48}, {N, 73, 48, 48}, {N, 77, 48, 48}, {R, 0, 96, 0}, {N, 79, 72, 72}, {N, 84, 48, 48}, {N, 71, 48, 48}};
+        CHECK(events_are(s = mml("o5 l8 c+ d- e# r4 g. >c <<b"), 0, want, 7));
+        free(s);
+    }
+    {   /* lengths: divisions of 384, ticks, dots */
+        static const int want[][4] = {{N, 60, 384, 384}, {N, 60, 192, 192}, {N, 60, 128, 128}, {N, 60, 24, 24}, {N, 60, 37, 37}, {N, 60, 168, 168}, {N, 60, 6, 6}};
+        CHECK(events_are(s = mml("C1 c2 c3 c16 c%37 c4.. c64"), 0, want, 7));
+        free(s);
+    }
+    {   /* ^ and &: the same pitch is one note, another a slur; rests in a row are one */
+        static const int want[][4] = {{N, 60, 144, 144}, {N, 60, 144, 144}, {N, 60, 96, 0}, {N, 62, 96, 96}, {R, 0, 288, 0}};
+        CHECK(events_are(s = mml("c4^8 c4&c8 c4&d4 r4^4 r8 r8"), 0, want, 5));
+        CHECK(s->track[0].events[3].flags == SND_EV_SLUR && s->track[0].events[2].flags == 0);
+        free(s);
+    }
+    {   /* q, then settings (each lets the note before it finish first), n, transpose */
+        static const int want[][4] = {{N, 60, 96, 48}, {N, 60, 48, 6}, {T, 0, 0, 150}, {V, 170, 0, 0}, {I, 3, 0, 0}, {P, 236, 0, 0}, {N, 62, 96, 96}, {N, 63, 48, 48}, {N, 64, 144, 144}};
+        CHECK(events_are(s = mml("q4 c4 q1 c8 q8 t150 v10 @3 p-20 k2 c n61,8 n62,4."), 0, want, 9));
+        free(s);
+    }
+    {   /* the octaves at the ends */
+        static const int want[][4] = {{N, 12, 96, 96}, {N, 0, 96, 96}, {N, 24, 96, 96}, {N, 127, 96, 96}};
+        CHECK(events_are(s = mml("o0 c < c > > c o9 g"), 0, want, 4));
+        free(s);
+    }
+    {   /* loops are kept as loops, nested; LOOP_END says how far back the loop starts again; L; spaces, new lines and bar lines */
+        static const int want[][4] = {{LS, 2, 0, 0}, {LS, 2, 0, 0}, {N, 60, 96, 96}, {LE, 0, 0, 2}, {N, 62, 96, 96}, {LE, 0, 0, 5},
+                                      {LS, 3, 0, 0}, {N, 64, 96, 96}, {LE, 0, 0, 2}};
+        CHECK(events_are(s = mml("[[c]2 d]2 | L [e]3\n"), 0, want, 9) && s->track[0].loop == 6);
+        free(s);
+    }
+    {   /* a part that sets the octave (or length ...) itself plays the same each pass: a loop */
+        static const int want[][4] = {{LS, 2, 0, 0}, {N, 48, 48, 48}, {N, 43, 48, 48}, {LE, 0, 0, 3}, {N, 43, 48, 48}};
+        CHECK(events_are(s = mml("[o3 l8 c o2 g]2 g"), 0, want, 5));
+        free(s);
+    }
+    {   /* ... but one that moves it on gives other notes each pass: written out */
+        static const int want[][4] = {{N, 60, 96, 96}, {N, 72, 96, 96}, {N, 84, 96, 96}, {N, 96, 96, 96}};
+        CHECK(events_are(s = mml("[c >]3 c"), 0, want, 4));
+        free(s);
+        static const int want2[][4] = {{N, 60, 96, 96}, {N, 62, 96, 96}, {N, 62, 96, 96}};   /* (k sets the transpose: the first pass differs) */
+        CHECK(events_are(s = mml("[c k2]3"), 0, want2, 3));
+        free(s);
+        static const int want3[][4] = {{N, 60, 96, 96}, {N, 60, 96, 48}};
+        CHECK(events_are(s = mml("[c q4]2"), 0, want3, 2));   /* (the first pass's c has q8, the second q4) */
+        free(s);
+    }
+    {   /* ties across the brackets: written out, as if typed twice */
+        static const int want[][4] = {{N, 60, 192, 192}, {N, 60, 96, 96}};
+        CHECK(events_are(s = mml("c4& [c4]2"), 0, want, 2));
+        free(s);
+        static const int want2[][4] = {{N, 60, 192, 0}, {N, 62, 96, 96}};
+        CHECK(events_are(s = mml("[c4&]2 d4"), 0, want2, 2) && s->track[0].events[1].flags == SND_EV_SLUR);
+        free(s);
+        static const int want3[][4] = {{N, 60, 288, 288}};
+        CHECK(events_are(s = mml("c4 [^4]2"), 0, want3, 1));
+        free(s);
+    }
+    {   /* a loop nested in one that is written out is still a loop; and a huge repeat is small */
+        static const int want[][4] = {{LS, 2, 0, 0}, {N, 60, 96, 96}, {LE, 0, 0, 2}, {LS, 2, 0, 0}, {N, 72, 96, 96}, {LE, 0, 0, 2}};
+        CHECK(events_are(s = mml("[[c]2 >]2"), 0, want, 6));
+        free(s);
+        CHECK((s = mml("[[[c]255]255]255")) && s->track[0].count == 7);
+        free(s);
+    }
+    {   /* two tracks; the default instruments */
+        s = mml2("c", "e d");
+        CHECK(s && s->tracks == 2 && s->track[0].count == 1 && s->track[1].count == 2 && s->track[1].events[1].a == 62);
+        CHECK(s->instrument[5].kind == SND_PULSE && s->instrument[5].duty == 128 && s->instrument[5].vol == 255 && s->instrument[5].sustain == 255 &&
+              s->instrument[5].release_ms == 5 && s->instrument[5].root == 60);
+        free(s);
+        s = mml("");
+        CHECK(s && s->track[0].count == 0);
+        free(s);
+    }
+    {   /* instruments are copied in */
+        snd_instrument_t ins[SND_MAX_INSTRUMENTS];
+        for (int i = 0; i < SND_MAX_INSTRUMENTS; i++)
+            snd_instrument_default(&ins[i]);
+        ins[2].kind = SND_TRIANGLE;
+        ins[2].vol = 99;
+        const char *tr[1] = {"@2 c"};
+        s = snd_mml_compile(tr, 1, ins, test_alloc, NULL, mml_err, sizeof mml_err);
+        ins[2].vol = 1;
+        CHECK(s && s->instrument[2].kind == SND_TRIANGLE && s->instrument[2].vol == 99);
+        free(s);
+    }
+    /* mistakes, and where they are */
+    CHECK(mml_fails("x", "track 1, at 1: 'x' is not an MML command"));
+    CHECK(mml_fails("c4 h", "track 1, at 4: 'h' is not an MML command"));
+    CHECK(mml_fails("c5", "a length is a number that divides 384"));
+    CHECK(mml_fails("c%0", "% is followed by a number of ticks"));
+    CHECK(mml_fails("c64..", "too many dots"));
+    CHECK(mml_fails("l", "a length is missing"));
+    CHECK(mml_fails("[c", "[ without its ]"));
+    CHECK(mml_fails("c]", "] without its ["));
+    CHECK(mml_fails("[c]256", "the count after ] is 1 to 255"));
+    CHECK(mml_fails("[[[[[[[[[c]]]]]]]]]", "nested more than 8 deep"));
+    CHECK(mml_fails("c L v5", "nothing after L takes any time"));
+    CHECK(mml_fails("c L d L e", "only one L"));
+    CHECK(mml_fails("[L c]", "L cannot be inside [ ]"));
+    CHECK(mml_fails("o10", "the octave is 0 to 9"));
+    CHECK(mml_fails("o9 >", "> past octave 9"));
+    CHECK(mml_fails("o0 < <", "< below octave -1"));
+    CHECK(mml_fails("o9 b", "the note is out of range"));
+    CHECK(mml_fails("k48 o9 c", "the note is out of range"));
+    CHECK(mml_fails("^4", "^ needs a note or a rest"));
+    CHECK(mml_fails("&c", "& needs a note"));
+    CHECK(mml_fails("t10", "the tempo is 20 to 600"));
+    CHECK(mml_fails("v16", "the volume is 0 to 15"));
+    CHECK(mml_fails("q9", "q is 1 to 8"));
+    CHECK(mml_fails("@32", "the instrument is 0 to 31"));
+    CHECK(mml_fails("p200", "the pan is -128 to 127"));
+    CHECK(mml_fails("k60", "the transpose is -48 to 48"));
+    CHECK(mml_fails("n128", "n's note is 0 to 127"));
+    {   /* the limit on events: half a million notes, written out */
+        char *big = malloc(500002);
+        memset(big, 'c', 500001);
+        big[500001] = 0;
+        CHECK(mml_fails(big, "the music is too long"));
+        free(big);
+        /* (repeats that change q are written out only until the passes come out the same: here about 2300 events, not 16 million) */
+        CHECK((s = mml("[[[c q1]255]255]255")) && s->track[0].count < 3000);
+        free(s);
+    }
+    CHECK(mml_fails("c L [v5]3", "nothing after L takes any time"));
+    s = mml2("c", "c ?");
+    CHECK(!s && strstr(mml_err, "track 2, at 3: '?' is not an MML command"));
+    const char *none[1] = {"c"};
+    CHECK(!snd_mml_compile(none, 0, NULL, test_alloc, NULL, mml_err, sizeof mml_err) && strstr(mml_err, "1 to 16 tracks"));
+}
+
+static uint32_t inc_of(int note) { return (uint32_t)(((uint64_t)snd_midi_hz(note) << 24) / RATE); }
+
+static void test_music(void)
+{
+    snd_t s;
+    /* two notes on voice 3: at 120 a minute a tick is 250 samples, so the second starts at 96 ticks, 24000 samples; the sequencer moves at the
+     * start of each 64-frame block */
+    fresh(&s);
+    snd_song_t *song = mml("c4 d4");
+    CHECK(snd_music_play(&s, song, 3) && !snd_music_playing(&s));
+    render(&s, 64);
+    CHECK(snd_music_playing(&s) && s.voices[3].kind == SND_PULSE && s.voices[3].inc == inc_of(60) && s.voices[3].vol == 255);
+    render(&s, 23872);   /* 23936 in all: 95 ticks */
+    CHECK(s.voices[3].inc == inc_of(60));
+    render(&s, 64);
+    CHECK(s.voices[3].inc == inc_of(62) && s.voices[3].stage != 3);
+    render(&s, 24000 + 2000);   /* its end, and the 5 ms release */
+    CHECK(s.voices[3].kind == SND_OFF && !snd_music_playing(&s));
+    free(song);
+
+    /* q: let go half way */
+    fresh(&s);
+    song = mml("q4 c4 r4");
+    snd_music_play(&s, song, 0);
+    render(&s, 11968);   /* 47 ticks */
+    CHECK(s.voices[0].kind == SND_PULSE && s.voices[0].stage != 3);
+    render(&s, 64);
+    CHECK(s.voices[0].stage == 3);
+    free(song);
+
+    /* L: round for ever */
+    fresh(&s);
+    song = mml("L c4 d4");
+    snd_music_play(&s, song, 0);
+    render(&s, 48000 + 64);
+    CHECK(s.voices[0].inc == inc_of(60) && snd_music_playing(&s));
+    render(&s, 24000);
+    CHECK(s.voices[0].inc == inc_of(62));
+    free(song);
+
+    /* loops: [c4 d4]2 e4 plays c d c d e; nested loops; a loop after L */
+    fresh(&s);
+    song = mml2("[c4 d4]2 e4", "[[c4]2 d4]2 e4");
+    snd_music_play(&s, song, 0);
+    render(&s, 64);
+    CHECK(s.voices[0].inc == inc_of(60) && s.voices[1].inc == inc_of(60));
+    static const int want0[] = {62, 60, 62, 64}, want1[] = {60, 62, 60, 60};
+    for (int k = 0; k < 4; k++) {   /* at quarter notes 1, 2, 3, 4 */
+        render(&s, 24000);
+        CHECK(s.voices[0].inc == inc_of(want0[k]) && s.voices[1].inc == inc_of(want1[k]));
+    }
+    render(&s, 24000 * 2);
+    CHECK(s.voices[1].inc == inc_of(64));   /* (track 2: c c d c c d e) */
+    free(song);
+    fresh(&s);
+    song = mml("L [c4]2 d4");
+    snd_music_play(&s, song, 0);
+    render(&s, 64 + 24000 * 3);
+    CHECK(s.voices[0].inc == inc_of(60));   /* round again: c c d c */
+    render(&s, 24000 * 2);
+    CHECK(s.voices[0].inc == inc_of(62));
+    free(song);
+    /* eight loops deep: 256 thirty-second notes (12 ticks each, 3000 samples), then d */
+    fresh(&s);
+    song = mml("[[[[[[[[c32]2]2]2]2]2]2]2]2 d");
+    CHECK(song && song->track[0].count == 18);
+    snd_music_play(&s, song, 0);
+    render(&s, 768000 - 64);
+    CHECK(s.voices[0].inc == inc_of(60));
+    render(&s, 64);
+    CHECK(s.voices[0].inc == inc_of(62));
+    free(song);
+
+    /* tempo, from any track, for all of them */
+    fresh(&s);
+    song = mml2("c4 d4", "t60 r1");
+    snd_music_play(&s, song, 0);
+    render(&s, 47936);
+    CHECK(s.voices[0].inc == inc_of(60));
+    render(&s, 64);
+    CHECK(s.voices[0].inc == inc_of(62));
+    free(song);
+
+    /* volumes: the track's, the instrument's, the music's; pan: the track's, else the instrument's; the instrument's envelope */
+    fresh(&s);
+    snd_instrument_t ins[SND_MAX_INSTRUMENTS];
+    for (int i = 0; i < SND_MAX_INSTRUMENTS; i++)
+        snd_instrument_default(&ins[i]);
+    ins[1].kind = SND_TRIANGLE;
+    ins[1].vol = 128;
+    ins[1].pan = 30;
+    ins[1].attack_ms = 10;
+    ins[1].decay_ms = 20;
+    ins[1].sustain = 100;
+    ins[1].release_ms = 40;
+    const char *tr[3] = {"v8 c4 c4", "@1 c4 p-50 c4", "@1 v15"};
+    song = snd_mml_compile(tr, 3, ins, test_alloc, NULL, mml_err, sizeof mml_err);
+    CHECK(song);
+    snd_music_play(&s, song, 5);
+    render(&s, 64);
+    CHECK(s.voices[5].vol == 136 && s.voices[5].pan == 0);
+    CHECK(s.voices[6].kind == SND_TRIANGLE && s.voices[6].vol == 128 && s.voices[6].pan == 30);
+    CHECK(s.voices[6].attack_samples == 480 && s.voices[6].decay_samples == 960 && s.voices[6].sustain == 100 * 257 && s.voices[6].release_samples == 1920);
+    snd_music_volume(&s, 128);
+    render(&s, 24000);
+    CHECK(s.voices[5].vol == 68 && s.voices[6].vol == 64 && s.voices[6].pan == -50);
+    CHECK(s.voices[7].kind == SND_OFF);   /* a track with no notes */
+    free(song);
+
+    /* a sample as the instrument: its root note plays as recorded, an octave up twice as fast */
+    fresh(&s);
+    static int8_t data[1000];
+    for (int i = 0; i < 1000; i++)
+        data[i] = (int8_t)(i % 50);
+    snd_sample_t smp = {.data = data, .length = 1000, .rate = 24000, .bits = 8};
+    for (int i = 0; i < SND_MAX_INSTRUMENTS; i++)
+        snd_instrument_default(&ins[i]);
+    ins[0].kind = SND_PCM;
+    ins[0].sample = &smp;
+    ins[0].root = 60;
+    ins[1].kind = SND_PCM;   /* no sample: silent */
+    const char *tp[3] = {"c", "> c", "@1 c"};
+    song = snd_mml_compile(tp, 3, ins, test_alloc, NULL, mml_err, sizeof mml_err);
+    snd_music_play(&s, song, 0);
+    render(&s, 64);
+    CHECK(s.voices[0].kind == SND_PCM && s.voices[0].inc_int == 0 && s.voices[0].inc_frac == 32768);
+    CHECK(s.voices[1].kind == SND_PCM && s.voices[1].inc_int == 1 && s.voices[1].inc_frac == 0);
+    CHECK(s.voices[2].kind == SND_OFF);
+    free(song);
+
+    /* a slur: the second note keeps the first one's envelope (no new attack), only the pitch moves */
+    fresh(&s);
+    for (int i = 0; i < SND_MAX_INSTRUMENTS; i++)
+        snd_instrument_default(&ins[i]);
+    ins[0].attack_ms = 100;
+    const char *ts[2] = {"c4&d4", "c4 d4"};
+    song = snd_mml_compile(ts, 2, ins, test_alloc, NULL, mml_err, sizeof mml_err);
+    snd_music_play(&s, song, 0);
+    render(&s, 23936 + 64);
+    CHECK(s.voices[0].inc == inc_of(62) && s.voices[1].inc == inc_of(62));
+    CHECK(s.voices[0].env > 60000 && s.voices[1].env < 5000);   /* the second track's d attacks again */
+    free(song);
+
+    /* stopping, and a new song in place of one: the old one's voices fall silent */
+    fresh(&s);
+    snd_song_t *a = mml2("L c1", "L e1"), *b = mml("L g1");
+    snd_music_play(&s, a, 0);
+    render(&s, 64);
+    CHECK(s.voices[0].kind == SND_PULSE && s.voices[1].kind == SND_PULSE);
+    snd_music_play(&s, b, 0);
+    render(&s, 64);
+    CHECK(s.voices[0].inc == inc_of(67) && s.voices[1].kind == SND_OFF && snd_music_playing(&s));
+    snd_music_stop(&s);
+    const uint32_t mark = snd_mark(&s);
+    render(&s, 64);
+    CHECK(snd_reached(&s, mark) && s.voices[0].kind == SND_OFF && !snd_music_playing(&s) && !s.song);
+    /* tracks past the last voice are left out */
+    snd_music_play(&s, a, 15);
+    render(&s, 64);
+    CHECK(s.voices[15].kind == SND_PULSE && snd_music_playing(&s));
+    CHECK(!snd_music_play(&s, a, 16) && !snd_music_play(&s, NULL, 0));
+    free(a);
+    free(b);
+}
+
 /* One thread plays the game, another the audio device; the queue must hold up. */
 static snd_t shared;
 static int producer_done;
@@ -591,6 +943,8 @@ int main(void)
     test_silence();
     test_queue_and_misc();
     test_progress();
+    test_mml();
+    test_music();
     test_threads();
     printf("all %d checks passed\n", checks);
     return 0;
