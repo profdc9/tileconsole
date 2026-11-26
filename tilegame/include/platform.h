@@ -36,7 +36,9 @@ void plat_shutdown(void);
 
 /*
  * Wait for the next frame boundary, then sample the inputs for the frame that is about to be computed. Returns the
- * frame number (counting from 1). On the desktop this is also where window events are handled.
+ * frame number, in display frames (60 a second) counting from 1: if the program took longer than a frame since the last call,
+ * it has gone up by the frames that went by, so a program can move things by that many frames' worth and keep its speed.
+ * On the desktop this is also where window events are handled.
  */
 uint32_t plat_wait_frame(void);
 
@@ -56,6 +58,13 @@ void plat_present(const tg_t *g);
 
 /* True once the user has closed the window. Always false on the board. */
 bool plat_quit_requested(void);
+
+/*
+ * For a program that computes for a while without waiting for frames: keeps the machine going as plat_wait_frame would, without waiting.
+ * On the desktop it handles the window's events (so typed keys and Ctrl+C arrive); on the board it runs the USB host and tells the hang
+ * monitor that the program is alive (without either, the board resets two seconds into a long computation). Cheap: call it every 10-20 ms.
+ */
+void plat_poll(void);
 
 /* ---- time ---- */
 

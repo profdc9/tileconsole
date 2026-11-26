@@ -72,11 +72,11 @@ static void *driver(void *arg)
 {
     (void)arg;
     sleep(2);
-    CHECK(on_screen("TILEGAME BASIC"));
-    type("EDIT t.bas\n");
+    CHECK(on_screen("TILEGAME LUA"));
+    type("EDIT t.lua\n");
     sleep(2);
-    CHECK(on_screen("t.bas"));
-    type("print 42;");
+    CHECK(on_screen("t.lua"));
+    type("print '42'");   /* (no shifted keys: the test types without Shift) */
     press(SDLK_F2);
     sleep(1);
     press(SDLK_F3);
@@ -84,17 +84,17 @@ static void *driver(void *arg)
     CHECK(on_screen("] "));
     type("RUN\n");
     sleep(2);
-    CHECK(on_screen("42"));
+    CHECK(on_screen("42") && on_screen("Ready.") && !on_screen("Error"));
     char buf[100] = "";
-    const int fd = fs_open("/sd/t.bas", FS_RDONLY);
+    const int fd = fs_open("/sd/t.lua", FS_RDONLY);
     CHECK(fd >= 0);
     if (fd >= 0) {
-        buf[fs_read(fd, buf, sizeof buf - 1) > 0 ? 9 : 0] = 0;
+        buf[fs_read(fd, buf, sizeof buf - 1) > 0 ? 10 : 0] = 0;
         fs_close(fd);
     }
-    type("EDIT t.bas\n");                 /* the editor again in the same process */
+    type("EDIT t.lua\n");                 /* the editor again in the same process */
     sleep(2);
-    CHECK(on_screen("t.bas") && on_screen("print 42;"));
+    CHECK(on_screen("t.lua") && on_screen("print '42'"));
     press(SDLK_F3);
     sleep(2);
     CHECK(on_screen("] "));

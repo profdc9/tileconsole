@@ -8,7 +8,7 @@ The development board for the project is the [Emu2350](https://github.com/profdc
 
 ## The development kit
 
-The development kit (`tilegame/demo/devkit.c`) is BASIC ([MY-BASIC](https://github.com/paladin-t/my_basic), unmodified) and the TDE editor in one program: type BASIC at the prompt, `EDIT` a program in TDE, come back and `RUN` it. Programs are free-form text files on the SD card.
+The development kit (`tilegame/demo/devkit.c`) is Lua ([Lua 5.4](https://www.lua.org), with 32-bit numbers; `tilegame/lua`) and the TDE editor in one program: type Lua at the prompt, `EDIT` a program in TDE, come back and `RUN` it. Programs are text files on the SD card. (Until November 2026 it was BASIC, MY-BASIC; Lua was measured at 150 to 400 times faster on the board.)
 
 ## Projects
 
@@ -19,7 +19,7 @@ Six projects, each with its own history, in one repository (they sit next to eac
 | `tilegfx/` | the graphics compositor: tile layers, sprites, 80 x 25 text mode with the PC character set, a console |
 | `tilesnd/` | the sound engine |
 | `tilefs/` | a POSIX-flavoured file layer: RAM disk, host folder, FatFs on an SD card (SPI) |
-| `tilegame/` | the platform layer (SDL and the board), demos, a platformer, the TDE port, the BASIC environment and the development kit |
+| `tilegame/` | the platform layer (SDL and the board), demos, a platformer, the TDE port, the Lua environment and the development kit |
 | `hstx-free/` | a 640 x 480 HDMI test pattern for the HSTX on top of upstream pico_hdmi (a copy of it is in `pico_hdmi/`) |
 | `tilegfx-board/` | the compositor on the RP2350 driving HDMI |
 

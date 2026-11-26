@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: MIT */
 /*
- * The development kit on the board: the BASIC environment (MY-BASIC) and the editor (TDE) in one program, on the files of the SD card (/sd; a RAM disk if there is
- * no usable card). EDIT at the BASIC prompt runs TDE on the file; leaving TDE comes back to BASIC with the program loaded again. A USB keyboard is needed.
+ * The development kit on the board: the Lua environment (lua/tl_env.c, Lua 5.4) and the editor (TDE) in one program, on the files of the SD card (/sd; a RAM disk if there is
+ * no usable card). EDIT at the Lua prompt runs TDE on the file; leaving TDE comes back to Lua with the program loaded again. A USB keyboard is needed.
  *
  * Both want more stack than the 4 KB core 0 has (TDE keeps path-sized buffers in its functions), so everything runs on a stack of its own in ordinary RAM.
  *
@@ -14,8 +14,9 @@
 #ifdef DEVKIT_BOARD
 #include "psram.h"
 #include "pool.h"
+
 #include "tdealloc.h"
-#include "my_basic.h"
+#include "pico/time.h"
 #if PLAT_USB_HID
 #include "usblog_board.h"
 #ifdef TUSB_LOG
@@ -26,12 +27,12 @@
 #include <unistd.h>
 #endif
 
-#include "basic_env.h"
 #include "platform.h"
 #include "tde_os.h"
 #include "tg_text.h"
 #include "tilefs.h"
 #include "tilegfx.h"
+#include "tl_env.h"
 
 #ifdef DEVKIT_BOARD
 #include "embedded.h"
@@ -40,6 +41,7 @@
 #define SD_HZ 12500000u
 #define STACK_BYTES (48 * 1024)
 #else
+#include <SDL.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 FILE *__real_fopen(const char *name, const char *mode);
@@ -49,10 +51,10 @@ int __real_mkdir(const char *path, mode_t mode);   /* the C library's own (the e
 static tg_text_t screen;
 static tg_t g;
 #ifdef DEVKIT_BOARD
-static basic_env_t *env_p;   /* (in the PSRAM, with the interpreter's memory) */
+static tl_env_t *env_p;   /* (in the PSRAM: it holds the program text) */
 #define env (*env_p)
 #else
-static basic_env_t env;
+static tl_env_t env;
 #endif
 #ifdef DEVKIT_BOARD
 static fs_fat_t fat;
@@ -61,7 +63,7 @@ static fs_ram_t ram;
 static bool psram_ok;
 static uint8_t *ram_disk;
 static size_t ram_disk_bytes;
-static pool_t *pool;   /* the interpreter's and the editor's memory (the editor needs about 1 MB, and only while it runs) */
+static pool_t *pool;   /* Lua's memory beyond its share of SRAM, and the editor's (it needs about 1 MB, and only while it runs) */
 static sd_spi_pico_t port;
 static sd_spi_t sd;
 static uint8_t stack[STACK_BYTES] __attribute__((aligned(8)));
@@ -74,6 +76,7 @@ void plat_sdl_window_scale(int scale);   /* sdl/plat_sdl.c */
 #ifdef DEVKIT_BOARD
 #include "hardware/structs/watchdog.h"
 #include "hardware/watchdog.h"
+#include "pico/time.h"
 
 /* What the previous run left in the watchdog scratch registers (they survive the reset): a hard fault (where) or the crumb of how far the editor got (a hang is
  * caught by the platform layer's monitor, which resets the board). Scratch 0 to 3 are the hang monitor's and the fault's, 5 is the crumb. */
@@ -83,6 +86,20 @@ void plat_sdl_window_scale(int scale);   /* sdl/plat_sdl.c */
 void tde_crumb(unsigned id)
 {
     watchdog_hw->scratch[5] = CRUMB_MAGIC | id;
+}
+
+#define KICKSTART_UI_MAGIC 0x17F00FFFu   /* frank-kickstart's "show the launcher" request */
+
+/* The watchdog scratch registers as this run found them, copied before anything can clear or use them (SCRATCH shows them);
+ * a firmware that ran before this one can leave a note there, and they survive a reset but not a power cycle. */
+static uint32_t scratch_at_start[8];
+static uint32_t watchdog_reason_at_start, watchdog_ctrl_at_start;   /* why the chip last reset, and whether the watchdog was armed */
+static void __attribute__((constructor(101))) save_scratch_at_start(void)
+{
+    for (int i = 0; i < 8; i++)
+        scratch_at_start[i] = watchdog_hw->scratch[i];
+    watchdog_reason_at_start = watchdog_hw->reason;
+    watchdog_ctrl_at_start = watchdog_hw->ctrl;
 }
 
 void devkit_fault(uint32_t *frame)
@@ -335,7 +352,7 @@ void tde_crumb(unsigned id) { (void)id; }
 static void run_editor(const char *name)
 {
     static char program[] = "/sd/tde/tde";
-    static char file[BASIC_NAME_MAX + 5];
+    static char file[TL_NAME_MAX + 5];
     char *args[3] = {program, NULL, NULL};
     int n = 1;
     snprintf(file, sizeof file, "%s", name);
@@ -358,11 +375,66 @@ static void *tde_get(size_t n) { return pool_malloc(pool, n); }
 static void *tde_resize(void *p, size_t n) { return pool_realloc(pool, p, n); }
 static void tde_put(void *p) { pool_free(pool, p); }
 static long tde_avail(void) { return (long)pool_free_bytes(pool); }
-static char *basic_get(unsigned n) { return pool_malloc(pool, n); }
-static void basic_put(char *p) { pool_free(pool, p); }
+
+static int in_psram(const void *p)
+{
+    const uintptr_t b = (uintptr_t)p;
+    return pool && b >= (uintptr_t)PSRAM_BASE && b < (uintptr_t)PSRAM_BASE + psram_size();
+}
+
+/* Lua's memory: small blocks in SRAM while its share lasts (the PSRAM is reached through the same 16 KB cache as the code in flash, and Lua is about twice
+ * as fast with its tables, strings and stack in SRAM), the rest in the PSRAM pool. A block that grows past LUA_SMALL, or a realloc when the share is used
+ * up, moves to the PSRAM; one that shrinks may move back. The SRAM share leaves room for the game's graphics, which must be in SRAM. */
+#define LUA_SRAM_SHARE (64 * 1024)
+#define LUA_SMALL 512
+static size_t lua_sram;   /* what Lua has in SRAM */
+
+static void *lua_alloc(void *ud, void *ptr, size_t osize, size_t nsize)
+{
+    (void)ud;
+    if (!pool) {   /* no PSRAM: all of it in the heap */
+        if (nsize == 0) {
+            free(ptr);
+            return NULL;
+        }
+        return realloc(ptr, nsize);
+    }
+    if (!ptr)
+        osize = 0;   /* (for a new block Lua passes the kind of object there) */
+    const int was_ps = ptr && in_psram(ptr);
+    if (nsize == 0) {
+        if (was_ps)
+            pool_free(pool, ptr);
+        else if (ptr) {
+            free(ptr);
+            lua_sram -= osize;
+        }
+        return NULL;
+    }
+    const size_t keep = osize < nsize ? osize : nsize;
+    const size_t sram_after = lua_sram - (ptr && !was_ps ? osize : 0) + nsize;
+    if (nsize <= LUA_SMALL && sram_after <= LUA_SRAM_SHARE) {
+        void *q = ptr && !was_ps ? realloc(ptr, nsize) : malloc(nsize);
+        if (q) {
+            if (was_ps) {
+                memcpy(q, ptr, keep);
+                pool_free(pool, ptr);
+            }
+            lua_sram = sram_after;
+            return q;
+        }
+    }
+    void *q = was_ps ? pool_realloc(pool, ptr, nsize) : pool_malloc(pool, nsize);
+    if (q && ptr && !was_ps) {
+        memcpy(q, ptr, keep);
+        free(ptr);
+        lua_sram -= osize;
+    }
+    return q;   /* (NULL: the old block is as it was, as Lua wants) */
+}
 
 /* The PSRAM, after the self-test has used it: a quarter is the RAM disk (when there is no card), the rest is one pool for the
- * interpreter (its programs and the BASIC environment) and the editor. Without PSRAM, everything stays in the C library's heap. */
+ * the Lua environment (its program text, and Lua's memory beyond its SRAM share) and the editor. Without PSRAM, everything stays in the C library's heap. */
 static void setup_memory(void)
 {
     static const tde_allocator_t from_pool = {tde_get, tde_resize, tde_put, tde_avail};
@@ -374,7 +446,6 @@ static void setup_memory(void)
         ram_disk_bytes = quarter;
         pool = pool_create(base + quarter, size - quarter);
         if (pool) {
-            mb_set_memory_manager(basic_get, basic_put);
             tde_state_set_allocator(&from_pool);
         }
     }
@@ -396,9 +467,22 @@ static size_t stack_peak(void)
 
 extern char __HeapLimit;
 
-/* STACK and HEAP at the BASIC prompt */
+/* STACK and HEAP at the Lua prompt */
 static int board_info(const char *what, char *out, size_t size)
 {
+    if (!strcmp(what, "scratchmark")) {   /* a test pattern for the next run to find (does the launcher keep them?) */
+        for (int i = 1; i < 8; i++)
+            watchdog_hw->scratch[i] = 0xC0DE0000u | (unsigned)i;
+        snprintf(out, size, "scratch 1-7 set to C0DE0001..C0DE0007; BYE, relaunch, SCRATCH");
+        return 1;
+    }
+    if (!strcmp(what, "scratch")) {
+        snprintf(out, size, "scratch at start: %08lX %08lX %08lX %08lX %08lX %08lX %08lX %08lX  wdog reason %lX ctrl %08lX", (unsigned long)scratch_at_start[0],
+                 (unsigned long)scratch_at_start[1], (unsigned long)scratch_at_start[2], (unsigned long)scratch_at_start[3], (unsigned long)scratch_at_start[4],
+                 (unsigned long)scratch_at_start[5], (unsigned long)scratch_at_start[6], (unsigned long)scratch_at_start[7], (unsigned long)watchdog_reason_at_start,
+                 (unsigned long)watchdog_ctrl_at_start);
+        return 1;
+    }
     if (!strcmp(what, "stack")) {
 #ifdef USBLOG_TEST_PANIC
         panic("usblog test %d\n", 42);   /* (a test build: the USB log must survive this and be saved at the next start) */
@@ -434,7 +518,8 @@ static int board_info(const char *what, char *out, size_t size)
         const struct mallinfo mi = mallinfo();
         const long system = (long)mi.fordblks + (long)(&__HeapLimit - (char *)sbrk(0));
         if (pool)
-            snprintf(out, size, "heap: %ld bytes free in the PSRAM pool, %ld in the system heap", (long)pool_free_bytes(pool), system);
+            snprintf(out, size, "heap: %ld bytes free in the PSRAM pool, %ld in the system heap; Lua has %lu of its %u in SRAM", (long)pool_free_bytes(pool), system,
+                     (unsigned long)lua_sram, (unsigned)LUA_SRAM_SHARE);
         else
             snprintf(out, size, "heap: %ld bytes free in the system heap", system);
         return 1;
@@ -444,12 +529,44 @@ static int board_info(const char *what, char *out, size_t size)
 
 #endif
 
+/* Every 16 ms a running Lua program is made to look at the keys (Ctrl+C) and, with the game's picture up, to keep the machine going: on the board
+ * from a timer interrupt, on the desktop from SDL's timer thread. */
+#ifdef DEVKIT_BOARD
+static repeating_timer_t tick_timer;
+static bool lua_tick(repeating_timer_t *t)
+{
+    (void)t;
+    tl_env_tick();
+    return true;
+}
+
+static int start_ticks(void)
+{
+    return add_repeating_timer_ms(16, lua_tick, NULL, &tick_timer);
+}
+#else
+static Uint32 lua_tick(Uint32 interval, void *param)
+{
+    (void)param;
+    tl_env_tick();
+    return interval;
+}
+
+static int start_ticks(void)
+{
+    return SDL_InitSubSystem(SDL_INIT_TIMER) == 0 && SDL_AddTimer(16, lua_tick, NULL) != 0;
+}
+#endif
+
 static void devkit(void)
 {
-    #ifdef DEVKIT_BOARD
-    static const basic_hooks_t hooks = {get_char, frame, plat_millis, board_info, plat_wait_frame, plat_present, buttons, game_alloc, game_release, plat_activity_hook};
+#ifdef DEVKIT_BOARD
+    tl_hooks_t hooks = {.getchar = get_char, .frame = frame, .millis = plat_millis, .info = board_info, .wait_frame = plat_wait_frame,
+                        .present = plat_present, .buttons = buttons, .alloc = game_alloc, .release = game_release,
+                        .activity = plat_activity_hook, .poll = plat_poll, .lua_alloc = lua_alloc};
 #else
-    static const basic_hooks_t hooks = {get_char, frame, plat_millis, NULL, plat_wait_frame, plat_present, buttons, NULL, NULL, NULL};
+    tl_hooks_t hooks = {.getchar = get_char, .frame = frame, .millis = plat_millis, .wait_frame = plat_wait_frame, .present = plat_present,
+                        .buttons = buttons, .poll = plat_poll};
 #endif
 #ifdef DEVKIT_BOARD
     static char note_copy[200];
@@ -491,7 +608,8 @@ static void devkit(void)
 #if PLAT_USB_HID && USBLOG && defined(DEVKIT_BOARD)
     const char *usb_note = save_usblog();
 #endif
-    basic_env_init(&env, &screen, &hooks);
+    hooks.async_ticks = start_ticks();
+    tl_env_init(&env, &screen, &hooks);
 #if PLAT_USB_HID && USBLOG && defined(DEVKIT_BOARD)
     if (usb_note)
         tg_console_puts(&env.con, usb_note);
@@ -506,19 +624,21 @@ static void devkit(void)
     tg_console_puts(&env.con, psram_note);
 #endif
     for (;;) {
-        const int r = basic_env_run(&env);
-        if (r == BASIC_EXIT_EDIT) {
+        const int r = tl_env_run(&env);
+        if (r == TL_EXIT_EDIT) {
             run_editor(env.edit_name);
-            if (basic_env_load(&env, env.edit_name) < 0)
+            if (tl_env_load(&env, env.edit_name) < 0)
                 env.length = 0;
             tg_console_puts(&env.con, "\n");
         } else {
 #ifdef DEVKIT_BOARD
-            char stack_line[100];
-            board_info("stack", stack_line, sizeof stack_line);
-            tg_console_puts(&env.con, stack_line);
-            tg_console_puts(&env.con, "\n");
-            tg_console_puts(&env.con, "Nothing to leave to: this is the whole machine. EDIT starts the editor.\n");
+            /* FRANK Kickstart: its UI magic in scratch[0] makes its boot redirect show the launcher instead of
+             * starting this firmware again. Flashed without Kickstart this is simply a restart. */
+            tg_console_puts(&env.con, "Back to the launcher...\n");
+            sleep_ms(300);
+            watchdog_hw->scratch[0] = KICKSTART_UI_MAGIC;
+            watchdog_reboot(0, 0, 0);
+            for (;;) {}
 #else
             break;
 #endif
@@ -550,7 +670,7 @@ int main(int argc, char **argv)
         }
     }
     devkit();
-    basic_env_close(&env);
+    tl_env_close(&env);
     plat_shutdown();
     return 0;
 #endif

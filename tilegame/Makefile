@@ -6,7 +6,7 @@ CFLAGS ?= -std=c11 -Wall -Wextra -O2
 INC = -Iinclude -Isdl -I$(TILEGFX) -I$(TILESND)
 SDL = $(shell pkg-config --cflags --libs sdl2)
 
-all: devkit tgbasic test_basic editsd test_editsd sdtest test_sdtest game_demo padtest platformer textdemo consdemo editdemo test_editdemo test_consdemo test_consoleio test_platform_sdl test_hid_kbd test_keymap test_hid_pad test_game test_view
+all: devkit tglua test_lua editsd test_editsd sdtest test_sdtest game_demo padtest platformer textdemo consdemo editdemo test_editdemo test_consdemo test_consoleio test_platform_sdl test_hid_kbd test_keymap test_hid_pad test_game test_view
 
 test_platform_sdl: tests/test_platform_sdl.c sdl/plat_sdl.c src/mouse_acc.c sdl/plat_sdl.h include/platform.h $(TILEGFX)/tilegfx.c $(TILEGFX)/tg_text.c
 	$(CC) $(CFLAGS) -g -fsanitize=address,undefined $(INC) tests/test_platform_sdl.c sdl/plat_sdl.c src/mouse_acc.c $(TILEGFX)/tilegfx.c $(TILEGFX)/tg_text.c -o $@ $(SDL) -lm
@@ -101,7 +101,7 @@ test_view: tests/test_view.c $(GAMESRC) game/game.h game/level.h game/view.h $(T
 test_hid_pad: tests/test_hid_pad.c src/hid_pad.c src/hid_mouse.c src/mouse_acc.c src/xinput.c include/mouse_acc.h include/xinput.h include/hid_pad.h include/hid_mouse.h include/platform.h
 	$(CC) $(CFLAGS) -g -fsanitize=address,undefined $(INC) tests/test_hid_pad.c src/hid_pad.c src/hid_mouse.c src/mouse_acc.c src/xinput.c -o $@
 
-check: test_usblog test_pool test_devkit test_basic test_tde test_tde_san test_editsd test_sdtest test_platform_sdl test_hid_kbd test_keymap test_consdemo test_consoleio test_editor test_editdemo test_hid_pad test_game test_view
+check: test_usblog test_pool test_devkit test_lua test_tde test_tde_san test_editsd test_sdtest test_platform_sdl test_hid_kbd test_keymap test_consdemo test_consoleio test_editor test_editdemo test_hid_pad test_game test_view
 	./test_usblog
 	./test_pool
 	./test_platform_sdl
@@ -109,7 +109,7 @@ check: test_usblog test_pool test_devkit test_basic test_tde test_tde_san test_e
 	./test_keymap
 	./test_sdtest
 	./test_editsd
-	./test_basic
+	./test_lua
 	SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy ./test_devkit
 	./test_tde
 	ASAN_OPTIONS=detect_leaks=0 ./test_tde_san
@@ -186,25 +186,18 @@ build/tder/%.o: tde/os/%.c
 tde_ed: $(TDERELOBJ) $(TDEPLAT) include/platform.h
 	$(CC) $(CFLAGS) -w -U_FORTIFY_SOURCE $(INC) $(SDINC) -Itde/os $(TDERELOBJ) $(TDEPLAT) $(TDE_WRAP) -o $@ $(SDL) -lm
 
-# The development kit on the desktop: BASIC and the editor in one program (EDIT runs the editor in the same process).
-DEVKITBASIC = basic/basic_env.c basic/basic_game.c basic/basic_file.c basic/basic_lib.c basic/my_basic/my_basic.c $(TILEGFX)/tg_console.c $(TILEGFX)/tg_world.c $(TILEGFX)/tg_actor.c
-devkit: demo/devkit.c $(TDERELOBJ) $(DEVKITBASIC) $(TDEPLAT) include/platform.h build/devkit_basic.o
-	$(CC) $(CFLAGS) -w -U_FORTIFY_SOURCE $(INC) $(SDINC) -Itde/os -Ibasic demo/devkit.c $(TDERELOBJ) build/devkit_basic.o $(filter-out tde/tdeapp.c,$(TDEPLAT)) $(TDE_WRAP) -o $@ $(SDL) -lm
+# The development kit on the desktop: Lua and the editor in one program (EDIT runs the editor in the same process).
+DEVKITLUA = lua/tl_env.c lua/tl_game.c lua/tl_io.c $(LUACORE) $(TILEGFX)/tg_console.c $(TILEGFX)/tg_world.c $(TILEGFX)/tg_actor.c
+devkit: demo/devkit.c $(TDERELOBJ) $(DEVKITLUA) $(TDEPLAT) include/platform.h build/devkit_lua.o
+	$(CC) $(CFLAGS) -w -U_FORTIFY_SOURCE $(INC) $(SDINC) -Itde/os -Ilua -I$(LUADIR) demo/devkit.c $(TDERELOBJ) build/devkit_lua.o $(filter-out tde/tdeapp.c,$(TDEPLAT)) $(TDE_WRAP) -o $@ $(SDL) -lm
 
-test_devkit: tests/test_devkit.c demo/devkit.c $(TDERELOBJ) $(DEVKITBASIC) $(TDEPLAT) include/platform.h build/devkit_basic.o
-	$(CC) $(CFLAGS) -w -U_FORTIFY_SOURCE $(INC) $(SDINC) -Itde/os -Ibasic tests/test_devkit.c $(TDERELOBJ) build/devkit_basic.o $(filter-out tde/tdeapp.c,$(TDEPLAT)) $(TDE_WRAP) -o $@ $(SDL) -lm -lpthread
+test_devkit: tests/test_devkit.c demo/devkit.c $(TDERELOBJ) $(DEVKITLUA) $(TDEPLAT) include/platform.h build/devkit_lua.o
+	$(CC) $(CFLAGS) -w -U_FORTIFY_SOURCE $(INC) $(SDINC) -Itde/os -Ilua -I$(LUADIR) tests/test_devkit.c $(TDERELOBJ) build/devkit_lua.o $(filter-out tde/tdeapp.c,$(TDEPLAT)) $(TDE_WRAP) -o $@ $(SDL) -lm -lpthread
 
-build/devkit_basic.o: $(DEVKITBASIC)
-	@mkdir -p build
-	$(CC) -c $(BASICFLAGS) -O2 $(INC) $(SDINC) -Ibasic basic/basic_env.c -o build/devkit_basic_env.o
-	$(CC) -c $(BASICFLAGS) -O2 $(INC) $(SDINC) -Ibasic basic/my_basic/my_basic.c -o build/devkit_my_basic.o
-	$(CC) -c $(BASICFLAGS) -O2 $(INC) $(SDINC) $(TILEGFX)/tg_console.c -o build/devkit_tg_console.o
-	$(CC) -c $(BASICFLAGS) -O2 $(INC) $(SDINC) -Ibasic basic/basic_game.c -o build/devkit_basic_game.o
-	$(CC) -c $(BASICFLAGS) -O2 $(INC) $(SDINC) -Ibasic basic/basic_file.c -o build/devkit_basic_file.o
-	$(CC) -c $(BASICFLAGS) -O2 $(INC) $(SDINC) -Ibasic basic/basic_lib.c -o build/devkit_basic_lib.o
-	$(CC) -c $(BASICFLAGS) -O2 $(INC) $(SDINC) $(TILEGFX)/tg_world.c -o build/devkit_tg_world.o
-	$(CC) -c $(BASICFLAGS) -O2 $(INC) $(SDINC) $(TILEGFX)/tg_actor.c -o build/devkit_tg_actor.o
-	ld -r build/devkit_basic_env.o build/devkit_basic_game.o build/devkit_basic_file.o build/devkit_basic_lib.o build/devkit_my_basic.o build/devkit_tg_console.o build/devkit_tg_world.o build/devkit_tg_actor.o -o $@
+build/devkit_lua.o: $(DEVKITLUA) lua/tl_env.h lua/tl_game.h lua/tl_io.h
+	@mkdir -p build/devkit_lua
+	for f in $(DEVKITLUA); do $(CC) -c $(LUAFLAGS) -O2 $(INC) $(SDINC) $$f -o build/devkit_lua/$$(basename $$f .c).o || exit 1; done
+	ld -r build/devkit_lua/*.o -o $@
 
 TDETESTSRC = tests/test_tde.c tests/test_tde_console.c src/keymap.c $(TILEGFX)/tg_text.c $(TILEGFX)/tg_text_cp437.c $(TILEGFX)/tg_font.c $(TILEGFX)/fonts/unscii16.c $(TILEGFX)/tilegfx.c $(TDEFSSRC) build/tde/fs_posix.o
 
@@ -235,21 +228,23 @@ test_tde_san: $(TDESANOBJ) tests/test_tde.c $(filter-out tests/test_tde.c tests/
 check-san: test_tde_san
 	ASAN_OPTIONS=detect_leaks=0 ./test_tde_san
 
-# The BASIC environment: MY-BASIC (basic/my_basic, MIT, unmodified) behind a command prompt on the text screen, programs as text files on tilefs.
-# MY-BASIC puts a size tag in front of every block it allocates; its type is a setting (mb_mem_tag_t), and the default 16 bits would leave every block
-# misaligned, which is undefined and on the board's CPU can fault: a word, as large as a pointer, keeps them aligned.
-# (MY-BASIC's own default is the compact mode, which packs its structures: members at odd addresses, which GCC handles; the alignment check of the sanitizer is off for that.)
-BASICFLAGS = -std=gnu11 -Wall -Wno-unused-function -Wno-unused-result -Wno-address-of-packed-member -Dmb_mem_tag_t=size_t
-BASICSRC = basic/basic_env.c basic/basic_game.c basic/basic_file.c basic/basic_lib.c basic/my_basic/my_basic.c $(TILEGFX)/tg_world.c $(TILEGFX)/tg_actor.c $(TILEGFX)/tg_console.c $(TILEGFX)/tg_text.c $(TILEGFX)/tg_text_cp437.c $(TILEGFX)/tg_font.c $(TILEGFX)/fonts/unscii16.c $(TILEFSSRC)
+# The Lua environment: Lua 5.4.9 (third_party/lua, MIT, 32-bit numbers; see its README-tilegame.md) behind a command prompt on the text screen,
+# programs as text files on tilefs.
+LUADIR = third_party/lua
+LUACORE = $(addprefix $(LUADIR)/,lapi.c lcode.c lctype.c ldebug.c ldo.c ldump.c lfunc.c lgc.c llex.c lmem.c lobject.c lopcodes.c lparser.c lstate.c \
+          lstring.c ltable.c ltm.c lundump.c lvm.c lzio.c lauxlib.c lbaselib.c lcorolib.c lmathlib.c lstrlib.c ltablib.c lutf8lib.c)
+LUAFLAGS = -std=gnu11 -Wall -Wextra -I$(LUADIR) -Ilua
+LUASRC = lua/tl_env.c lua/tl_game.c lua/tl_io.c $(LUACORE) $(TILEGFX)/tg_world.c $(TILEGFX)/tg_actor.c $(TILEGFX)/tg_console.c $(TILEGFX)/tg_text.c \
+         $(TILEGFX)/tg_text_cp437.c $(TILEGFX)/tg_font.c $(TILEGFX)/fonts/unscii16.c $(TILEFSSRC)
 
-tgbasic: basic/basic.c $(BASICSRC) sdl/plat_sdl.c src/mouse_acc.c include/platform.h $(TILEGFX)/tilegfx.c
-	$(CC) $(BASICFLAGS) -O2 $(INC) $(SDINC) -Ibasic basic/basic.c $(BASICSRC) sdl/plat_sdl.c src/mouse_acc.c $(TILEGFX)/tilegfx.c -o $@ $(SDL) -lm
+tglua: lua/tl_main.c $(LUASRC) lua/tl_env.h lua/tl_game.h lua/tl_io.h sdl/plat_sdl.c src/mouse_acc.c include/platform.h $(TILEGFX)/tilegfx.c
+	$(CC) $(LUAFLAGS) -O2 $(INC) $(SDINC) lua/tl_main.c $(LUASRC) sdl/plat_sdl.c src/mouse_acc.c $(TILEGFX)/tilegfx.c -o $@ $(SDL) -lm
+
+test_lua: tests/test_lua.c $(LUASRC) lua/tl_env.h lua/tl_game.h lua/tl_io.h $(TILEGFX)/tilegfx.c
+	$(CC) $(LUAFLAGS) -O1 -g -fsanitize=address,undefined $(INC) $(SDINC) tests/test_lua.c $(LUASRC) $(TILEGFX)/tilegfx.c -o $@ -lm -lpthread
 
 test_usblog: tests/test_usblog.c src/usblog.c src/usblog.h
 	$(CC) -std=c11 -Wall -Wextra -O1 -g -fsanitize=address,undefined -Isrc tests/test_usblog.c src/usblog.c -o $@
 
 test_pool: tests/test_pool.c src/pool.c src/pool.h third_party/dlmalloc/malloc.c
 	$(CC) -std=c11 -Wall -Wextra -O1 -g -fsanitize=address,undefined -Isrc tests/test_pool.c src/pool.c -o $@
-
-test_basic: tests/test_basic.c $(BASICSRC) basic/basic_env.h $(TILEGFX)/tilegfx.c
-	$(CC) $(BASICFLAGS) -O1 -g -fsanitize=address,undefined -fno-sanitize=alignment $(INC) $(SDINC) -Ibasic tests/test_basic.c $(BASICSRC) $(TILEGFX)/tilegfx.c -o $@ -lm

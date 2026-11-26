@@ -139,7 +139,8 @@ static volatile int32_t rendered;     /* source lines finished this frame */
 static volatile uint32_t underruns, lines_done, render_us_total, render_us_max;
 static volatile uint32_t audio_calls, audio_us_total, audio_us_max;   /* time spent in the game's audio callback */
 
-static uint32_t frame_no, seen_gen;
+static uint32_t frame_no, seen_gen;   /* display frames (what plat_wait_frame returns), and the vsync count it last saw */
+static uint32_t presented;            /* calls of plat_wait_frame: the frames the game made (for the frame rate shown) */
 static plat_buttons_t held[PLAT_MAX_PLAYERS], pressed[PLAT_MAX_PLAYERS], released[PLAT_MAX_PLAYERS];
 static plat_mouse_t mouse_frame;
 
@@ -582,6 +583,7 @@ uint32_t plat_wait_frame(void)
     video_diag_phase[0] = 4;
     usb_hid_task();   /* the USB host stack needs to run often; a late frame must not starve it */
 #endif
+    const uint32_t before = seen_gen;
     while (frame_gen == seen_gen) {
         core0_beat++;
 #if PLAT_USB_HID
@@ -592,6 +594,8 @@ uint32_t plat_wait_frame(void)
         tight_loop_contents();
     }
     seen_gen = frame_gen;
+    frame_no += seen_gen - before;   /* (more than 1 when the game missed frames) */
+    presented++;
 
     video_diag_phase[0] = 5;
     const plat_buttons_t nes = nes_read();
@@ -615,7 +619,7 @@ uint32_t plat_wait_frame(void)
     if (now_us - last_us >= 1000000) {
         const uint32_t lines = lines_done, total = render_us_total, dl = lines - last_lines;
         printf("%lu fps  render %lu us/line (%lu max)  underruns %lu  audio queue %lu, silence packets %lu  audio %lu us per %d frames (%lu max)\n",
-               (unsigned long)(frame_no - last_frame), (unsigned long)(dl ? (total - last_total) / dl : 0),
+               (unsigned long)(presented - last_frame), (unsigned long)(dl ? (total - last_total) / dl : 0),
                (unsigned long)render_us_max, (unsigned long)underruns, (unsigned long)hstx_di_queue_get_level(),
                (unsigned long)hstx_di_queue_silence_count, (unsigned long)(audio_calls ? audio_us_total / audio_calls : 0), AUDIO_CHUNK,
                (unsigned long)audio_us_max);
@@ -623,14 +627,22 @@ uint32_t plat_wait_frame(void)
         last_us = now_us;
         last_lines = lines;
         last_total = total;
-        last_frame = frame_no;
+        last_frame = presented;
         render_us_max = 0;
     }
 #endif
-    return ++frame_no;
+    return frame_no;
 }
 
 bool plat_quit_requested(void) { return false; }
+
+void plat_poll(void)
+{
+    core0_beat++;
+#if PLAT_USB_HID
+    usb_hid_task();
+#endif
+}
 
 uint32_t plat_millis(void) { return (uint32_t)(time_us_64() / 1000); }
 uint32_t plat_frame(void) { return frame_no; }
@@ -688,10 +700,10 @@ void plat_debug_line(char line[41])
         uint32_t max_us, total_us;
         usb_hid_task_stats(&max_us, &total_us);
         const uint32_t elapsed = now - last_us;
-        snprintf(text, sizeof text, "FPS %lu USB %lu%% MAX %lu US", (unsigned long)((frame_no - last_frame) * 1000000ull / elapsed),
+        snprintf(text, sizeof text, "FPS %lu USB %lu%% MAX %lu US", (unsigned long)((presented - last_frame) * 1000000ull / elapsed),
                  (unsigned long)(total_us * 100ull / elapsed), (unsigned long)max_us);
         last_us = now;
-        last_frame = frame_no;
+        last_frame = presented;
     }
 #endif
     memcpy(line, text, sizeof text);

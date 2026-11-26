@@ -2,7 +2,7 @@
 
 Two layers on top of `tilegfx.h`, in plain C with no dependencies (like the rest of `tilegfx`): `tg_world` keeps a large tile map and the
 small SRAM map the compositor reads in step with a camera; `tg_actor` is a pool of game objects in world coordinates that are given
-sprites only while they are on screen. Status: `tg_world.[ch]`, `tg_actor.[ch]` and their tests (`test_world`, `test_actor`) are written and pass; the BASIC bindings are not.
+sprites only while they are on screen. Status: `tg_world.[ch]`, `tg_actor.[ch]` and their tests (`test_world`, `test_actor`) are written and pass; the language bindings are in `tilegame/lua/tl_game.c` (Lua; they were MY-BASIC's until November 2026, which is what the BASIC section below was written for).
 
 ## What the compositor already does
 
@@ -176,6 +176,8 @@ are in `tg_t`, which `plat_present` copies, so they need no double buffer.
 
 ## BASIC
 
+(Written for MY-BASIC, which the environment used until November 2026; the same functions are now Lua's, in `tilegame/lua`, and `lua/README.md` describes them.)
+
 BASIC never calls `begin_frame`, `end_frame` or `plat_present`. The runtime owns the frame, and `WAITFRAME()` is the one point where BASIC meets it.
 All other commands edit the state of the next frame, and nothing is visible until `WAITFRAME()`:
 
@@ -229,7 +231,7 @@ write. MY-BASIC has `mb_eval_routine`, which should do it (not checked).
 **Status.** The functions are in `tilegame/basic/basic_game.c` (reference: `tilegame/basic/README.md`, example: `basic/examples/walk.bas`, tests: `tests/test_basic.c` with a fake tile
 screen). Not as planned above: `newmap`, `actorpos`, `actorvel`, `actormove`, `actorhit` and `actoruser` are the names used (`MAP` and `MOVE` would clash with MY-BASIC's), the camera is
 
-**Animation tables** (`tg_anim_t`, `tg_actors_set_anims`, `tg_actor_play`): the caller keeps up to 255 tables of frames (a sprite tile and the number of frames it is shown), loop, once or ping-pong. An actor plays one by its number (`anim`, 0 is none); `tg_actors_step` moves every playing animation on by the frames that went by (the same call that applies the velocities) and sets the actor's `tile`, so a program needs no animation code of its own. A once animation sets `anim_done` when its last frame's time is up. BASIC: `animdef`, `actoranim`, `animdone`, `animframe`.
+**Animation tables** (`tg_anim_t`, `tg_actors_set_anims`, `tg_actor_play`): the caller keeps up to 255 tables of frames (a sprite tile and the number of frames it is shown), loop, once or ping-pong. An actor plays one by its number (`anim`, 0 is none); `tg_actors_step` moves every playing animation on by the frames that went by (the same call that applies the velocities) and sets the actor's `tile`, so a program needs no animation code of its own. A once animation sets `anim_done` when its last frame's time is up. Lua: `animdef`, `actoranim`, `animdone`, `animframe`.
 set by `camera(x, y)` and not followed by `FOLLOW`, there are no animation tables, `TILES(file)` and `LOADMAP(file)` are replaced by `tiledef`/`tilerow` and `newmap`/`tile`/`tilefill`
 (no file format yet), there is one map (layer 0), `FRAMEMS()` and the callback model are not done, and the first `WAITFRAME()` returns 1 (there is no earlier frame to count from).
 Added: `wrap`, `settileflags`, `tilebox`, `ysort`, `hitx`/`hity`/`hittile`/`hitflags` (the recorded tile of a stop or a touch of a trigger), `lastx`/`lasty`. The picture goes away when the program ends.

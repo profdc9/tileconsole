@@ -348,6 +348,9 @@ uint32_t plat_wait_frame(void)
     if (now < next_frame)
         SDL_Delay((Uint32)((next_frame - now) * 1000 / SDL_GetPerformanceFrequency()));
     now = SDL_GetPerformanceCounter();
+    uint32_t went = 1;   /* display frames since the last call: more than 1 when the program missed some */
+    if (now > next_frame + frame_ticks)
+        went += (uint32_t)((now - next_frame) / frame_ticks);
     next_frame = (now > next_frame + frame_ticks ? now : next_frame) + frame_ticks;
 
     handle_events();
@@ -358,10 +361,13 @@ uint32_t plat_wait_frame(void)
         held[p] = is;
     }
     mouse_acc_frame(&mouse);
-    return ++frame_no;
+    frame_no += went;
+    return frame_no;
 }
 
 bool plat_quit_requested(void) { return quit; }
+
+void plat_poll(void) { handle_events(); }
 
 uint32_t plat_millis(void)
 {

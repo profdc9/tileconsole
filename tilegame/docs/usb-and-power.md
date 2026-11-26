@@ -9,7 +9,7 @@ Findings from debugging the USB host on the EmuBoard2350 (RP2350B, TinyUSB 0.18.
 controller interrupts (status registers, with runs of identical records collapsed), TinyUSB's device events, host restarts, panics
 and fault registers. The devkit saves it to the SD card or USB stick:
 
-- `USBLOG` in BASIC writes `usblogNN.bin`; after a panic or reset the board writes one by itself.
+- `USBLOG` at the prompt writes `usblogNN.bin`; after a panic or reset the board writes one by itself.
 - `tools/usblog_decode.py usblogNN.bin` prints it as text (`ISR`, `setup`, `event ATTACH/REMOVE`, `USB HOST RESTARTED ...`).
 - `tests/test_usblog.c` tests the ring and the decoder format (`make check`).
 

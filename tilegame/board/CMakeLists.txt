@@ -121,24 +121,26 @@ tilefs_add(editsd)
 target_include_directories(editsd PRIVATE ${DEMO_DIR} ${EDITOR_DIR})
 target_compile_definitions(editsd PRIVATE EDITSD_BOARD=1 PICO_STACK_SIZE=0x1000 PICO_CORE1_STACK_SIZE=0x800)
 
-# The development kit: BASIC (MY-BASIC, unmodified) and the editor (TDE) in one program, on the SD card. They run on a stack of their own (48 KB).
+# The development kit: Lua (5.4.9 in third_party/lua, 32-bit numbers) and the editor (TDE) in one program, on the SD card. They run on a stack of
+# their own (48 KB).
 include(${CMAKE_CURRENT_LIST_DIR}/embed.cmake)
-set(BASIC_DIR ${CMAKE_CURRENT_LIST_DIR}/../basic)
+set(LUA_ENV_DIR ${CMAKE_CURRENT_LIST_DIR}/../lua)
+set(LUA_DIR ${CMAKE_CURRENT_LIST_DIR}/../third_party/lua)
+file(GLOB LUA_SOURCES ${LUA_DIR}/*.c)
+list(FILTER LUA_SOURCES EXCLUDE REGEX "/(linit|loslib|liolib|loadlib|ldblib)\\.c$")   # (the files are reached through tilefs: lua/tl_io.c)
 set(TDE_DIR ${CMAKE_CURRENT_LIST_DIR}/../tde)
 file(GLOB TDE_SOURCES ${TDE_DIR}/src/*.c)
 list(FILTER TDE_SOURCES EXCLUDE REGEX "/menucua\\.c$")   # (the alternative menu, included by menu.c when asked for)
 set(TDE_OS_SOURCES ${TDE_DIR}/os/console.c ${TDE_DIR}/os/port.c ${TDE_DIR}/os/criterr.c ${TDE_DIR}/os/tde_libc.c ${TDE_DIR}/os/tde_board.c)
 embed_files(${CMAKE_CURRENT_BINARY_DIR}/devkit_config.c devkit_config_files ${TDE_DIR}/config tde.cfg tde.hlp tde.shl)
-tilegame_board_app(devkit ${DEMO_DIR}/devkit.c ${CMAKE_CURRENT_LIST_DIR}/psram.c ${CMAKE_CURRENT_LIST_DIR}/../src/pool.c ${CMAKE_CURRENT_BINARY_DIR}/devkit_config.c ${BASIC_DIR}/basic_env.c ${BASIC_DIR}/basic_game.c ${BASIC_DIR}/basic_file.c ${BASIC_DIR}/basic_lib.c ${BASIC_DIR}/my_basic/my_basic.c
+tilegame_board_app(devkit ${DEMO_DIR}/devkit.c ${CMAKE_CURRENT_LIST_DIR}/psram.c ${CMAKE_CURRENT_LIST_DIR}/../src/pool.c ${CMAKE_CURRENT_BINARY_DIR}/devkit_config.c ${LUA_ENV_DIR}/tl_env.c ${LUA_ENV_DIR}/tl_game.c ${LUA_ENV_DIR}/tl_io.c ${LUA_SOURCES}
                    ${TILEGFX_DIR}/tg_world.c ${TILEGFX_DIR}/tg_actor.c ${TDE_SOURCES} ${TDE_OS_SOURCES} ${TILEGFX_DIR}/tg_console.c ${TILEGFX_DIR}/tg_text.c ${TILEGFX_DIR}/tg_text_cp437.c
                    ${TILEGFX_DIR}/tg_font.c ${TILEGFX_DIR}/fonts/unscii16.c)
 tilefs_add(devkit)
-target_include_directories(devkit PRIVATE ${CMAKE_CURRENT_LIST_DIR} ${CMAKE_CURRENT_LIST_DIR}/../src ${DEMO_DIR} ${BASIC_DIR} ${BASIC_DIR}/my_basic)
+target_include_directories(devkit PRIVATE ${CMAKE_CURRENT_LIST_DIR} ${CMAKE_CURRENT_LIST_DIR}/../src ${DEMO_DIR} ${LUA_ENV_DIR} ${LUA_DIR})
 # TDE: built like its Unix version; char is signed (its allocator stores -1 in a char); the C library's file functions are the file layer's (tde_libc.c).
 set_source_files_properties(${TDE_SOURCES} ${TDE_OS_SOURCES} PROPERTIES COMPILE_OPTIONS "-w;-fsigned-char;-DTDE_BOARD;-D__UNIX__;-D__TILEGAME__;-DNDEBUG;-I${CMAKE_CURRENT_LIST_DIR}/shim;-I${TDE_DIR}/src;-I${TDE_DIR}/os")
 set_source_files_properties(${TDE_DIR}/src/main.c PROPERTIES COMPILE_OPTIONS "-w;-fsigned-char;-DTDE_BOARD;-D__UNIX__;-D__TILEGAME__;-DNDEBUG;-Dmain=tde_main;-I${CMAKE_CURRENT_LIST_DIR}/shim;-I${TDE_DIR}/src;-I${TDE_DIR}/os")
 set_source_files_properties(${DEMO_DIR}/devkit.c PROPERTIES COMPILE_OPTIONS "-I${TDE_DIR}/os")
-# MY-BASIC: the allocation tag is a size_t, so that its blocks are aligned; the packed structs it uses are fine on this core.
-set_source_files_properties(${BASIC_DIR}/my_basic/my_basic.c ${BASIC_DIR}/basic_env.c PROPERTIES COMPILE_OPTIONS "-w;-Dmb_mem_tag_t=size_t")
 target_link_options(devkit PRIVATE -Wl,--wrap=fopen,--wrap=stat,--wrap=chmod,--wrap=access,--wrap=utime,--wrap=unlink,--wrap=remove,--wrap=rmdir,--wrap=rename,--wrap=mkdir,--wrap=getcwd,--wrap=chdir,--wrap=realpath,--wrap=opendir,--wrap=readdir,--wrap=closedir)
 target_compile_definitions(devkit PRIVATE DEVKIT_BOARD=1 PLAT_PSRAM=1 $<$<BOOL:${USBLOG_TEST_PANIC}>:USBLOG_TEST_PANIC=1> PICO_STACK_SIZE=0x1000 PICO_CORE1_STACK_SIZE=0x800)
