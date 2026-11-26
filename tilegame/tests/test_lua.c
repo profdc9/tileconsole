@@ -1767,6 +1767,158 @@ static void test_file_functions(void)
     CHECK(go() == -1 && fs_unmount("sd") == 0 && fs_mount("sd", &fs_ram_ops, &disk) == 0);
 }
 
+/* ---- more than one tile layer ---- */
+
+static void test_game_layers(void)
+{
+    seed_count = 0;
+    /* two layers: 1 at the back, 2 in front; a see-through pixel of layer 2 shows layer 1; the map functions work on the layer layer() chose */
+    run_program(
+        "gfx(8)\n"
+        "tiledef(1, string.rep(\"1\", 64))\n"
+        "tiledef(2, string.rep(\"....2222\", 8))\n"
+        "newmap(8, 8)\n"
+        "tile(0, 0, 1)\n"
+        "print(\"l\")\n"
+        "print(newmap(8, 8, 2))\n"
+        "print(layer(2))\n"
+        "tile(0, 0, 2)\n"
+        "print(layer())\n"
+        "print(gettile(0, 0))\n"
+        "layer(1)\n"
+        "print(gettile(0, 0))\n"
+        "waitframe()\n");
+    {
+        static const char *const want[] = {"2", "1", "2", "2", "1"};
+        CHECK(rows_after("l", want, 5));
+    }
+    CHECK(image[0][0] == '1' && image[0][3] == '1' && image[0][4] == '2' && image[7][7] == '2' && image[0][8] == 0);
+    CHECK(shown_g.layers[0].kind == TG_LAYER_TILES && shown_g.layers[1].kind == TG_LAYER_TILES && shown_g.layers[2].kind == TG_LAYER_OFF);
+
+    /* parallax: layer 2 at half the speed of the main camera; then not moving at all, with an offset */
+    run_program(
+        "gfx(8); tiledef(1, string.rep(\"1\", 64)); tiledef(2, string.rep(\"2\", 64))\n"
+        "newmap(64, 32); tile(10, 0, 1)\n"
+        "newmap(64, 32, 2); layer(2); tile(10, 1, 2)\n"
+        "parallax(2, 0.5)\n"
+        "camera(40, 0)\n"
+        "print(\"c=\" .. camx())\n"
+        "waitframe()\n");
+    CHECK(printed("c=40"));
+    CHECK(image[0][40] == '1' && image[0][47] == '1' && image[0][39] == 0 && image[0][48] == 0);   /* layer 1: the tile at x 80, camera 40 */
+    CHECK(image[8][60] == '2' && image[8][67] == '2' && image[8][59] == 0 && image[8][68] == 0);   /* layer 2: camera 20 */
+    run_program(
+        "gfx(8); tiledef(2, string.rep(\"2\", 64))\n"
+        "newmap(64, 32); newmap(64, 32, 2); layer(2); tile(1, 1, 2)\n"
+        "parallax(2, 0, 0, -4, -2)\n"
+        "camera(300, 100)\n"
+        "waitframe()\n");
+    CHECK(image[10][12] == '2' && image[17][19] == '2' && image[9][12] == 0 && image[10][11] == 0);   /* the tile at 8, 8 seen from -4, -2, whatever the camera */
+
+    /* an actor between two layers: in front of layer 1 and behind layer 2, then in front of both */
+    static const char draw_between[] =
+        "gfx(8); tiledef(1, string.rep(\"1\", 64)); tiledef(2, string.rep(\"2\", 32) .. string.rep(\".\", 32)); sprdef(1, string.rep(\"7\", 64))\n"
+        "newmap(8, 8); tile(1, 1, 1)\n"
+        "newmap(8, 8, 2); layer(2); tile(1, 1, 2)\n"
+        "a = actor(1, 8, 8)\n"
+        "print(\"was \" .. actorlayer(a))\n"
+        "actorlayer(a, %d)\n"
+        "waitframe()\n";
+    char prog[600];
+    snprintf(prog, sizeof prog, draw_between, 1);
+    run_program(prog);
+    CHECK(printed("was 4"));
+    CHECK(image[8][8] == '2' && image[12][8] == '7');      /* the top half of layer 2's tile hides it; below, it is in front of layer 1 */
+    snprintf(prog, sizeof prog, draw_between, 2);
+    run_program(prog);
+    CHECK(image[8][8] == '7' && image[12][8] == '7');
+    snprintf(prog, sizeof prog, draw_between, 0);
+    run_program(prog);
+    CHECK(image[8][8] == '2' && image[12][8] == '1');      /* behind both */
+
+    /* the solid layer: actormove stops at the tiles of the layer solidlayer() chose; tileflag and tilebox look at the current layer */
+    run_program(
+        "gfx(8); settileflags(1, 1)\n"
+        "newmap(30, 20)\n"
+        "newmap(30, 20, 2); layer(2); tilefill(6, 0, 1, 10, 1)\n"
+        "a = actor(1, 10, 10)\n"
+        "print(\"s\")\n"
+        "print(actormove(a, 100, 0) .. \" \" .. actorx(a))\n"
+        "actorpos(a, 10, 10)\n"
+        "print(solidlayer(2))\n"
+        "print(actormove(a, 100, 0) .. \" \" .. actorx(a))\n"
+        "print(solidlayer())\n"
+        "print(tileflag(50, 4) .. \" \" .. tilebox(0, 0, 60, 10))\n"
+        "layer(1)\n"
+        "print(tileflag(50, 4) .. \" \" .. tilebox(0, 0, 60, 10))\n");
+    {
+        static const char *const want[] = {"0 110", "1", "2 40", "2", "1 1", "0 0"};
+        CHECK(rows_after("s", want, 6));
+    }
+
+    /* wrap on a layer that is not the solid one: it repeats, the actors do not wrap; on the solid one they do */
+    run_program(
+        "gfx(8); newmap(64, 32); newmap(64, 32, 2)\n"
+        "layer(2)\n"
+        "print(\"w\")\n"
+        "print(wrap(true))\n"
+        "a = actor(1, 600, 0)\n"
+        "print(actorx(a))\n"
+        "layer(1)\n"
+        "print(wrap(true))\n"
+        "actorpos(a, 600, 0); waitframe()\n"
+        "print(actorx(a))\n");
+    {
+        static const char *const want[] = {"true", "600", "true", "88"};
+        CHECK(rows_after("w", want, 4));
+    }
+
+    /* follow moves the main camera, and the other layers with it */
+    run_program(
+        "gfx(8); tiledef(2, string.rep(\"2\", 64))\n"
+        "newmap(100, 80); newmap(100, 80, 2); layer(2); tile(30, 12, 2)\n"
+        "parallax(2, 0.5)\n"
+        "a = actor(1, 400, 300); follow(a)\n"
+        "waitframe()\n"
+        "print(\"f=\" .. camx() .. \",\" .. camy())\n");
+    CHECK(printed("f=244,184"));
+    CHECK(image[4][118] == '2' && image[4][117] == 0 && image[3][118] == 0);   /* layer 2's camera at 122, 92: the tile at 240, 96 is at 118, 4 */
+
+    /* mistakes */
+    run_program("gfx(8); newmap(8, 8, 5)\n");
+    CHECK(shows("newmap(width, height, layer): the layer is 1 to 4"));
+    run_program("gfx(8); layer(0)\n");
+    CHECK(shows("layer(n): the layer is 1 to 4"));
+    run_program("gfx(8); newmap(8, 8); layer(3); tile(0, 0, 1)\n");
+    CHECK(shows("there is no map on layer 3"));
+    run_program("gfx(8); newmap(8, 8); a = actor(1, 0, 0); solidlayer(3); actormove(a, 1, 0)\n");
+    CHECK(shows("actormove: there is no map on layer 3, the solid layer"));
+    run_program("gfx(8); parallax(9, 1)\n");
+    CHECK(shows("the layer is 1 to 4"));
+    run_program("gfx(8); a = actor(1, 0, 0); actorlayer(a, 5)\n");
+    CHECK(shows("actorlayer(actor, n): n is 0"));
+
+    /* four layers, all given back by NEW */
+    run_program("gfx(8)\nfor n = 1, 4 do newmap(20, 20, n) end\nwaitframe()\nprint(\"four\")\n");
+    CHECK(printed("four") && shown_g.layers[3].kind == TG_LAYER_TILES && allocs > releases);
+    CHECK(freed_by_new());
+}
+
+/* examples/layers.lua: four layers, the ball behind the panel */
+static void test_game_example_layers(void)
+{
+    static char text[8192];
+    snprintf(text, sizeof text, "%s\nprint(\"layers=\" .. layer() .. \" \" .. solidlayer())\n", read_example("layers.lua"));
+    seed_count = 0;
+    run_held = PLAT_BTN_RIGHT | PLAT_BTN_B;
+    run_program(text);
+    run_held = 0;
+    CHECK(printed("Ready.") && !shows("Error") && printed("layers=4 3"));
+    for (int i = 0; i < TG_MAX_LAYERS; i++)
+        CHECK(shown_g.layers[i].kind == TG_LAYER_TILES);
+    CHECK(image[0][0] == '6' && image[14][319] == '6' && image[15][100] == '7');   /* the panel, where it always is */
+}
+
 static void test_game(void)
 {
     test_game_draw();
@@ -1781,6 +1933,8 @@ static void test_game(void)
     test_game_example_anim();
     test_game_example2();
     test_game_follow();
+    test_game_layers();
+    test_game_example_layers();
     test_file_functions();
     test_tile_flags_program();
 }

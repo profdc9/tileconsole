@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: MIT */
 /*
- * Game functions for Lua programs: a tile map that scrolls (tilegfx's tg_world), actors (tg_actor) with animation tables, a camera that can follow one,
+ * Game functions for Lua programs: up to four tile layers with maps that scroll (tilegfx's tg_world), with parallax, actors (tg_actor) with animation tables, a camera that can follow one,
  * the buttons, and the frame (waitframe, or a routine that run() calls once a frame). The graphics are made by the first of the functions that needs them
  * and kept until the next RUN or NEW; while they are on the screen the text screen is not shown, and it comes back when the program or line ends.
  * lua/README.md lists the functions.

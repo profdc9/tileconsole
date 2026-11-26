@@ -99,24 +99,41 @@ A colour is named by the character whose code is its palette entry, and the same
 text colours are on `0` to `9` and `A` to `F` (`0` black, `1` blue, `4` red, `F` white), entry 0 is a black backdrop, and every other colour is black. Lua joins strings with `..`, and
 `string.rep` repeats one, so a big tile can be built: `sprdef(1, string.rep("4", 256))`.
 
-**The map** (tiles in a grid, in front of the backdrop)
+**The map** (tiles in a grid, in front of the backdrop; up to four layers of them, see below)
 
 | function | what it does |
 |---|---|
-| `newmap(w, h)` | a map of w by h tiles, all tile 0, up to a million tiles; the camera is where it was (0, 0 at first) |
+| `newmap(w, h [, layer])` | a map of w by h tiles, all tile 0, up to a million tiles, for the layer (the current one if not given, layer 1 at first); its camera follows the main one. Returns the layer |
 | `tile(x, y, n [, flip])` | the tile at x, y (tile coordinates) is n; flip 1 mirrors it across, 2 down, 3 both |
 | `gettile(x, y)`, `tilefill(x, y, w, h, n)` | the tile number there, and a block of one tile |
 | `tilestr(x, y, w, s [, offset])` | the bytes of the string, plus the offset (0 if not given), are tile numbers put in the map one after the other, w to a row from x, y and then the next row (`"\0"` is tile 0). The tile of every byte must be 0 to 255, or nothing is changed |
-| `camera(x, y)` | the pixel at the top left of the screen (any numbers, negative too; outside the map is empty) |
+| `camera(x, y)` | the main camera: the pixel of the solid layer at the top left of the screen (any numbers, negative too; outside the map is empty). The other layers follow it (`parallax`) |
 | `camx()`, `camy()` | where the camera is (see `wrap`) |
 | `follow(a [, dead_w, dead_h [, smooth]])` | from now on the camera follows actor `a` each frame, keeping the middle of the actor in the middle of the screen. A dead zone (`dead_w` by `dead_h` pixels in the middle of the screen) lets the actor move inside it without the camera moving; `smooth` n makes it cover 1/(n+1) of the way each frame (0: all of it). A map that does not repeat keeps the camera inside it (a map smaller than the screen is centred), one that repeats goes the short way round the seam. `follow(nil)` stops it, as does freeing the actor |
 | `followlimit(on)` | whether `follow` keeps the camera inside a map that does not repeat (true at first) |
-| `wrap(on)` | the map repeats in every direction (`true`), so the scrolling can go on for ever, or not. Returns true if the actors wrap too (the map must be at least 192 by 160 pixels) |
+| `wrap(on)` | the current layer's map repeats in every direction (`true`), so the scrolling can go on for ever, or not. On the solid layer, returns true if the actors wrap too (the map must be at least 192 by 160 pixels) |
 | `settileflags(n, f)` | what a tile is, as bits: 1 solid, 2 one-way (solid from above only), 4 trigger (stops nothing, but `actormove` reports it); 8 to 128 are the program's own marks |
 | `tileflag(x, y)` | the flags of the tile at the pixel x, y |
 | `tilebox(x, y, w, h)` | the flags of all the tiles a box of pixels touches, ORed: one call for what would take a loop |
 
 A number with a fraction where a whole one is wanted (a tile position, a sprite number) is rounded down, so `tile(x / 8, y / 8, 3)` puts the tile under the pixel x, y.
+
+**Layers.** The picture has up to four tile layers, 1 at the back and 4 in front, each with a map of its own; a pixel of colour 0 (`.` in a graphics string)
+lets the layers behind it show through, down to the backdrop. They all use the one set of 256 tiles and its flags. A layer costs only its map and two small
+windows (8 KB of fast memory with 8 pixel tiles), so use as many as the picture needs: a far background, a near one, the level, a panel that stays put.
+
+| function | what it does |
+|---|---|
+| `layer(n)` | the map functions (`tile`, `gettile`, `tilefill`, `tilestr`, `tileflag`, `tilebox`, `wrap`, and `newmap` without a layer) work on layer n from now on (1 at first). Returns the one before; `layer()` the one now |
+| `parallax(n, fx [, fy [, ox, oy]])` | layer n's camera is the main camera times fx across and fy down (fy is fx if not given), plus ox, oy pixels: 1 moves with it (as at first), 0.5 at half its speed (far away), 0 not at all (a panel that stays on the screen, at ox, oy) |
+| `solidlayer(n)` | the layer whose tiles stop the actors (`actormove`), whose camera `camx()` and the actors' positions go by, and whose map `follow` keeps the camera inside (1 at first). Give it a parallax of 1. Returns the one before; `solidlayer()` the one now |
+| `actorlayer(a, n)`, `actorlayer(a)` | actor a is drawn in front of layers 1 to n and behind the others (0: behind them all; 4, in front of them all, at first) |
+
+    newmap(64, 32, 1); parallax(1, 0.5)         -- far away: half speed
+    newmap(80, 60, 2); solidlayer(2)            -- the level
+    newmap(40, 4, 3); parallax(3, 0, 0)         -- a panel at the top of the screen
+    layer(3); tilestr(0, 0, 40, "...")          -- (the map functions now draw on layer 3)
+    actorlayer(p, 2)                            -- the player is behind the panel
 
 **Actors** (sprites that have a position in the map and are drawn only while on screen; 128 at most, and the frame can show 32 on a line)
 
@@ -139,7 +156,7 @@ A number with a fraction where a whole one is wanted (a tile position, a sprite 
 | `actoranim(a, n [, restart])`, `actoranim(a)` | the actor plays table n from now on (0: none; its sprite stays as it is). `waitframe()` and `run()` move every playing animation on by the frames that went by. Asking for the table it is already playing does nothing, so a program can say `actoranim(p, 2)` every frame while the key is down; with `restart` true it starts over. Without n it returns the table playing (0: none) |
 | `animdone(a)`, `animframe(a)` | true once a `"once"` animation has shown its last frame for its whole time; the frame the animation is on, from 0 |
 
-Actors are in front of the map. With `wrap(true)` an actor's position is kept within the map, and one near the seam is seen on both sides of it.
+Actors are in front of the map (of every layer, unless `actorlayer` says otherwise). With `wrap(true)` on the solid layer an actor's position is kept within the map, and one near the seam is seen on both sides of it.
 
 **Buttons.** `btn(player, button)` is true while the button is held, `pressed(player, button)` if it went down since the last frame; players are 0 and 1. The button is its name, `"up"`,
 `"down"`, `"left"`, `"right"`, `"a"`, `"b"`, `"x"`, `"y"`, `"start"`, `"select"`, `"l"`, `"r"`, or a number (1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048 in that order; add them
@@ -147,7 +164,9 @@ for any of several).
 
 A mistake (an actor that is not there, a number out of range, a map that was not made) stops the program with a line that says what, the function's name and the program line.
 
-Not here yet: loading tiles and maps from files, more than one tile layer, sound.
+`examples/layers.lua` uses all four layers.
+
+Not here yet: loading tiles and maps from files, sound.
 
 ## Speed (board)
 

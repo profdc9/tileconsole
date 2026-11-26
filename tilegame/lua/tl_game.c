@@ -20,18 +20,27 @@
 #define TL_ANIM_FRAMES 32           /* frames in a table */
 #define TL_STEP_MAX 4               /* waitframe moves the actors for at most this many frames at once */
 
+/* A tile layer of the picture and its map (tg_world). Lua numbers them 1 to TG_MAX_LAYERS, C from 0; 0 is drawn at the back. All of them use the one set of tiles. */
+typedef struct {
+    tg_world_t world;
+    int has_world;
+    uint16_t *win_a, *win_b;
+    uint32_t *dirty;
+    uint16_t *map;
+    float fx, fy;                   /* parallax: the layer's camera is the main camera times fx, fy, plus ox, oy (1, 1, 0, 0 at first) */
+    int32_t ox, oy;
+} tl_layer_t;
+
 /* The game's state. Its tiles, sprites and window maps are what the display reads (the board wants them in SRAM: alloc hook, fast = 1). */
 struct tl_game {
     tg_t g;
     int size_log2;                  /* 3 or 4: the size of tiles and of sprite tiles, 8 or 16 pixels */
     uint8_t *tiles, *sprites;       /* TL_TILES of size * size bytes each, one byte a pixel */
     uint8_t flags[TG_TILES_MAX];    /* what each tile number is (solid ...) */
-    tg_world_t world;
-    int has_world;
-    uint16_t *win_a, *win_b;
-    uint32_t *dirty;
-    uint16_t *map;
-    int32_t cam_x, cam_y;           /* before there is a map */
+    tl_layer_t lay[TG_MAX_LAYERS];
+    int cur;                        /* the layer the map functions work on (layer(n)) */
+    int solid;                      /* the layer whose tiles stop the actors and whose map follow keeps the camera inside (solidlayer(n)) */
+    int32_t cam_x, cam_y;           /* the main camera, in the solid layer's pixels; it does not wrap (the layers' own cameras do) */
     tg_actors_t actors;
     tg_actor_t pool[TL_MAX_ACTORS];
     uint16_t order[4 * TL_MAX_ACTORS];
@@ -68,25 +77,28 @@ static void unmem(tl_env_t *e, void *p)
         free(p);
 }
 
-static void free_world(tl_env_t *e, tl_game_t *G)
+static void free_layer(tl_env_t *e, tl_game_t *G, int i)
 {
-    unmem(e, G->win_a);
-    unmem(e, G->win_b);
-    unmem(e, G->dirty);
-    unmem(e, G->map);
-    G->win_a = G->win_b = NULL;
-    G->dirty = NULL;
-    G->map = NULL;
-    G->has_world = 0;
-    G->g.layers[0].kind = TG_LAYER_OFF;
-    tg_actors_set_wrap(&G->actors, 0, 0);
+    tl_layer_t *l = &G->lay[i];
+    unmem(e, l->win_a);
+    unmem(e, l->win_b);
+    unmem(e, l->dirty);
+    unmem(e, l->map);
+    l->win_a = l->win_b = NULL;
+    l->dirty = NULL;
+    l->map = NULL;
+    l->has_world = 0;
+    G->g.layers[i].kind = TG_LAYER_OFF;
+    if (i == G->solid)
+        tg_actors_set_wrap(&G->actors, 0, 0);
 }
 
 void tl_game_reset(tl_env_t *e)
 {
     tl_game_t *G = e->game;
     if (G) {
-        free_world(e, G);   /* (the frame routine's reference goes with the Lua state, which is closed next) */
+        for (int i = 0; i < TG_MAX_LAYERS; i++)   /* (the frame routine's reference goes with the Lua state, which is closed next) */
+            free_layer(e, G, i);
         unmem(e, G->tiles);
         unmem(e, G->sprites);
         unmem(e, G);
@@ -126,6 +138,8 @@ static int setup_state(tl_env_t *e, int size_log2)
     G->frame_ref = LUA_NOREF;
     G->follow_id = -1;
     G->follow_limits = 1;
+    for (int i = 0; i < TG_MAX_LAYERS; i++)
+        G->lay[i].fx = G->lay[i].fy = 1.0f;
     tg_actors_init(&G->actors, G->pool, TL_MAX_ACTORS, G->order);
     G->actors.sprite_log2 = (uint8_t)size_log2;   /* (collision boxes before the first draw) */
     for (int i = 0; i < TL_MAX_ANIMS; i++)
@@ -161,10 +175,68 @@ static inline tl_game_t *need_game(lua_State *L)
     return G ? G : make_game(L);
 }
 
-static void need_world(lua_State *L, tl_game_t *G)
+/* The map of the layer the map functions work on (layer(n)): an error if it has none. */
+static tg_world_t *cur_world(lua_State *L, tl_game_t *G)
 {
-    if (!G->has_world)
-        luaL_error(L, "there is no map: newmap(width, height) makes one");
+    if (!G->lay[G->cur].has_world)
+        luaL_error(L, "there is no map on layer %d: newmap(width, height) makes one", G->cur + 1);
+    return &G->lay[G->cur].world;
+}
+
+/* The solid layer's map (actors collide with it, follow keeps the camera inside it), or NULL. */
+static tg_world_t *solid_world(tl_game_t *G)
+{
+    return G->lay[G->solid].has_world ? &G->lay[G->solid].world : NULL;
+}
+
+/* Where the main camera is as the program sees it: the solid layer's camera (kept within one map if the map repeats), or the main camera itself. */
+static int32_t view_x(tl_game_t *G)
+{
+    const tg_world_t *w = solid_world(G);
+    return w ? w->cam_x : G->cam_x;
+}
+
+static int32_t view_y(tl_game_t *G)
+{
+    const tg_world_t *w = solid_world(G);
+    return w ? w->cam_y : G->cam_y;
+}
+
+/* Every layer's camera from the main one: times its parallax factor, plus its offset. */
+static int32_t layer_cam(int32_t cam, float f, int32_t off)
+{
+    return (f == 1.0f ? cam : (int32_t)floorf((float)cam * f)) + off;
+}
+
+static void set_cameras(tl_game_t *G)
+{
+    for (int i = 0; i < TG_MAX_LAYERS; i++) {
+        tl_layer_t *l = &G->lay[i];
+        if (l->has_world)
+            tg_world_set_camera(&l->world, layer_cam(G->cam_x, l->fx, l->ox), layer_cam(G->cam_y, l->fy, l->oy));
+    }
+}
+
+static inline int iarg(lua_State *L, int i);
+
+/* A layer number 1 to TG_MAX_LAYERS: the index from 0. */
+static int layer_arg(lua_State *L, int i, const char *who)
+{
+    const int n = iarg(L, i);
+    if (n < 1 || n > TG_MAX_LAYERS)
+        luaL_error(L, "%s: the layer is 1 to %d", who, TG_MAX_LAYERS);
+    return n - 1;
+}
+
+/* The actors wrap with the solid layer, if its map repeats (and is big enough). */
+static int wrap_actors(tl_game_t *G)
+{
+    const tg_world_t *w = solid_world(G);
+    int32_t pw = 0, ph = 0;
+    const int on = w && w->border == TG_BORDER_WRAP && tg_world_wrap_px(w, &pw, &ph) && tg_actors_set_wrap(&G->actors, pw, ph);
+    if (!on)
+        tg_actors_set_wrap(&G->actors, 0, 0);
+    return on;
 }
 
 /* ---- arguments ---- */
@@ -346,78 +418,79 @@ static int l_sprpix(lua_State *L) { return set_pixel(L, 1); }
 
 /* ---- the map ---- */
 
+/* newmap(width, height [, layer]): a map for the layer (the one layer(n) chose, if not given), all tile 0; its camera follows the main one. Returns the layer. */
 static int l_newmap(lua_State *L)
 {
     tl_env_t *e = E;
     tl_game_t *G = need_game(L);
     const int w = iarg(L, 1), h = iarg(L, 2);
+    const int i = lua_isnoneornil(L, 3) ? G->cur : layer_arg(L, 3, "newmap(width, height, layer)");
     if (w < 1 || h < 1 || (long)w * h > TL_MAP_MAX)
         return luaL_error(L, "newmap(width, height): the map has at most %d tiles", TL_MAP_MAX);
-    free_world(e, G);
+    free_layer(e, G, i);
+    tl_layer_t *l = &G->lay[i];
     /* the window: what the display reads, a little more than the screen (double buffered, so no border is needed) */
     const unsigned wl = G->size_log2 == 3 ? 6 : 5, hl = G->size_log2 == 3 ? 5 : 4;
-    G->win_a = mem(e, TG_WORLD_WIN_ENTRIES(wl, hl) * sizeof *G->win_a, 1);
-    G->win_b = mem(e, TG_WORLD_WIN_ENTRIES(wl, hl) * sizeof *G->win_b, 1);
-    G->dirty = mem(e, TG_WORLD_DIRTY_WORDS(wl, hl) * sizeof *G->dirty, 0);
-    G->map = mem(e, (size_t)w * (size_t)h * sizeof *G->map, 0);
-    if (!G->win_a || !G->win_b || !G->dirty || !G->map) {
-        free_world(e, G);
+    l->win_a = mem(e, TG_WORLD_WIN_ENTRIES(wl, hl) * sizeof *l->win_a, 1);
+    l->win_b = mem(e, TG_WORLD_WIN_ENTRIES(wl, hl) * sizeof *l->win_b, 1);
+    l->dirty = mem(e, TG_WORLD_DIRTY_WORDS(wl, hl) * sizeof *l->dirty, 0);
+    l->map = mem(e, (size_t)w * (size_t)h * sizeof *l->map, 0);
+    if (!l->win_a || !l->win_b || !l->dirty || !l->map) {
+        free_layer(e, G, i);
         return luaL_error(L, "not enough memory for a map of %d x %d", w, h);
     }
-    G->g.layers[0] = (tg_layer_t){.kind = TG_LAYER_TILES, .tile_log2 = (uint8_t)G->size_log2, .depth = 8, .map_w_log2 = (uint8_t)wl,
+    G->g.layers[i] = (tg_layer_t){.kind = TG_LAYER_TILES, .tile_log2 = (uint8_t)G->size_log2, .depth = 8, .map_w_log2 = (uint8_t)wl,
                                   .map_h_log2 = (uint8_t)hl, .tiles = G->tiles};
-    if (!tg_world_init(&G->world, &G->g.layers[0], G->win_a, G->win_b, G->dirty, G->map, w, h)) {
-        free_world(e, G);
+    if (!tg_world_init(&l->world, &G->g.layers[i], l->win_a, l->win_b, l->dirty, l->map, w, h)) {
+        free_layer(e, G, i);
         return luaL_error(L, "the map could not be set up");
     }
-    tg_world_set_flags(&G->world, G->flags);
-    G->has_world = 1;
-    tg_world_set_camera(&G->world, G->cam_x, G->cam_y);
-    return 0;
+    tg_world_set_flags(&l->world, G->flags);
+    l->has_world = 1;
+    tg_world_set_camera(&l->world, layer_cam(G->cam_x, l->fx, l->ox), layer_cam(G->cam_y, l->fy, l->oy));
+    lua_pushinteger(L, i + 1);
+    return 1;
 }
 
-/* wrap(true): the map repeats in every direction (infinite scrolling); wrap(false): it does not. Returns true if the actors wrap too (they need the map to be at least 192 x 160 pixels). */
+/* wrap(true): the map of the current layer repeats in every direction (infinite scrolling); wrap(false): it does not. For the solid layer, returns true if the actors
+ * wrap too (the map must be at least 192 x 160 pixels); for another, true if it repeats. */
 static int l_wrap(lua_State *L)
 {
     tl_game_t *G = need_game(L);
-    need_world(L, G);
+    tg_world_t *w = cur_world(L, G);
     const int on = flag_arg(L, 1);
-    tg_world_set_border(&G->world, on ? TG_BORDER_WRAP : TG_BORDER_TILE, 0);
-    int32_t pw = 0, ph = 0;
-    const int actors = on && tg_world_wrap_px(&G->world, &pw, &ph) && tg_actors_set_wrap(&G->actors, pw, ph);
-    if (!actors)
-        tg_actors_set_wrap(&G->actors, 0, 0);
-    lua_pushboolean(L, actors);
+    tg_world_set_border(w, on ? TG_BORDER_WRAP : TG_BORDER_TILE, 0);
+    const int actors = wrap_actors(G);
+    lua_pushboolean(L, G->cur == G->solid ? actors : on);
     return 1;
 }
 
 static int l_tile(lua_State *L)
 {
     tl_game_t *G = need_game(L);
-    need_world(L, G);
+    tg_world_t *w = cur_world(L, G);
     const int x = iarg(L, 1), y = iarg(L, 2), n = iarg(L, 3), flip = iopt(L, 4, 0);
     if (n < 0 || n >= TL_TILES)
         return luaL_error(L, "tile(x, y, n): n is 0 to %d", TL_TILES - 1);
-    tg_world_set(&G->world, x, y, TG_ENTRY(n, 0, ((flip & 1) ? TG_HFLIP : 0) | ((flip & 2) ? TG_VFLIP : 0)));
+    tg_world_set(w, x, y, TG_ENTRY(n, 0, ((flip & 1) ? TG_HFLIP : 0) | ((flip & 2) ? TG_VFLIP : 0)));
     return 0;
 }
 
 static int l_gettile(lua_State *L)
 {
     tl_game_t *G = need_game(L);
-    need_world(L, G);
-    lua_pushinteger(L, tg_world_get(&G->world, iarg(L, 1), iarg(L, 2)) & TG_TILE_MASK);
+    lua_pushinteger(L, tg_world_get(cur_world(L, G), iarg(L, 1), iarg(L, 2)) & TG_TILE_MASK);
     return 1;
 }
 
 static int l_tilefill(lua_State *L)
 {
     tl_game_t *G = need_game(L);
-    need_world(L, G);
+    tg_world_t *world = cur_world(L, G);
     const int x = iarg(L, 1), y = iarg(L, 2), w = iarg(L, 3), h = iarg(L, 4), n = iarg(L, 5);
     if (n < 0 || n >= TL_TILES)
         return luaL_error(L, "tilefill(x, y, width, height, n): n is 0 to %d", TL_TILES - 1);
-    tg_world_fill(&G->world, x, y, w, h, TG_ENTRY(n, 0, 0));
+    tg_world_fill(world, x, y, w, h, TG_ENTRY(n, 0, 0));
     return 0;
 }
 
@@ -426,7 +499,7 @@ static int l_tilefill(lua_State *L)
 static int l_tilestr(lua_State *L)
 {
     tl_game_t *G = need_game(L);
-    need_world(L, G);
+    tg_world_t *world = cur_world(L, G);
     const int x = iarg(L, 1), y = iarg(L, 2), w = iarg(L, 3);
     size_t len;
     const char *text = luaL_checklstring(L, 4, &len);
@@ -439,7 +512,7 @@ static int l_tilestr(lua_State *L)
             return luaL_error(L, "tilestr: character %d is tile %d, tiles are 0 to %d", (int)i + 1, n, TL_TILES - 1);
     }
     for (size_t i = 0; i < len; i++)
-        tg_world_set(&G->world, x + (int)(i % (size_t)w), y + (int)(i / (size_t)w), TG_ENTRY((unsigned char)text[i] + offset, 0, 0));
+        tg_world_set(world, x + (int)(i % (size_t)w), y + (int)(i / (size_t)w), TG_ENTRY((unsigned char)text[i] + offset, 0, 0));
     return 0;
 }
 
@@ -456,41 +529,77 @@ static int l_settileflags(lua_State *L)
 static int l_tileflag(lua_State *L)
 {
     tl_game_t *G = need_game(L);
-    need_world(L, G);
-    lua_pushinteger(L, tg_world_flags_px(&G->world, iarg(L, 1), iarg(L, 2)));
+    lua_pushinteger(L, tg_world_flags_px(cur_world(L, G), iarg(L, 1), iarg(L, 2)));
     return 1;
 }
 
 static int l_tilebox(lua_State *L)
 {
     tl_game_t *G = need_game(L);
-    need_world(L, G);
-    lua_pushinteger(L, tg_world_flags_box(&G->world, iarg(L, 1), iarg(L, 2), iarg(L, 3), iarg(L, 4)));
+    lua_pushinteger(L, tg_world_flags_box(cur_world(L, G), iarg(L, 1), iarg(L, 2), iarg(L, 3), iarg(L, 4)));
     return 1;
 }
 
+/* camera(x, y): the main camera; every layer's camera follows it (parallax) */
 static int l_camera(lua_State *L)
 {
     tl_game_t *G = need_game(L);
     G->cam_x = iarg(L, 1);
     G->cam_y = iarg(L, 2);
-    if (G->has_world)
-        tg_world_set_camera(&G->world, G->cam_x, G->cam_y);
+    set_cameras(G);
     return 0;
 }
 
 static int l_camx(lua_State *L)
 {
-    tl_game_t *G = need_game(L);
-    lua_pushinteger(L, G->has_world ? G->world.cam_x : G->cam_x);
+    lua_pushinteger(L, view_x(need_game(L)));
     return 1;
 }
 
 static int l_camy(lua_State *L)
 {
-    tl_game_t *G = need_game(L);
-    lua_pushinteger(L, G->has_world ? G->world.cam_y : G->cam_y);
+    lua_pushinteger(L, view_y(need_game(L)));
     return 1;
+}
+
+/* layer(n): the map functions (tile, gettile, tilefill, tilestr, tileflag, tilebox, wrap, newmap without a layer) work on layer n from now on (1 at first).
+ * Returns the layer that was chosen before; layer() returns the one chosen now. */
+static int l_layer(lua_State *L)
+{
+    tl_game_t *G = need_game(L);
+    const int was = G->cur;
+    if (!lua_isnoneornil(L, 1))
+        G->cur = layer_arg(L, 1, "layer(n)");
+    lua_pushinteger(L, was + 1);
+    return 1;
+}
+
+/* solidlayer(n): the layer whose tiles stop the actors (actormove) and whose map follow keeps the camera inside (1 at first). Returns the one before;
+ * solidlayer() the one now. */
+static int l_solidlayer(lua_State *L)
+{
+    tl_game_t *G = need_game(L);
+    const int was = G->solid;
+    if (!lua_isnoneornil(L, 1)) {
+        G->solid = layer_arg(L, 1, "solidlayer(n)");
+        wrap_actors(G);
+    }
+    lua_pushinteger(L, was + 1);
+    return 1;
+}
+
+/* parallax(n, fx [, fy [, ox, oy]]): layer n's camera is the main camera times fx across and fy down (fy is fx if not given), plus ox, oy pixels: 1 moves with the
+ * main camera (as at first), 0.5 at half its speed (far away), 0 not at all (a panel that stays on the screen). */
+static int l_parallax(lua_State *L)
+{
+    tl_game_t *G = need_game(L);
+    tl_layer_t *l = &G->lay[layer_arg(L, 1, "parallax(n, fx, fy, ox, oy)")];
+    l->fx = (float)luaL_checknumber(L, 2);
+    l->fy = lua_isnoneornil(L, 3) ? l->fx : (float)luaL_checknumber(L, 3);
+    l->ox = iopt(L, 4, 0);
+    l->oy = iopt(L, 5, 0);
+    set_cameras(G);
+    return 0;
 }
 
 /* ---- actors ---- */
@@ -758,9 +867,27 @@ static int l_ysort(lua_State *L)
 static int l_actormove(lua_State *L)
 {
     tl_game_t *G = need_game(L);
-    need_world(L, G);
+    const tg_world_t *w = solid_world(G);
+    if (!w)
+        return luaL_error(L, "actormove: there is no map on layer %d, the solid layer: newmap(width, height) makes one", G->solid + 1);
     actor_arg(L, G, 1, "actormove");
-    lua_pushinteger(L, tg_actor_move(&G->actors, iarg(L, 1), &G->world, fixed_arg(L, 2), fixed_arg(L, 3)));
+    lua_pushinteger(L, tg_actor_move(&G->actors, iarg(L, 1), w, fixed_arg(L, 2), fixed_arg(L, 3)));
+    return 1;
+}
+
+/* actorlayer(a, n): the actor is drawn in front of layers 1 to n and behind the others (0: behind them all); it is in front of all of them at first.
+ * actorlayer(a) is n. */
+static int l_actorlayer(lua_State *L)
+{
+    tl_game_t *G = need_game(L);
+    tg_actor_t *a = actor_arg(L, G, 1, "actorlayer");
+    if (!lua_isnoneornil(L, 2)) {
+        const int n = iarg(L, 2);
+        if (n < 0 || n > TG_MAX_LAYERS)
+            return luaL_error(L, "actorlayer(actor, n): n is 0 (behind every layer) to %d (in front of all)", TG_MAX_LAYERS);
+        a->above = (uint8_t)n;
+    }
+    lua_pushinteger(L, a->above);
     return 1;
 }
 
@@ -954,18 +1081,18 @@ static void apply_follow(tl_game_t *G)
     }
     const int sprite = 1 << G->size_log2;
     const int32_t cx = (a->x >> 8) + (int32_t)a->cols * sprite / 2, cy = (a->y >> 8) + (int32_t)a->rows * sprite / 2;
-    const int32_t camx = G->has_world ? G->world.cam_x : G->cam_x, camy = G->has_world ? G->world.cam_y : G->cam_y;
+    const int32_t camx = G->cam_x, camy = G->cam_y;   /* (the main camera, which does not wrap: the layers that scroll more slowly over a map that repeats do not jump) */
     int32_t x = camx + follow_step(short_way(cx - (camx + TG_WIDTH / 2), G->actors.wrap_w), G->follow_dw, G->follow_smooth);
     int32_t y = camy + follow_step(short_way(cy - (camy + TG_HEIGHT / 2), G->actors.wrap_h), G->follow_dh, G->follow_smooth);
-    if (G->follow_limits && G->has_world && G->world.border != TG_BORDER_WRAP) {
-        const int32_t mw = G->world.map_w << G->world.tile_log2, mh = G->world.map_h << G->world.tile_log2;
+    const tg_world_t *w = solid_world(G);
+    if (G->follow_limits && w && w->border != TG_BORDER_WRAP) {
+        const int32_t mw = w->map_w << w->tile_log2, mh = w->map_h << w->tile_log2;
         x = mw <= TG_WIDTH ? (mw - TG_WIDTH) / 2 : x < 0 ? 0 : x > mw - TG_WIDTH ? mw - TG_WIDTH : x;
         y = mh <= TG_HEIGHT ? (mh - TG_HEIGHT) / 2 : y < 0 ? 0 : y > mh - TG_HEIGHT ? mh - TG_HEIGHT : y;
     }
     G->cam_x = x;
     G->cam_y = y;
-    if (G->has_world)
-        tg_world_set_camera(&G->world, x, y);
+    set_cameras(G);
 }
 
 /*
@@ -977,9 +1104,10 @@ static int show_and_wait(lua_State *L, tl_env_t *e, tl_game_t *G)
     apply_follow(G);
     G->g.mode = TG_MODE_TILES;
     G->g.text = NULL;
-    if (G->has_world)
-        tg_world_end_frame(&G->world);
-    tg_actors_draw(&G->actors, &G->g, G->has_world ? G->world.cam_x : G->cam_x, G->has_world ? G->world.cam_y : G->cam_y);
+    for (int i = 0; i < TG_MAX_LAYERS; i++)
+        if (G->lay[i].has_world)
+            tg_world_end_frame(&G->lay[i].world);
+    tg_actors_draw(&G->actors, &G->g, view_x(G), view_y(G));   /* (the actors are where the solid layer is) */
     e->hooks.present(&G->g);
     e->game_active = 1;
     const uint32_t f = e->hooks.wait_frame();
@@ -990,8 +1118,9 @@ static int show_and_wait(lua_State *L, tl_env_t *e, tl_game_t *G)
         n = TL_STEP_MAX;
     G->last_frame = f;
     tg_actors_step(&G->actors, n);
-    if (G->has_world)
-        tg_world_begin_frame(&G->world);
+    for (int i = 0; i < TG_MAX_LAYERS; i++)
+        if (G->lay[i].has_world)
+            tg_world_begin_frame(&G->lay[i].world);
     tl_env_poll(e);
     if (e->stop) {
         G->in_run = 0;
@@ -1154,9 +1283,9 @@ void tl_game_open(lua_State *L)
     E = tl_env_current();
     static const luaL_Reg functions[] = {
         F(gfx), F(palette), F(tiledef), F(sprdef), F(tilerow), F(sprrow), F(tilepix), F(sprpix),
-        F(newmap), F(wrap), F(tile), F(gettile), F(tilefill), F(tilestr), F(settileflags), F(tileflag), F(tilebox), F(camera), F(camx), F(camy), F(follow), F(followlimit),
+        F(newmap), F(layer), F(solidlayer), F(parallax), F(wrap), F(tile), F(gettile), F(tilefill), F(tilestr), F(settileflags), F(tileflag), F(tilebox), F(camera), F(camx), F(camy), F(follow), F(followlimit),
         F(actor), F(actorfree), F(actorpos), F(actorx), F(actory), F(actorvel), F(actortile), F(actorsize), F(actorflip), F(actorhide), F(actorprio),
-        F(actorbox), F(actoruser), F(animdef), F(actoranim), F(animdone), F(animframe), F(ysort), F(actormove), F(hitx), F(hity), F(hittile), F(hitflags),
+        F(actorbox), F(actoruser), F(actorlayer), F(animdef), F(actoranim), F(animdone), F(animframe), F(ysort), F(actormove), F(hitx), F(hity), F(hittile), F(hitflags),
         F(lastx), F(lasty), F(actorhit), F(waitframe), F(onframe), F(run), F(textmode), F(frames), F(millis), F(btn), F(pressed),
         {NULL, NULL},
     };
