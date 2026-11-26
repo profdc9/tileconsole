@@ -505,16 +505,26 @@ static int board_info(const char *what, char *out, size_t size)
     }
 #endif
     if (!strcmp(what, "video")) {
-        static char report[12288];
-        plat_video_report(report, sizeof report);
-        int fd = fs_open("/sd/VIDEO.LOG", FS_WRONLY | FS_CREAT | FS_TRUNC);
-        int ok = fd >= 0;
+        /* the report is made only for this command: its buffer comes from the PSRAM pool (the heap without one) and goes back after it is saved */
+        const size_t bytes = 12288;
+        char *report = pool ? pool_malloc(pool, bytes) : malloc(bytes);
+        int ok = report != NULL;
         if (ok) {
-            const size_t n = strlen(report);
-            ok = fs_write(fd, report, n) == (int)n;
-            fs_close(fd);
+            plat_video_report(report, bytes);
+            const int fd = fs_open("/sd/VIDEO.LOG", FS_WRONLY | FS_CREAT | FS_TRUNC);
+            ok = fd >= 0;
+            if (ok) {
+                const size_t n = strlen(report);
+                ok = fs_write(fd, report, n) == (int)n;
+                fs_close(fd);
+            }
+            if (pool)
+                pool_free(pool, report);
+            else
+                free(report);
         }
-        snprintf(out, size, "video: %lu picture restarts since power on; %s", (unsigned long)plat_video_restarts(), ok ? "details saved in VIDEO.LOG" : "VIDEO.LOG could not be saved");
+        snprintf(out, size, "video: %lu picture restarts since power on; %s", (unsigned long)plat_video_restarts(),
+                 ok ? "details saved in VIDEO.LOG" : report ? "VIDEO.LOG could not be saved" : "no memory for the report");
         return 1;
     }
     if (!strcmp(what, "heap")) {
