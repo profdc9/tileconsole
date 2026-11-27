@@ -18,7 +18,7 @@ enum { ST_ATTACK, ST_DECAY, ST_SUSTAIN, ST_RELEASE };
 enum { OP_PLAY_PCM = 1, OP_PLAY_TONE, OP_SET_PITCH, OP_SET_FREQ, OP_SET_VOL, OP_SET_PAN, OP_SET_DUTY, OP_SET_ADSR,
        OP_KEY_OFF, OP_STOP, OP_STOP_ALL, OP_SET_MASTER, OP_MUSIC_PLAY, OP_MUSIC_STOP, OP_MUSIC_VOL };
 
-uint32_t snd_midi_hz(int note)
+SND_HOT uint32_t snd_midi_hz(int note)
 {
     return snd_midi_hz_q8[note < 0 ? 0 : (note > 127 ? 127 : note)];
 }
@@ -191,21 +191,22 @@ SND_HOT static void env_advance(snd_voice_t *v)
 
 /* ---- applying commands (audio thread) ---- */
 
-static uint32_t tone_inc(const snd_t *s, uint32_t hz_q8)
+SND_HOT static uint32_t tone_inc(const snd_t *s, uint32_t hz_q8)
 {
     const uint64_t inc = ((uint64_t)hz_q8 << 24) / s->rate;
     return inc > 0xFFFFFFFFu ? 0xFFFFFFFFu : (uint32_t)inc;
 }
 
-static void pcm_set_pitch(const snd_t *s, snd_voice_t *v, uint32_t pitch_q16)
+SND_HOT static void pcm_set_pitch(const snd_t *s, snd_voice_t *v, uint32_t pitch_q16)
 {
     const uint64_t inc = (uint64_t)v->sample->rate * pitch_q16 / s->rate;   /* 16.16 samples per output frame */
     v->inc_int = (uint32_t)(inc >> 16);
     v->inc_frac = (uint32_t)(inc & 0xFFFF);
 }
 
-/* Starting notes and setting envelopes: for the commands from the game thread and for the music. */
-static void voice_pcm(const snd_t *s, snd_voice_t *v, const snd_sample_t *sm, uint32_t pitch_q16, uint8_t vol, int8_t pan)
+/* Starting notes and setting envelopes: for the commands from the game thread and for the music (in the hot section too: the music starts notes
+ * in the middle of a block, on the thread that may also feed a display). */
+SND_HOT static void voice_pcm(const snd_t *s, snd_voice_t *v, const snd_sample_t *sm, uint32_t pitch_q16, uint8_t vol, int8_t pan)
 {
     if (!sm || !sm->data || sm->length == 0 || (sm->bits != 8 && sm->bits != 16))
         return;
@@ -218,7 +219,7 @@ static void voice_pcm(const snd_t *s, snd_voice_t *v, const snd_sample_t *sm, ui
     env_start(v);
 }
 
-static void voice_tone(const snd_t *s, snd_voice_t *v, unsigned kind, uint32_t hz_q8, uint8_t vol, int8_t pan, uint8_t duty, const int8_t *wave)
+SND_HOT static void voice_tone(const snd_t *s, snd_voice_t *v, unsigned kind, uint32_t hz_q8, uint8_t vol, int8_t pan, uint8_t duty, const int8_t *wave)
 {
     if (kind < SND_PULSE || kind > SND_WAVE || (kind == SND_WAVE && !wave))
         return;
@@ -233,7 +234,7 @@ static void voice_tone(const snd_t *s, snd_voice_t *v, unsigned kind, uint32_t h
     env_start(v);
 }
 
-static void voice_adsr(const snd_t *s, snd_voice_t *v, uint32_t attack_ms, uint32_t decay_ms, uint8_t sustain, uint32_t release_ms)
+SND_HOT static void voice_adsr(const snd_t *s, snd_voice_t *v, uint32_t attack_ms, uint32_t decay_ms, uint8_t sustain, uint32_t release_ms)
 {
     v->attack_samples = attack_ms * s->rate / 1000;
     v->decay_samples = decay_ms * s->rate / 1000;
@@ -253,13 +254,13 @@ SND_HOT static uint32_t semitones_q16(int d)
     return octave >= 0 ? r << octave : r >> -octave;
 }
 
-static uint32_t music_spt(const snd_t *s, uint32_t bpm)
+SND_HOT static uint32_t music_spt(const snd_t *s, uint32_t bpm)
 {
     return (uint32_t)(((uint64_t)s->rate * 60u << 16) / ((uint64_t)bpm * SND_TICKS_PER_QUARTER));
 }
 
 /* Every voice the song's tracks play on falls silent. */
-static void music_silence(snd_t *s)
+SND_HOT static void music_silence(snd_t *s)
 {
     const snd_song_t *song = s->song;
     if (!song)
@@ -342,15 +343,26 @@ SND_HOT static void music_run(snd_t *s, int i)
     }
 }
 
-static void music_start(snd_t *s, const snd_song_t *song, int first)
+SND_HOT static void music_start(snd_t *s, const snd_song_t *song, int first)
 {
     music_silence(s);
     s->song = song;
     s->music_first = (uint8_t)first;
     s->music_spt = music_spt(s, 120);
     s->music_acc = 0;
-    for (int i = 0; i < SND_MAX_VOICES; i++)
-        s->track[i] = (snd_track_state_t){.vol = 255, .pan = SND_PAN_INSTRUMENT, .ended = i >= song->tracks || first + i >= SND_MAX_VOICES};
+    for (int i = 0; i < SND_MAX_VOICES; i++) {   /* (field by field: a compound literal is a call to memset, which is in flash on a microcontroller) */
+        snd_track_state_t *st = &s->track[i];
+        st->idx = st->wait = st->off = 0;
+        st->inst = 0;
+        st->vol = 255;
+        st->ended = i >= song->tracks || first + i >= SND_MAX_VOICES;
+        st->depth = 0;
+        st->pan = SND_PAN_INSTRUMENT;
+        for (int k = 0; k < SND_LOOP_DEPTH; k++) {
+            st->left[k] = 0;
+            __asm__ volatile("" ::: "memory");
+        }
+    }
     for (int i = 0; i < song->tracks && first + i < SND_MAX_VOICES; i++)
         music_run(s, i);
 }
