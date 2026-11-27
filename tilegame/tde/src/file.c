@@ -2919,7 +2919,8 @@ int  scratch;
          setup_window( g_status.current_window );
          check_cline( g_status.current_window, win.cline );
          if (!loaded) {
-            files[file.file_no-1] = g_status.current_file;
+            if (files != NULL)   /* tilegame: (no memory for the list: the files are found by number instead, as above) */
+               files[file.file_no-1] = g_status.current_file;
             g_status.current_file->file_no = file.file_no;
             g_status.current_file->inflate_tabs = file.inflate_tabs;
             g_status.current_file->ptab_size = file.ptab_size;

@@ -57,8 +57,14 @@ int rc = OK;
 
    len = mac_->len * sizeof(long);
    mac_->key.keys = my_malloc_a( len, &rc );
-   memcpy( mac_->key.keys, keys, len );
    new_mac = my_malloc_a( sizeof(MACRO), &rc );
+   if (rc == ERROR) {   /* tilegame: no memory, no macro (it was copied through NULL) */
+      my_free( mac_->key.keys );
+      my_free( new_mac );
+      mac_->key.keys = NULL;
+      return( NULL );
+   }
+   memcpy( mac_->key.keys, keys, len );
    memcpy( new_mac, mac_, sizeof(MACRO) );
 
    return( new_mac );
@@ -128,7 +134,8 @@ TREE *twokey;
    add_twokey( CREATE_TWOKEY( _SHIFT+_SEMICOLON, _SHIFT+_X ),  PlayBack );
    twokey = search_tree( CREATE_TWOKEY( _SHIFT+_SEMICOLON, _SHIFT+_X ),
                          key_tree.right );
-   twokey->macro_ptr = allocate_macro( &colon_X, win_one );
+   if (twokey != NULL)   /* tilegame: (not there if add_twokey had no memory) */
+      twokey->macro_ptr = allocate_macro( &colon_X, win_one );
 }
 
 
