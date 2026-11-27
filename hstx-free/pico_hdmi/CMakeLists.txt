@@ -22,6 +22,8 @@ option(PICO_HDMI_PIXEL_FORMAT_RGB888
 # (2x/4x) are unaffected even when this is on. See video_output_rt.c.
 option(PICO_HDMI_ACTIVE_LINE_DOUBLE_BUFFER
     "EXPERIMENTAL: pipeline the 3x (720p-class) active-line scanout across two buffers, decoupling the scanline callback from the per-line ISR deadline" OFF)
+# Local change, not upstream: see src/hstx_packet.c.
+option(PICO_HDMI_RAM_AUDIO_PATH "Build, encode and queue audio sample packets from RAM rather than flash (XIP cache)" OFF)
 set(PICO_HDMI_HSTX_CLK_DIV "" CACHE STRING "Override MODE_HSTX_CLK_DIV; empty keeps mode default")
 
 if(PICO_HDMI_RUNTIME_MODES)
@@ -59,6 +61,7 @@ target_compile_definitions(pico_hdmi PUBLIC
 
 target_compile_definitions(pico_hdmi PRIVATE
     PICO_HDMI_EXPLICIT_AUDIO_CHANNEL_STATUS=$<BOOL:${PICO_HDMI_EXPLICIT_AUDIO_CHANNEL_STATUS}>
+    PICO_HDMI_RAM_AUDIO_PATH=$<BOOL:${PICO_HDMI_RAM_AUDIO_PATH}>
 )
 
 if(PICO_HDMI_HSTX_CLK_DIV)

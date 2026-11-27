@@ -9,6 +9,10 @@
 #ifndef PICO_HDMI_RAM_DI_QUEUE_PUSH
 #define PICO_HDMI_RAM_DI_QUEUE_PUSH 0
 #endif
+// (local change, not upstream: see hstx_packet.c) the producer's side of the queue in RAM too
+#ifndef PICO_HDMI_RAM_AUDIO_PATH
+#define PICO_HDMI_RAM_AUDIO_PATH 0
+#endif
 
 #define DI_RING_BUFFER_SIZE 256
 static hstx_data_island_t di_ring_buffer[DI_RING_BUFFER_SIZE];
@@ -112,7 +116,7 @@ void hstx_di_queue_set_samples_per_line_exact(uint32_t spl_fp, uint32_t rem, uin
 }
 #endif
 
-#if PICO_HDMI_RAM_DI_QUEUE_PUSH
+#if PICO_HDMI_RAM_DI_QUEUE_PUSH || PICO_HDMI_RAM_AUDIO_PATH
 bool __not_in_flash_func(hstx_di_queue_push)(const hstx_data_island_t *island)
 #else
 bool hstx_di_queue_push(const hstx_data_island_t *island)
@@ -122,12 +126,23 @@ bool hstx_di_queue_push(const hstx_data_island_t *island)
     if (next_head == di_ring_tail)
         return false;
 
+#if PICO_HDMI_RAM_AUDIO_PATH
+    for (size_t i = 0; i < sizeof island->words / sizeof island->words[0]; i++) {
+        di_ring_buffer[di_ring_head].words[i] = island->words[i];
+        __asm__ volatile("" ::: "memory"); // (not a struct copy, which calls memcpy in flash)
+    }
+#else
     di_ring_buffer[di_ring_head] = *island;
+#endif
     di_ring_head = next_head;
     return true;
 }
 
+#if PICO_HDMI_RAM_AUDIO_PATH
+uint32_t __not_in_flash_func(hstx_di_queue_get_level)(void)
+#else
 uint32_t hstx_di_queue_get_level(void)
+#endif
 {
     uint32_t head = di_ring_head;
     uint32_t tail = di_ring_tail;
