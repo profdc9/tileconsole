@@ -2527,10 +2527,79 @@ static void test_game_readback(void)
     CHECK(shows("the colour is one character"));
 }
 
+/* reading back a tile's flags (settileflags(n)) and an animation table (animdef(n)) */
+static void test_game_readback_tables(void)
+{
+    run_program(
+        "local function p(...)\n"
+        "  local t = {}\n"
+        "  for i = 1, select(\"#\", ...) do t[i] = tostring((select(i, ...))) end\n"
+        "  print(table.concat(t, \" \"))\n"
+        "end\n"
+        "gfx(8)\n"
+        "settileflags(5, 1 + 4)\n"
+        "settileflags(255, 200)\n"
+        "p(\"flags\", settileflags(5), settileflags(6), settileflags(255), settileflags(0))\n"
+        "animdef(3, \"pingpong\", 6, \"1 2:9 3\")\n"
+        "local mode, ticks, fr = animdef(3)\n"
+        "p(\"anim\", mode, ticks, #fr, fr[1][1], fr[1][2], fr[2][1], fr[2][2], fr[3][1], fr[3][2], #fr[1])\n"
+        "fr[1][1] = 50\n"                                                     /* a copy: changing it changes nothing */
+        "p(\"kept\", select(3, animdef(3))[1][1])\n"
+        "p(\"count\", animdef(4, animdef(3)))\n"                               /* copies table 3 */
+        "local m4, t4, f4 = animdef(4)\n"
+        "p(\"copy\", m4, t4, #f4, f4[1][1], f4[2][1], f4[2][2], f4[3][2])\n"
+        "local m7, t7, f7 = animdef(7)\n"
+        "p(\"empty\", m7, t7, #f7, animdef(8, animdef(7)))\n"                  /* one never made: loop, 1, no frames; it copies too */
+        "animdef(9, 1, 3, {{9, 7}, 4})\n"
+        "local m9, t9, f9 = animdef(9)\n"
+        "p(\"once\", m9, t9, f9[1][2], f9[2][1], f9[2][2])\n"                  /* (ticks: the first frame's) */
+        "animdef(32, \"loop\", 2, string.rep(\"255 \", 32))\n"                  /* the last table, with the most frames */
+        "local _, _, f10 = animdef(32)\n"
+        "p(\"full\", #f10, f10[32][1], f10[32][2])\n"
+        "animdef(11, select(1, \"PingPong\"), 255, \"0:1\")\n"
+        "p(\"edge\", animdef(11))\n");
+    CHECK(printed("flags 5 0 200 0"));
+    CHECK(printed("anim pingpong 6 3 1 6 2 9 3 6 2"));
+    CHECK(printed("kept 1"));
+    CHECK(printed("count 3"));
+    CHECK(printed("copy pingpong 6 3 1 2 9 6"));
+    CHECK(printed("empty loop 1 0 0"));
+    CHECK(printed("once once 7 7 4 3"));
+    CHECK(printed("full 32 255 2"));
+    CHECK(row_of("edge pingpong 1 table: ") >= 0 && !shows("Error"));
+
+    /* an actor plays a copied table as it plays the first: frame for frame */
+    run_program(
+        "gfx(8)\n"
+        "animdef(1, \"loop\", 2, \"4 5:3 6\")\n"
+        "animdef(2, animdef(1))\n"
+        "local a, b = actor(1, 0, 0), actor(1, 20, 0)\n"
+        "actoranim(a, 1)\n"
+        "actoranim(b, 2)\n"
+        "local same = true\n"
+        "for i = 1, 30 do\n"
+        "  waitframe()\n"
+        "  if animframe(a) ~= animframe(b) or actortile(a) ~= actortile(b) then same = false end\n"
+        "end\n"
+        "print(same and \"played the same\" or \"played differently\")\n");
+    CHECK(printed("played the same"));
+
+    /* the mistakes */
+    run_program("gfx(8)\nprint(settileflags(256))\n");
+    CHECK(shows("settileflags(n): n is 0 to 255"));
+    run_program("gfx(8)\nprint(settileflags(1, nil))\n");
+    CHECK(shows("bad argument #2 to 'settileflags'"));
+    run_program("gfx(8)\nprint(animdef(0))\n");
+    CHECK(shows("animdef(n): n is 1 to 32"));
+    run_program("gfx(8)\nprint(animdef(33))\n");
+    CHECK(shows("animdef(n): n is 1 to 32"));
+}
+
 static void test_game(void)
 {
     test_game_draw();
     test_game_readback();
+    test_game_readback_tables();
     test_game_tilestr();
     test_game_textmode();
     test_game_actors();

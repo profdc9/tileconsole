@@ -158,6 +158,7 @@ the old file as it was. A file in a cartridge loads like any other: `loadgfx("gf
 | `followlimit(on)` | whether `follow` keeps the camera inside a map that does not repeat (true at first) |
 | `wrap(on)` | the current layer's map repeats in every direction (`true`), so the scrolling can go on for ever, or not. On the solid layer, returns true if the actors wrap too (the map must be at least 192 by 160 pixels) |
 | `settileflags(n, f)` | what a tile is, as bits: 1 solid, 2 one-way (solid from above only), 4 trigger (stops nothing, but `actormove` reports it); 8 to 128 are the program's own marks |
+| `settileflags(n)` | the flags of tile n now |
 | `tileflag(x, y)` | the flags of the tile at the pixel x, y |
 | `tilebox(x, y, w, h)` | the flags of all the tiles a box of pixels touches, ORed: one call for what would take a loop |
 
@@ -198,6 +199,7 @@ windows (8 KB of fast memory with 8 pixel tiles), so use as many as the picture 
 | `actorprio(a, p)`, `ysort(on)` | who is in front (0 in front, 255 behind); with `ysort(true)` the one lower on the screen is in front |
 | `actoruser(a)`, `actoruser(a, n)` | a number (0 to 65535) the program keeps in an actor. (A Lua table keyed by the actor's number holds anything else: `enemies[a] = {hp = 3}`) |
 | `animdef(n, mode, ticks, frames)` | table n (1 to 32) of sprites to show one after the other, `ticks` frames each (1 to 255): a string, `"2 1 3 1"`, where `"2:10"` gives one its own time, or a Lua table, `{2, 1, 3, 1}` or `{{2, 10}, 1}`; 32 frames at most. The mode is `"loop"` (or 0), `"once"` (1: stops on the last frame) or `"pingpong"` (2). Returns the number of frames; a table made again replaces the old one, also for actors that play it |
+| `animdef(n)` | table n now: `mode, ticks, frames`, the mode's name, the first frame's ticks (1 with no frames) and a Lua table of `{sprite, ticks}` for each frame, in the form `animdef` takes, so `animdef(2, animdef(1))` copies table 1. The table is a copy: changing it changes nothing until it is given to `animdef` |
 | `actoranim(a, n [, restart])`, `actoranim(a)` | the actor plays table n from now on (0: none; its sprite stays as it is). `waitframe()` and `run()` move every playing animation on by the frames that went by. Asking for the table it is already playing does nothing, so a program can say `actoranim(p, 2)` every frame while the key is down; with `restart` true it starts over. Without n it returns the table playing (0: none) |
 | `animdone(a)`, `animframe(a)` | true once a `"once"` animation has shown its last frame for its whole time; the frame the animation is on, from 0 |
 

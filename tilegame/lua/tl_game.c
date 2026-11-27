@@ -620,10 +620,18 @@ static int l_tilestr(lua_State *L)
     return 0;
 }
 
+/* settileflags(n, flags): what tile n is (1 solid, 2 one-way, 4 trigger, the rest the program's); settileflags(n): its flags now. */
 static int l_settileflags(lua_State *L)
 {
     tl_game_t *G = need_game(L);
-    const int n = iarg(L, 1), f = iarg(L, 2);
+    const int n = iarg(L, 1);
+    if (lua_isnone(L, 2)) {
+        if (n < 0 || n >= TL_TILES)
+            return luaL_error(L, "settileflags(n): n is 0 to %d", TL_TILES - 1);
+        lua_pushinteger(L, G->flags[n]);
+        return 1;
+    }
+    const int f = iarg(L, 2);
     if (n < 0 || n >= TL_TILES || f < 0 || f > 255)
         return luaL_error(L, "settileflags(n, flags): n is 0 to %d, flags 0 to 255 (1 solid, 2 one-way, 4 trigger)", TL_TILES - 1);
     G->flags[n] = (uint8_t)f;
@@ -1023,6 +1031,8 @@ static int read_number(const char **p, int max)
 
 #define ANIMDEF "animdef(n, mode, ticks, frames)"
 
+static const char *const anim_modes[] = {"loop", "once", "pingpong"};   /* TG_ANIM_LOOP, TG_ANIM_ONCE, TG_ANIM_PINGPONG */
+
 /* The frames as a string, "3 4:6 5" (a sprite, and after a colon the frames it is shown, if not `ticks`). The count, or an error. */
 static int frames_from_string(lua_State *L, const char *p, int ticks, tg_anim_frame_t *out)
 {
@@ -1079,16 +1089,35 @@ static int frames_from_table(lua_State *L, int idx, int ticks, tg_anim_frame_t *
  * animdef(n, mode, ticks, frames): table n (1 to 32) is the list of sprites in `frames`, shown one after the other for `ticks` frames each: a string, "3 4 5 4" or
  * "3:6 4:2" (a sprite, and after a colon the frames it is shown), or a Lua table, {3, 4, 5, 4} or {{3, 6}, {4, 2}}; 32 at most. The mode is "loop" (0),
  * "once" (1) or "pingpong" (2). Returns the count of frames. Making a table again replaces it, also for actors that play it.
+ * animdef(n): the table now, as the mode's name, the first frame's ticks (1 if it has none) and a Lua table of {sprite, ticks} for every frame, which animdef
+ * takes back as it is: animdef(m, animdef(n)) copies table n.
  */
 static int l_animdef(lua_State *L)
 {
     tl_game_t *G = need_game(L);
     const int n = iarg(L, 1);
+    if (lua_isnone(L, 2)) {
+        if (n < 1 || n > TL_MAX_ANIMS)
+            return luaL_error(L, "animdef(n): n is 1 to %d", TL_MAX_ANIMS);
+        const tg_anim_t *a = &G->anims[n - 1];
+        const tg_anim_frame_t *f = G->anim_frames[n - 1];
+        lua_pushstring(L, anim_modes[a->mode <= 2 ? a->mode : 0]);
+        lua_pushinteger(L, a->count ? f[0].ticks : 1);
+        lua_createtable(L, a->count, 0);
+        for (int i = 0; i < a->count; i++) {
+            lua_createtable(L, 2, 0);
+            lua_pushinteger(L, f[i].tile);
+            lua_rawseti(L, -2, 1);
+            lua_pushinteger(L, f[i].ticks);
+            lua_rawseti(L, -2, 2);
+            lua_rawseti(L, -2, i + 1);
+        }
+        return 3;
+    }
     int mode = -1;
     if (lua_type(L, 2) == LUA_TSTRING) {
-        static const char *const names[] = {"loop", "once", "pingpong"};
         for (int i = 0; i < 3; i++)
-            if (same_name(lua_tostring(L, 2), names[i]))
+            if (same_name(lua_tostring(L, 2), anim_modes[i]))
                 mode = i;
     } else if (lua_type(L, 2) == LUA_TNUMBER) {
         mode = iarg(L, 2);
