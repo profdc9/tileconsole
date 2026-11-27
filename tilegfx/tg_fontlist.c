@@ -30,8 +30,8 @@ const tg_font_t *tg_font_by_id(tg_font_id_t id)
     }
 }
 
-bool tg_layer_load_font(tg_layer_t *layer, tg_font_id_t font, uint32_t first_glyph, unsigned count, unsigned first_tile,
-                        uint8_t fg, uint8_t bg)
+bool tg_layer_load_font(tg_layer_t *layer, tg_charmap_t *cm, tg_font_id_t font, uint32_t first_glyph, unsigned count,
+                        unsigned first_tile, uint8_t fg, uint8_t bg)
 {
-    return tg_layer_load_font_ptr(layer, tg_font_by_id(font), first_glyph, count, first_tile, fg, bg);
+    return tg_layer_load_font_ptr(layer, cm, tg_font_by_id(font), first_glyph, count, first_tile, fg, bg);
 }

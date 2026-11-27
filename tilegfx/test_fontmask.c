@@ -32,9 +32,12 @@ int main(void)
     static uint8_t tiles[100 * 64];
     static uint16_t map[16 * 8];
     tg_layer_t l = {.kind = TG_LAYER_TILES, .tile_log2 = 3, .depth = 8, .map_w_log2 = 4, .map_h_log2 = 3, .map = map, .tiles = tiles};
-    CHECK(tg_layer_load_font(&l, TG_FONT_UNSCII8, 32, 95, 0, 1, 0));
-    CHECK(!tg_layer_load_font(&l, TG_FONT_UNSCII16, 32, 95, 0, 1, 0));          /* left out of this build */
-    CHECK(l.glyphs.offset == -32);                                              /* and the failed call changed nothing */
+    static tg_char_t chars[200];
+    tg_charmap_t cm;
+    tg_charmap_init(&cm, chars, 200);
+    CHECK(tg_layer_load_font(&l, &cm, TG_FONT_UNSCII8, 32, 95, 0, 1, 0));
+    CHECK(!tg_layer_load_font(&l, &cm, TG_FONT_UNSCII16, 32, 95, 100, 1, 0));   /* left out of this build */
+    CHECK(cm.count == 95 && tg_charmap_find(&cm, 'A')->tile == 'A' - 32);        /* and the failed call changed nothing */
     printf("all %d checks passed\n", checks);
     return 0;
 }

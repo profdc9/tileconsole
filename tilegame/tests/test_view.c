@@ -32,7 +32,7 @@ static void test_setup(void)
 {
     fresh();
     CHECK(view.bg_tiles_used > 10 && view.bg_tiles_used <= BG_TILES_MAX);
-    CHECK(view.g.layers[2].glyphs.offset == 1 - 32 && view.g.layers[2].glyphs.first == 32 && view.g.layers[2].glyphs.count == 95);
+    CHECK(view.hud_cm.count == 95 && tg_charmap_find(&view.hud_cm, ' ')->tile == 1 && tg_charmap_find(&view.hud_cm, '~')->tile == 95);
     CHECK(view.g.sprite_count == 1 + MAX_ENEMIES + COIN_POOL);
     CHECK(view.player_slot == 0);                       /* the lowest slot is in front */
     /* The background map names real tiles. */

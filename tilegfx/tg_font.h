@@ -6,20 +6,22 @@
  * A glyph is one byte per row, most significant bit leftmost, always 8 pixels wide: an 8x8 font has 8 bytes a glyph and
  * an 8x16 font 16. Any array in that format can be used, not only these fonts.
  *
- * Text goes on a tile layer, and the layer remembers how glyph numbers map to tiles (tg_layer_t.glyphs), so printing
- * needs only the string:
+ * Which tile is which character is kept in a character map (tg_charmap_t): pairs of a Unicode codepoint and its tile,
+ * sorted, in storage the program gives, as it gives a layer's map and tiles. The loaders fill it in and the put functions
+ * read it, so printing needs only the string:
  *
- *   tg_layer_load_font(&layer, TG_FONT_UNSCII8, 32, 95, 100, fg, bg);   // glyphs 32..126 become tiles 100..194
- *   tg_layer_put_string(&layer, 2, 3, "Hello", 0);                      // the offset, 100 - 32 = 68, was stored
+ *   static tg_char_t chars[128];
+ *   static tg_charmap_t cm;
+ *   tg_charmap_init(&cm, chars, 128);
+ *   tg_layer_load_font(&layer, &cm, TG_FONT_UNSCII8, 32, 95, 100, fg, bg);   // glyphs 32..126 become tiles 100..194
+ *   tg_layer_put_string(&layer, &cm, 2, 3, "Hello", 0);
  *
- * Built-in fonts are loaded by number and the offset is worked out for you. For your own glyph array, load it by
- * pointer and set the offset yourself:
+ * or, with tiles only for the characters a program shows, each put in a tile that is free (all transparent):
  *
- *   tg_layer_load_glyphs(&layer, my_glyphs, 8, 0, 64, 200, fg, bg);     // 64 glyphs into tiles 200..263
- *   tg_layer_set_glyph_offset(&layer, 200 - 32);                        // glyph number 32 is the first of them
- *   tg_layer_put_string(&layer, 2, 3, "Hello", 0);
+ *   tg_layer_add_chars(&layer, &cm, &tg_font_unscii8, "SCORE 0123456789", 1, 255, NULL, fg, 0);
  *
- * The layer's map and tile array are written to, so they must be in RAM.
+ * The map belongs to the tile set, not to a layer: layers that share tiles share it, and one set of tiles can have several
+ * maps (the same letters in two colours, for instance). The display never reads it: only loading and putting text do.
  */
 #ifndef TG_FONT_H
 #define TG_FONT_H
@@ -82,76 +84,118 @@ size_t tg_tile_bytes(unsigned tile_log2, unsigned depth);
  */
 void tg_tile_from_glyph(uint8_t *tile, unsigned tile_log2, unsigned depth, const uint8_t *glyph, uint8_t fg, uint8_t bg);
 
-/* ---- text on a tile layer: the offset is stored in the layer ---- */
+/* ---- the character map: which tile is which character ---- */
+
+#define TG_NO_TILE 0xFFFF   /* tg_char_t.lower of a character one tile tall */
+
+typedef struct {
+    uint32_t codepoint;
+    uint16_t tile;    /* the character's tile; for a font two tiles tall, the top half */
+    uint16_t lower;   /* the bottom half's tile (put one map row below), or TG_NO_TILE */
+} tg_char_t;
+
+typedef struct {
+    tg_char_t *chars;           /* sorted by codepoint, each at most once; the storage is the caller's */
+    uint16_t count, capacity;
+} tg_charmap_t;
+
+/* An empty map in `storage`, which has room for `capacity` characters (at most 65535). */
+void tg_charmap_init(tg_charmap_t *cm, tg_char_t *storage, unsigned capacity);
+/* Every character taken out (the tiles are not touched). */
+void tg_charmap_clear(tg_charmap_t *cm);
+/* The character's entry, or NULL if it has no tile. */
+const tg_char_t *tg_charmap_find(const tg_charmap_t *cm, uint32_t codepoint);
+/* The character is tile `tile` (and `lower` below it, or TG_NO_TILE), replacing what it was. False, changing nothing, if a tile
+ * number is above 1023 or the map is full. */
+bool tg_charmap_set(tg_charmap_t *cm, uint32_t codepoint, unsigned tile, unsigned lower);
+/* The character has no tile from now on. False if it had none. */
+bool tg_charmap_remove(tg_charmap_t *cm, uint32_t codepoint);
+/* Characters first .. first + count - 1 are tiles first_tile .. first_tile + count - 1 (with lower_delta not 0, each lower half
+ * lower_delta tiles after its top half), replacing what they were: the old offset scheme, as entries. All or nothing: false,
+ * changing nothing, if a tile number would be above 1023, the codepoints would go past 2^32 - 1, or the new characters do not fit. */
+bool tg_charmap_set_range(tg_charmap_t *cm, uint32_t first, unsigned count, unsigned first_tile, unsigned lower_delta);
+
+/* ---- loading glyphs into tiles ---- */
 
 /*
- * Load a built-in font's glyphs first_glyph .. first_glyph + count - 1 into the layer's tiles first_tile onwards, using
- * the layer's tile size and depth, and store how glyph numbers map to tiles: the offset first_tile - first_glyph, and
- * the range of glyphs that now have tiles. A glyph the font lacks becomes a tile of all `bg`. Index 0 is transparent.
+ * Load a built-in font's glyphs first_glyph .. first_glyph + count - 1 into the layer's tiles first_tile onwards, using the
+ * layer's tile size and depth, and enter them in the character map (tg_charmap_set_range). A glyph the font lacks becomes a
+ * tile of all `bg`. Index 0 is transparent. An 8x16 font takes two tiles a glyph: the top halves go in first_tile ..
+ * first_tile + count - 1 and the bottom halves in the count tiles after them. The tile array needs room for the tiles.
  *
- * An 8x16 font takes two tiles a glyph: the top halves go in first_tile .. first_tile + count - 1 and the bottom halves
- * in the count tiles after them, and tg_layer_put_* then fill two map rows. The tile array needs room for the tiles.
- *
- * Returns false, changing nothing, for a bad font number, a layer that is not a tile layer with 8x8 or 16x16 tiles of 4 or 8
- * bits, no tiles, no glyphs, or tile numbers that would go past 1023 (a map entry cannot name more).
+ * Returns false, changing nothing, for a bad font number, no map, a layer that is not a tile layer with 8x8 or 16x16 tiles of 4
+ * or 8 bits, no tiles, no glyphs, tile numbers that would go past 1023 (a map entry cannot name more), or no room in the map.
  */
-bool tg_layer_load_font(tg_layer_t *layer, tg_font_id_t font, uint32_t first_glyph, unsigned count, unsigned first_tile,
-                        uint8_t fg, uint8_t bg);
+bool tg_layer_load_font(tg_layer_t *layer, tg_charmap_t *cm, tg_font_id_t font, uint32_t first_glyph, unsigned count,
+                        unsigned first_tile, uint8_t fg, uint8_t bg);
 
 /* The same, for a font you name by pointer (so that only the fonts you use are linked). */
-bool tg_layer_load_font_ptr(tg_layer_t *layer, const tg_font_t *font, uint32_t first_glyph, unsigned count,
+bool tg_layer_load_font_ptr(tg_layer_t *layer, tg_charmap_t *cm, const tg_font_t *font, uint32_t first_glyph, unsigned count,
                             unsigned first_tile, uint8_t fg, uint8_t bg);
+
+/*
+ * Tiles for the characters a program shows, and no more. Each character of the UTF-8 string `text` that the map does not have
+ * yet and the font does have is drawn, in fg on bg, into a free tile among lowest .. highest and entered in the map; characters
+ * the font lacks, and the same character again, are passed over. A tile is free if every pixel of it is 0 (transparent), no
+ * entry of the map names it, and keep[tile] is 0 (keep, one byte per tile number, may be NULL: a program can mark tiles that
+ * are in use although they are blank). The free tiles nearest `highest` are taken, in rising order for the characters in the
+ * order of the string, so "0123456789" gets ten tiles in a row if there are ten free at the top. An 8x16 font takes two free
+ * tiles a character, the top half first. The tile array needs room for tiles up to `highest`.
+ *
+ * All or nothing: returns how many characters were added (0 if the map had them all), or -1, changing nothing, if there are not
+ * enough free tiles or not enough room in the map, or for a bad argument (no map, font, text or tiles; a tile size or depth that
+ * is not 8 or 16 and 4 or 8; highest above 1023 or lowest above it).
+ */
+int tg_font_add_chars(tg_charmap_t *cm, const tg_font_t *font, const char *text, uint8_t *tiles, unsigned tile_log2,
+                      unsigned depth, unsigned lowest, unsigned highest, const uint8_t *keep, uint8_t fg, uint8_t bg);
+
+/* The same, into a layer's tiles (with its tile size and depth); -1 for a layer that cannot take text. */
+int tg_layer_add_chars(tg_layer_t *layer, tg_charmap_t *cm, const tg_font_t *font, const char *text, unsigned lowest,
+                       unsigned highest, const uint8_t *keep, uint8_t fg, uint8_t bg);
 
 /*
  * The lower level: load `count` consecutive glyphs from an array of your own, rows_per_glyph bytes each (8 or 16), into
  * the layer's tiles first_tile onwards. `half` picks the top 8 rows (0) or the bottom 8 (1) of a 16-row glyph. Index 0 is
- * transparent. This does NOT say what glyph numbers the tiles stand for: follow it with tg_layer_set_glyph_offset.
+ * transparent. This does NOT say what characters the tiles stand for: follow it with tg_charmap_set_range or tg_charmap_set.
  * Returns false, changing nothing, for the same reasons as tg_layer_load_font.
  */
 bool tg_layer_load_glyphs(tg_layer_t *layer, const uint8_t *glyphs, unsigned rows_per_glyph, unsigned half, unsigned count,
                           unsigned first_tile, uint8_t fg, uint8_t bg);
 
 /*
- * Say that tile number = glyph number + offset for tg_layer_put_*. This replaces the whole glyph mapping: every glyph
- * number is taken to have a tile, and glyphs are one tile tall. (tg_layer_load_font sets the offset for you.)
- */
-void tg_layer_set_glyph_offset(tg_layer_t *layer, int offset);
-
-/* Optionally limit tg_layer_put_* to the glyph numbers first .. first + count - 1; others are skipped. count 0 removes the limit. */
-void tg_layer_set_glyph_range(tg_layer_t *layer, uint32_t first, uint32_t count);
-
-/*
- * Put text on the layer's map, left to right from tile (x, y), wrapping round the map. The entry written for glyph g is
- * tile g + offset, with sub-palette `pal` for 4 bpp tiles; for a font two tiles tall the lower half goes on the row
- * below. A glyph without a tile (outside the stored range, or a tile number below 0 or above 1023) is skipped: its cell
- * is left as it was and the position still moves on, so call the function once for each glyph set to mix scripts.
- *
- *   tg_layer_put_string  takes each byte of the string as a glyph number
- *   tg_layer_put_utf8    decodes UTF-8 first (ASCII is unchanged), so "é" or "─" can be written as they are; bytes that
- *                        are not valid UTF-8 are skipped
- *   tg_layer_put_glyphs  takes a list of 16-bit glyph numbers (including 0, and above 255)
- */
-void tg_layer_put_string(const tg_layer_t *layer, int x, int y, const char *text, unsigned pal);
-void tg_layer_put_utf8(const tg_layer_t *layer, int x, int y, const char *text, unsigned pal);
-void tg_layer_put_glyphs(const tg_layer_t *layer, int x, int y, const uint16_t *glyphs, size_t count, unsigned pal);
-
-/* ---- the same without a layer: explicit, no stored state ---- */
-
-/*
  * Program tiles first_tile .. first_tile + count - 1 of `tiles` from the glyphs first_cp .. first_cp + count - 1 of a font,
- * in order. `half` picks which 8 rows of the glyph are used: 0 is the top 8 (all there is for an 8-row font), 1 the
+ * in order, with no map. `half` picks which 8 rows of the glyph are used: 0 is the top 8 (all there is for an 8-row font), 1 the
  * bottom 8 of a 16-row font. A codepoint the font lacks (and a half it lacks) becomes a tile of all `bg`.
  */
 void tg_font_load_range(const tg_font_t *font, uint8_t *tiles, unsigned tile_log2, unsigned depth, unsigned first_tile,
                         uint32_t first_cp, unsigned count, unsigned half, uint8_t fg, uint8_t bg);
 
+/* ---- putting text on a map ---- */
+
 /*
- * Put glyph numbers into a map: the entry for glyph g is tile g + glyph_offset. A tile number below 0 or above 1023 is
- * skipped (the cell is left as it was). Glyph numbers above the range you loaded are not checked.
+ * Put text on the layer's map, left to right from tile (x, y), wrapping round the map: each character's tile from the map, with
+ * sub-palette `pal` for 4 bpp tiles; for a character two tiles tall the lower half goes on the row below. A character the map
+ * has no tile for is skipped: its cell is left as it was and the position still moves on. Nothing happens without a map.
+ *
+ *   tg_layer_put_string  takes each byte of the string as a character (so "\xE9" is U+00E9)
+ *   tg_layer_put_utf8    decodes UTF-8 first (ASCII is unchanged), so "é" or "─" can be written as they are; bytes that
+ *                        are not valid UTF-8 are skipped
+ *   tg_layer_put_glyphs  takes a list of 16-bit codepoints (including 0)
  */
-void tg_map_put_glyphs(uint16_t *map, unsigned map_w_log2, unsigned map_h_log2, int x, int y, const uint16_t *glyphs,
-                       size_t count, int glyph_offset, unsigned pal);
-void tg_map_put_string(uint16_t *map, unsigned map_w_log2, unsigned map_h_log2, int x, int y, const char *text,
-                       int glyph_offset, unsigned pal);
+void tg_layer_put_string(const tg_layer_t *layer, const tg_charmap_t *cm, int x, int y, const char *text, unsigned pal);
+void tg_layer_put_utf8(const tg_layer_t *layer, const tg_charmap_t *cm, int x, int y, const char *text, unsigned pal);
+void tg_layer_put_glyphs(const tg_layer_t *layer, const tg_charmap_t *cm, int x, int y, const uint16_t *glyphs, size_t count,
+                         unsigned pal);
+
+/* The same into a map of your own (map_w_log2 by map_h_log2 entries), with no layer. */
+void tg_map_put_string(uint16_t *map, unsigned map_w_log2, unsigned map_h_log2, const tg_charmap_t *cm, int x, int y,
+                       const char *text, unsigned pal);
+void tg_map_put_glyphs(uint16_t *map, unsigned map_w_log2, unsigned map_h_log2, const tg_charmap_t *cm, int x, int y,
+                       const uint16_t *glyphs, size_t count, unsigned pal);
+
+/* The next codepoint of a UTF-8 string, moving *p past it; TG_BAD_UTF8 for a byte that does not begin a well formed one (and
+ * *p moves one byte on). For a program's own text functions (the Lua layer's, which write through a world). */
+#define TG_BAD_UTF8 0xFFFFFFFFu
+uint32_t tg_utf8_next(const char **p);
 
 #endif

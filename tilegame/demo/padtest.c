@@ -34,7 +34,10 @@ int main(void)
     g.palette[(3 << 4) | 1] = RGB(90, 255, 120);    /* 3: green, for what is pressed now */
     g.layers[0] = (tg_layer_t){.kind = TG_LAYER_TILES, .tile_log2 = 3, .depth = 4, .map_w_log2 = 6, .map_h_log2 = 5,
                                .map = maps[0], .tiles = tiles};
-    tg_layer_load_font_ptr(&g.layers[0], &tg_font_unscii8, 32, 95, 1, 1, 0);
+    static tg_char_t chars[95];
+    static tg_charmap_t cm;   /* which tile is which character */
+    tg_charmap_init(&cm, chars, 95);
+    tg_layer_load_font_ptr(&g.layers[0], &cm, &tg_font_unscii8, 32, 95, 1, 1, 0);
     plat_present(&g);
 
     int buf = 0;
@@ -50,28 +53,28 @@ int main(void)
         g.layers[0].map = maps[buf];
 
         int row = 1;
-        tg_layer_put_string(&g.layers[0], 2, row++, "INPUT DIAGNOSTIC", 2);
+        tg_layer_put_string(&g.layers[0], &cm, 2, row++, "INPUT DIAGNOSTIC", 2);
         row++;
         char lines[22][41];
         const int n = plat_input_diag(lines, 22);
         for (int i = 0; i < n; i++)
-            tg_layer_put_string(&g.layers[0], 2, row++, lines[i], 1);
+            tg_layer_put_string(&g.layers[0], &cm, 2, row++, lines[i], 1);
         row++;
         char text[48];
-        tg_layer_put_string(&g.layers[0], 2, row++, "PLATFORM BUTTONS HELD NOW:", 2);
+        tg_layer_put_string(&g.layers[0], &cm, 2, row++, "PLATFORM BUTTONS HELD NOW:", 2);
         int x = 2;
         for (size_t i = 0; i < sizeof names / sizeof *names; i++)
             if (held & names[i].bit) {
-                tg_layer_put_string(&g.layers[0], x, row, names[i].name, 3);
+                tg_layer_put_string(&g.layers[0], &cm, x, row, names[i].name, 3);
                 x += (int)strlen(names[i].name) + 1;
             }
         row += 2;
         snprintf(text, sizeof text, "PRESSES SEEN: %lu", (unsigned long)presses);
-        tg_layer_put_string(&g.layers[0], 2, row++, text, 1);
+        tg_layer_put_string(&g.layers[0], &cm, 2, row++, text, 1);
         const plat_mouse_t m = plat_mouse();
         if (m.present) {
             snprintf(text, sizeof text, "MOUSE %3d,%3d BUTTONS %d", m.x, m.y, m.buttons);
-            tg_layer_put_string(&g.layers[0], 2, row++, text, 1);
+            tg_layer_put_string(&g.layers[0], &cm, 2, row++, text, 1);
         }
         plat_present(&g);
     }

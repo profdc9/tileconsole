@@ -303,7 +303,8 @@ void view_init(view_t *v)
                                   .map = v->main_map[0], .tiles = v->main_tiles};
     v->g.layers[2] = (tg_layer_t){.kind = TG_LAYER_TILES, .tile_log2 = 3, .depth = 4, .map_w_log2 = 6, .map_h_log2 = 5,
                                   .map = v->hud_map[0], .tiles = v->hud_tiles};
-    tg_layer_load_font_ptr(&v->g.layers[2], &tg_font_unscii8, 32, 95, 1, 1, 0);   /* ASCII in tiles 1..95, glyph 1 = white */
+    tg_charmap_init(&v->hud_cm, v->hud_chars, 95);
+    tg_layer_load_font_ptr(&v->g.layers[2], &v->hud_cm, &tg_font_unscii8, 32, 95, 1, 1, 0);   /* ASCII in tiles 1..95, glyph 1 = white */
 
     v->g.sprite_tile_log2 = 4;
     v->g.sprite_depth = 4;
@@ -328,12 +329,12 @@ static char *put_uint(char *out, unsigned value, int digits)
     return out + digits;
 }
 
-static void centred(const tg_layer_t *hud, int y, const char *text, unsigned pal)
+static void centred(const view_t *v, int y, const char *text, unsigned pal)
 {
     int n = 0;
     while (text[n])
         n++;
-    tg_layer_put_string(hud, (40 - n) / 2, y, text, pal);
+    tg_layer_put_string(&v->g.layers[2], &v->hud_cm, (40 - n) / 2, y, text, pal);
 }
 
 void view_draw(view_t *v, const game_t *game)
@@ -364,15 +365,15 @@ void view_draw(view_t *v, const game_t *game)
     memcpy(p, "  LIVES ", 8); p += 8;
     p = put_uint(p, (unsigned)game->lives, 1);
     *p = 0;
-    tg_layer_put_string(&g->layers[2], 4, 1, line, PAL_TEXT);
+    tg_layer_put_string(&g->layers[2], &v->hud_cm, 4, 1, line, PAL_TEXT);
     if (v->debug[0])
-        tg_layer_put_string(&g->layers[2], 4, 3, v->debug, PAL_TEXT);
+        tg_layer_put_string(&g->layers[2], &v->hud_cm, 4, 3, v->debug, PAL_TEXT);
     if (game->state == GS_GAMEOVER) {
-        centred(&g->layers[2], 12, "GAME OVER", PAL_TEXT_HI);
-        centred(&g->layers[2], 14, "PRESS START", PAL_TEXT);
+        centred(v, 12, "GAME OVER", PAL_TEXT_HI);
+        centred(v, 14, "PRESS START", PAL_TEXT);
     } else if (game->state == GS_WIN) {
-        centred(&g->layers[2], 12, "YOU WIN!", PAL_TEXT_HI);
-        centred(&g->layers[2], 14, "PRESS START", PAL_TEXT);
+        centred(v, 12, "YOU WIN!", PAL_TEXT_HI);
+        centred(v, 14, "PRESS START", PAL_TEXT);
     }
 
     /* The player. */

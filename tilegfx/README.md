@@ -21,29 +21,40 @@ times the compositor (desktop numbers only). MIT licensed (see `LICENSE`).
 `tg_font.h` adds bitmap fonts and the functions that put text on a tile layer. The fonts are the public-domain
 [Unscii](https://viznut.fi/unscii/) variants (not the GPL `unscii-16-full`; see `fonts/FONTS.md`).
 
-A layer remembers how glyph numbers map to tiles (`tg_layer_t.glyphs`: the offset, the range of glyphs that were loaded,
-and for tall fonts the distance to the lower half), so printing needs only the string.
+Which tile is which character is kept in a character map (`tg_charmap_t`): pairs of a Unicode codepoint and its tile (and
+the tile of its lower half, for a font two tiles tall), sorted, in storage the program gives, as it gives a layer's map and
+tiles. The loaders fill it in and the put functions read it. It belongs to the set of tiles, not to a layer: layers that share
+tiles share it, one set of tiles can have several (the same letters in two colours), and the display never reads it.
 
-**Built-in fonts, by number** (the offset is worked out and stored for you):
+**A run of a built-in font** into consecutive tiles:
 
-    tg_layer_load_font(&layer, TG_FONT_UNSCII8, 32, 95, 100, fg, bg);   /* glyphs 32..126 -> tiles 100..194; offset 68 */
-    tg_layer_put_string(&layer, 2, 3, "Hello", 0);                      /* 'H' is 72, so tile 72 + 68 = 140 */
+    static tg_char_t chars[128];
+    static tg_charmap_t cm;
+    tg_charmap_init(&cm, chars, 128);
+    tg_layer_load_font(&layer, &cm, TG_FONT_UNSCII8, 32, 95, 100, fg, bg);   /* glyphs 32..126 -> tiles 100..194 */
+    tg_layer_put_string(&layer, &cm, 2, 3, "Hello", 0);
 
-**Your own glyph array** (load by pointer, then set the offset with its own call):
+**Only the characters a program shows**, each in a free tile (all transparent, not named by the map, not marked in an
+optional `keep` table), taken from the top of a range down, in rising order for the characters of the string:
 
-    tg_layer_load_glyphs(&layer, my_glyphs, 8, 0, 64, 200, fg, bg);     /* 64 glyphs of 8 rows -> tiles 200..263 */
-    tg_layer_set_glyph_offset(&layer, 200 - 32);                        /* glyph number 32 is the first of them */
-    tg_layer_put_string(&layer, 2, 3, "Hello", 0);
+    tg_layer_add_chars(&layer, &cm, &tg_font_unscii8, "SCORE 0123456789", 1, 255, NULL, fg, 0);   /* 16 tiles: 240..255 */
 
-Glyph numbers without a tile (outside the loaded range, or a tile number below 0 or above 1023) are skipped: the cell is left
-as it was and the position still moves on, so a string that mixes scripts takes one load and one put per script.
+It adds only what the map does not have yet, and does nothing at all (returning -1) if there are not enough free tiles or
+places in the map. `tg_font_add_chars` is the same into a tile array of your own.
+
+**Your own glyph array**: `tg_layer_load_glyphs` loads it into tiles, and `tg_charmap_set_range` (or `tg_charmap_set`, one
+character at a time) says which characters they are.
+
+Characters the map has no tile for are skipped: the cell is left as it was and the position still moves on. Loads add up in
+one map, so a string that mixes scripts (ASCII, Latin-1, Greek, box drawing) takes one put once each set is loaded.
 `tg_layer_put_utf8` decodes UTF-8 first (so `"é"` or `"─"` can be written as they are), `tg_layer_put_glyphs` takes 16-bit
-glyph numbers. An 8x16 font takes two tiles a glyph and fills two map rows. Colour index 0 is transparent (give
-`bg` as 0 for text with a see-through background). The layer's `map` and `tiles` are written to, so they must be RAM.
+codepoints, and `tg_map_put_string` and `tg_map_put_glyphs` write into a map of your own. A character two tiles tall fills two
+map rows. Colour index 0 is transparent (give `bg` as 0 for text with a see-through background). The layer's `map` and `tiles`
+are written to, so they must be RAM.
 
-`tg_tile_from_glyph` programs a single tile from an 8-byte glyph; `tg_font_load_range` and `tg_map_put_string` are the same
-steps without a layer. Font numbers go through `tg_fontlist.c`, which refers to every font: define `TG_FONTS_ENABLED` (a
-mask, bit n for font n) to keep unwanted ones out of a program, or use `tg_layer_load_font_ptr` with the one font object.
+`tg_tile_from_glyph` programs a single tile from an 8-byte glyph and `tg_font_load_range` a run of them, with no map. Font
+numbers go through `tg_fontlist.c`, which refers to every font: define `TG_FONTS_ENABLED` (a mask, bit n for font n) to keep
+unwanted ones out of a program, or use `tg_layer_load_font_ptr` with the one font object.
 
 `make demo_text` renders a sample of every font to `fonts.ppm`.
 

@@ -8,6 +8,7 @@
 #define VIEW_H
 
 #include "game.h"
+#include "tg_font.h"
 #include "tilegfx.h"
 
 #define BG_TILES_MAX 200
@@ -30,6 +31,8 @@ typedef struct {
     uint16_t bg_map[32 * 16];
     uint16_t main_map[2][32 * 16];
     uint16_t hud_map[2][64 * 32];
+    tg_char_t hud_chars[95];   /* which HUD tile is which character (ASCII 32..126 in tiles 1..95) */
+    tg_charmap_t hud_cm;
     int bg_tiles_used;
     char debug[41];   /* an optional line of text under the HUD (empty: none) */
     int buf;   /* which of the double buffers the next frame is written to */
