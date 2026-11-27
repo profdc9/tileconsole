@@ -19,6 +19,9 @@ set(HSTX_FREE_DIR ${CMAKE_CURRENT_LIST_DIR}/../../hstx-free CACHE PATH "hstx-fre
 # clk_hstx must be 126 MHz; the library divides clk_sys by this.
 math(EXPR HSTX_DIV "${CPU_MHZ} / 126")
 set(PICO_HDMI_HSTX_CLK_DIV ${HSTX_DIV} CACHE STRING "" FORCE)
+# Core 1 makes an HDMI audio packet 12,000 times a second, while it keeps the scanout fed: from flash, that code goes through the XIP cache that
+# core 0's code and the PSRAM share, and a busy core 0 (a Lua program with its data in PSRAM) pushes it out and makes core 1 late with lines.
+set(PICO_HDMI_RAM_AUDIO_PATH ON CACHE BOOL "" FORCE)
 add_subdirectory(${HSTX_FREE_DIR}/pico_hdmi pico_hdmi)
 
 option(GAME_DEBUG_HUD "Show the frame rate and the USB task time under the HUD" OFF)
@@ -154,3 +157,7 @@ target_link_options(devkit PRIVATE -Wl,--wrap=fopen,--wrap=stat,--wrap=chmod,--w
 set(LUA_SRAM_KB 64 CACHE STRING "devkit: Lua's share of SRAM for its small blocks, in KB (0: all of Lua's memory in the PSRAM)")
 target_compile_definitions(devkit PRIVATE LUA_SRAM_KB=${LUA_SRAM_KB})
 target_compile_definitions(devkit PRIVATE DEVKIT_BOARD=1 PLAT_PSRAM=1 $<$<BOOL:${USBLOG_TEST_PANIC}>:USBLOG_TEST_PANIC=1> PICO_STACK_SIZE=0x1000 PICO_CORE1_STACK_SIZE=0x800)
+# malloc, calloc and realloc return NULL when the heap is full, as in standard C, instead of the SDK's default panic (a reset). Every caller in the devkit
+# checks for it: Lua's allocator then uses the PSRAM, the game's memory says "not enough memory", the editor reports it. (The SDK's lock that keeps the two
+# cores from using the heap at once stays.)
+target_compile_definitions(devkit PRIVATE PICO_MALLOC_PANIC=0)

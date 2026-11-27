@@ -38,6 +38,9 @@ void usblog_usb_init(void);
 void usblog_usb_remove(void);
 void usblog_usb_flush(void);
 
+/* Records the USB controller's interrupt state (the hang monitor calls it before it resets the board). */
+void usblog_usb_irq_state(void);
+
 #else
 static inline void usblog_boot(void) {}
 static inline void usblog(uint8_t type, uint16_t x, uint32_t a, uint32_t b, uint32_t c, uint32_t d) { (void)type; (void)x; (void)a; (void)b; (void)c; (void)d; }

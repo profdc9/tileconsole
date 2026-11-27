@@ -61,7 +61,13 @@ static tg_text_t screen;
 static tg_t g;
 /* The sound engine (tilesnd): Lua's sound functions queue commands to it, the platform's audio thread (core 1 on the board) mixes. */
 static snd_t sound;
-static void audio_cb(int16_t *lr, int frames, void *user)
+#ifdef DEVKIT_BOARD
+#include "pico.h"
+#define AUDIO_HOT(f) __not_in_flash_func(f)   /* (core 1 calls it 750 times a second, next to the scanout: not through the XIP cache) */
+#else
+#define AUDIO_HOT(f) f
+#endif
+static void AUDIO_HOT(audio_cb)(int16_t *lr, int frames, void *user)
 {
     (void)user;
     snd_render(&sound, lr, frames);
@@ -90,6 +96,7 @@ void plat_sdl_window_scale(int scale);   /* sdl/plat_sdl.c */
 #endif
 
 #ifdef DEVKIT_BOARD
+#include "hardware/structs/powman.h"
 #include "hardware/structs/watchdog.h"
 #include "hardware/watchdog.h"
 #include "pico/time.h"
@@ -110,12 +117,45 @@ void tde_crumb(unsigned id)
  * a firmware that ran before this one can leave a note there, and they survive a reset but not a power cycle. */
 static uint32_t scratch_at_start[8];
 static uint32_t watchdog_reason_at_start, watchdog_ctrl_at_start;   /* why the chip last reset, and whether the watchdog was armed */
+static uint32_t chip_reset_at_start;                                /* the power manager's own record of what reset the chip */
 static void __attribute__((constructor(101))) save_scratch_at_start(void)
 {
     for (int i = 0; i < 8; i++)
         scratch_at_start[i] = watchdog_hw->scratch[i];
     watchdog_reason_at_start = watchdog_hw->reason;
     watchdog_ctrl_at_start = watchdog_hw->ctrl;
+    chip_reset_at_start = powman_hw->chip_reset;
+}
+
+/* A line for the first screen: what reset the chip, as the power manager recorded it. A reset that our own code makes (a hang, a panic, a fault,
+ * BYE) goes through the watchdog; power-on, brown-out and the RUN pin come from outside the program, so a reset with no note about the last run and
+ * one of those here was not the program's doing. */
+static const char *reset_note(void)
+{
+    static const struct { uint32_t bit; const char *name; } causes[] = {
+        {POWMAN_CHIP_RESET_HAD_POR_BITS, "power-on (the supply was off, or fell low enough to restart the chip)"},
+        {POWMAN_CHIP_RESET_HAD_BOR_BITS, "BROWN-OUT (the core supply dipped)"},
+        {POWMAN_CHIP_RESET_HAD_RUN_LOW_BITS, "the RUN pin (the reset button)"},
+        {POWMAN_CHIP_RESET_HAD_GLITCH_DETECT_BITS, "the glitch detector"},
+        {POWMAN_CHIP_RESET_HAD_DP_RESET_REQ_BITS, "the debugger"},
+        {POWMAN_CHIP_RESET_HAD_HZD_SYS_RESET_REQ_BITS, "a system reset request"},
+        {POWMAN_CHIP_RESET_HAD_RESCUE_BITS, "a rescue reset"},
+        {POWMAN_CHIP_RESET_HAD_SWCORE_PD_BITS, "the core power domain switching off"},
+        {POWMAN_CHIP_RESET_HAD_WATCHDOG_RESET_PSM_BITS | POWMAN_CHIP_RESET_HAD_WATCHDOG_RESET_SWCORE_BITS | POWMAN_CHIP_RESET_HAD_WATCHDOG_RESET_POWMAN_BITS |
+             POWMAN_CHIP_RESET_HAD_WATCHDOG_RESET_POWMAN_ASYNC_BITS,
+         "the watchdog"},
+    };
+    static char text[200];
+    size_t at = (size_t)snprintf(text, sizeof text, "Reset by");
+    int n = 0;
+    for (size_t i = 0; i < sizeof causes / sizeof *causes && at < sizeof text; i++)
+        if (chip_reset_at_start & causes[i].bit)
+            at += (size_t)snprintf(text + at, sizeof text - at, "%s %s", n++ ? "," : ":", causes[i].name);
+    if (!n && at < sizeof text)
+        at += (size_t)snprintf(text + at, sizeof text - at, ": nothing recorded (%08lX)", (unsigned long)chip_reset_at_start);
+    if (at < sizeof text)
+        snprintf(text + at, sizeof text - at, ".\n");
+    return text;
 }
 
 void devkit_fault(uint32_t *frame)
@@ -177,6 +217,7 @@ static unsigned buttons(int player, int kind)
 #ifdef DEVKIT_BOARD
 size_t plat_video_report(char *buf, size_t size);   /* board/plat_board.c: the video watch's log */
 uint32_t plat_video_restarts(void);
+void plat_video_counts(uint32_t *late_lines, uint32_t *pump_us);   /* lines the scanout found not ready, and the longest audio pump, since power on */
 #endif
 static void plat_activity_hook(int what)
 {
@@ -184,10 +225,22 @@ static void plat_activity_hook(int what)
 }
 
 #ifdef DEVKIT_BOARD
-/* The game's memory: what the display reads in the C library's heap (SRAM), the rest in the PSRAM pool if there is one. */
-static void *game_alloc(size_t n, int fast)
+/* The game's memory (and the sound's: songs, samples): what the display reads in the C library's heap (SRAM), the rest in the PSRAM pool if there is
+ * one. Lua's memory is in both places too (lua_alloc), and Lua collects its garbage only when its own memory runs short: so when there is no room
+ * here, Lua collects (what a failed program left, say) and this tries again. */
+static void *raw_game_alloc(size_t n, int fast)
 {
     return fast || !pool ? malloc(n) : pool_malloc(pool, n);
+}
+
+static void *game_alloc(size_t n, int fast)
+{
+    void *p = raw_game_alloc(n, fast);
+    if (!p && env_p) {
+        tl_env_collect(&env);
+        p = raw_game_alloc(n, fast);
+    }
+    return p;
 }
 
 static void game_release(void *p)
@@ -471,8 +524,8 @@ static void setup_memory(void)
         }
     }
     env_p = pool ? pool_calloc(pool, 1, sizeof *env_p) : calloc(1, sizeof *env_p);
-    if (!env_p)
-        for (;;) {}
+    if (!env_p)   /* (malloc does not panic in this build: this does, so the next start says what went wrong) */
+        panic("no memory for the environment");
 }
 
 #define STACK_FILL 0xA5
@@ -498,10 +551,10 @@ static int board_info(const char *what, char *out, size_t size)
         return 1;
     }
     if (!strcmp(what, "scratch")) {
-        snprintf(out, size, "scratch at start: %08lX %08lX %08lX %08lX %08lX %08lX %08lX %08lX  wdog reason %lX ctrl %08lX", (unsigned long)scratch_at_start[0],
+        snprintf(out, size, "scratch at start: %08lX %08lX %08lX %08lX %08lX %08lX %08lX %08lX  wdog reason %lX ctrl %08lX  chip reset %08lX", (unsigned long)scratch_at_start[0],
                  (unsigned long)scratch_at_start[1], (unsigned long)scratch_at_start[2], (unsigned long)scratch_at_start[3], (unsigned long)scratch_at_start[4],
                  (unsigned long)scratch_at_start[5], (unsigned long)scratch_at_start[6], (unsigned long)scratch_at_start[7], (unsigned long)watchdog_reason_at_start,
-                 (unsigned long)watchdog_ctrl_at_start);
+                 (unsigned long)watchdog_ctrl_at_start, (unsigned long)chip_reset_at_start);
         return 1;
     }
     if (!strcmp(what, "stack")) {
@@ -541,8 +594,10 @@ static int board_info(const char *what, char *out, size_t size)
             else
                 free(report);
         }
-        snprintf(out, size, "video: %lu picture restarts since power on; %s", (unsigned long)plat_video_restarts(),
-                 ok ? "details saved in VIDEO.LOG" : report ? "VIDEO.LOG could not be saved" : "no memory for the report");
+        uint32_t late, pump_us;
+        plat_video_counts(&late, &pump_us);
+        snprintf(out, size, "video since power on: %lu picture restarts, %lu late lines, audio pump at most %lu us; %s", (unsigned long)plat_video_restarts(),
+                 (unsigned long)late, (unsigned long)pump_us, ok ? "details saved in VIDEO.LOG" : report ? "VIDEO.LOG could not be saved" : "no memory for the report");
         return 1;
     }
     if (!strcmp(what, "heap")) {
@@ -663,6 +718,7 @@ static void devkit(void)
 #endif
 #ifdef DEVKIT_BOARD
     tg_console_puts(&env.con, psram_note);
+    tg_console_puts(&env.con, reset_note());
 #endif
     for (;;) {
         const int r = tl_env_run(&env);

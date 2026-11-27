@@ -144,6 +144,7 @@ static volatile int32_t rendered;     /* source lines finished this frame */
 
 static volatile uint32_t underruns, lines_done, render_us_total, render_us_max;
 static volatile uint32_t audio_calls, audio_us_total, audio_us_max;   /* time spent in the game's audio callback */
+static volatile uint32_t pump_us_max;   /* the longest audio_pump since power on: the renderer waits for it (VIDEO shows it) */
 
 static uint32_t frame_no, seen_gen;   /* display frames (what plat_wait_frame returns), and the vsync count it last saw */
 static uint32_t presented;            /* calls of plat_wait_frame: the frames the game made (for the frame rate shown) */
@@ -259,6 +260,7 @@ static void __not_in_flash_func(audio_pump)(void)
     plat_audio_fn fn = audio_fn;
     if (!fn)
         return;
+    const uint32_t p0 = time_us_32();
     for (int n = 0; n < AUDIO_PACKETS_PER_CALL && hstx_di_queue_get_level() < AUDIO_QUEUE_TARGET; n++) {
         audio_sample_t samples[4];
         for (int i = 0; i < 4; i++) {
@@ -286,6 +288,9 @@ static void __not_in_flash_func(audio_pump)(void)
         hstx_encode_data_island(&island, &packet, false, DI_HSYNC_ACTIVE);
         hstx_di_queue_push(&island);
     }
+    const uint32_t pdt = time_us_32() - p0;
+    if (pdt > pump_us_max)
+        pump_us_max = pdt;
 }
 
 /* ---- video: core 1's background task renders ahead of the scanout ---- */
@@ -657,6 +662,12 @@ size_t plat_video_report(char *buf, size_t size)
 uint32_t plat_video_restarts(void)
 {
     return vw_event_count;
+}
+
+void plat_video_counts(uint32_t *late_lines, uint32_t *pump_us)
+{
+    *late_lines = underruns;
+    *pump_us = pump_us_max;
 }
 
 
