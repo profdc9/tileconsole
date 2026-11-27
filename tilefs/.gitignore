@@ -1,3 +1,4 @@
 test_tilefs
 test_sd
 *.o
+test_zip

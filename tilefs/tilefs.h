@@ -2,7 +2,8 @@
 /*
  * tilefs: a small file system layer for console-style programs. One POSIX-flavoured API (open, read, write, seek, directories,
  * rename, ...) over interchangeable backends mounted under names: a host directory (fs_posix.c, for desktop builds and tests), a
- * RAM disk (fs_ram.c, for boards without storage) and, later, FatFs on an SD card. Plain C, no malloc, no dependencies.
+ * RAM disk (fs_ram.c, for boards without storage), FatFs on an SD card (fs_fat.c), and a zip archive read-only (fs_zip.c). Plain C,
+ * no malloc, no dependencies.
  *
  * What the layer promises, so that a program behaves the same on every backend:
  *  - Paths are absolute ("/sd/save/game.dat") or relative to the current directory (fs_chdir). "/" is a virtual directory that lists
@@ -59,6 +60,8 @@ enum {
     FS_ENOMEM = -16,       /* the mount table is full, or a RAM disk's memory is too small */
     FS_ENODEV = -17,       /* the device answers but holds no usable file system: it is not formatted */
     FS_ENOMEDIA = -18,     /* nothing in the drive: no card in the socket */
+    FS_EROFS = -19,        /* the file system can only be read (a zip archive) */
+    FS_ENOTSUP = -20,      /* stored in a way this backend cannot read: a compressed or encrypted file in a zip archive, a ZIP64 archive */
 };
 
 /* Flags for fs_open: one of the access modes, plus any of the others. */
@@ -219,5 +222,56 @@ typedef struct {
 
 int fs_posix_init(fs_posix_t *p, const char *root_dir);   /* FS_ENOENT / FS_ENOTDIR if root_dir is not a directory */
 extern const fs_ops_t fs_posix_ops;
+
+/* A zip archive, read only: a file of another mount (an SD card's, say) whose contents are a mount of their own. Only what is stored
+ * without compression can be read (zip -0 makes such an archive); compressed and encrypted entries are listed, but opening them gives
+ * FS_ENOTSUP. No ZIP64 (archives over 4 GB) and no archives in several parts. Names are matched without regard to case, as on FAT, and
+ * folders are what the entries' paths say they are (an archive need not have entries for its folders); entries whose names tilefs
+ * cannot reach ("..", a character a FAT name cannot have) are left out. Writing, making, deleting and renaming give FS_EROFS.
+ * Every file open in the archive shares one handle on it, which stays open from fs_zip_open to fs_zip_close: so the archive itself
+ * cannot be deleted, renamed or written while it is mounted (FS_EBUSY).
+ *
+ *     fs_zip_t z;                                   (it must stay where it is while the archive is mounted)
+ *     fs_zip_open(&z, "/sd/game.zip");              (finds the archive's directory; z.index_bytes is what it takes in memory)
+ *     fs_zip_load(&z, index);                       (index: z.index_bytes bytes, which must stay until fs_zip_close)
+ *     fs_mount("ar", &fs_zip_ops, &z);              ("/ar/main.lua" is now main.lua of the archive)
+ *     ...
+ *     fs_unmount("ar"); fs_zip_close(&z);           (then the index memory can go)
+ */
+typedef struct fs_zip fs_zip_t;
+
+typedef struct {
+    fs_zip_t *zip;
+    uint32_t start, size, pos;   /* where its data is in the archive, its size, and where the next read is */
+    uint8_t used;
+} fs_zip_file_t;
+
+typedef struct {
+    fs_zip_t *zip;
+    uint32_t next;                     /* where in the index the listing goes on */
+    uint32_t plen;                     /* the folder: prefix[0..plen), with no slash at either end (empty for the root) */
+    char prefix[FS_PATH_MAX + 1];
+    uint8_t used;
+} fs_zip_dir_t;
+
+struct fs_zip {
+    int fd;                            /* the archive, open in tilefs; -1 if not */
+    uint32_t size;                     /* the archive's size */
+    uint32_t cd_start, bias;           /* where its central directory is, and what goes before the archive (added to its offsets) */
+    uint32_t index_bytes, entries;     /* the central directory's size (what fs_zip_load needs) and the entries in it */
+    uint8_t *index;                    /* the central directory, in the caller's memory */
+    uint32_t index_used;               /* the part of it that the entries fill */
+    fs_zip_file_t file[FS_MAX_FILES];
+    fs_zip_dir_t dir[FS_MAX_DIRS];
+};
+
+/* FS_ENODEV if it is not a zip archive (or not one whose numbers add up), FS_ENOTSUP for ZIP64, or what opening the file gave. */
+int fs_zip_open(fs_zip_t *z, const char *archive);
+/* Reads the central directory into `index` (z->index_bytes bytes; NULL for an archive with none) and checks it: FS_ENODEV if it is not
+ * what the archive's end said. On failure call fs_zip_close. */
+int fs_zip_load(fs_zip_t *z, void *index);
+/* Lets go of the archive: after fs_unmount, or when fs_zip_load failed. Not after fs_reset, which has closed its handle already. */
+void fs_zip_close(fs_zip_t *z);
+extern const fs_ops_t fs_zip_ops;
 
 #endif

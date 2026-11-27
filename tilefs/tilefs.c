@@ -553,6 +553,8 @@ const char *fs_strerror(int code)
     case FS_ENOMEM: return "out of memory";
     case FS_ENODEV: return "no file system on the device";
     case FS_ENOMEDIA: return "no card";
+    case FS_EROFS: return "read-only";
+    case FS_ENOTSUP: return "not supported (a compressed or encrypted file?)";
     default: return "unknown error";
     }
 }

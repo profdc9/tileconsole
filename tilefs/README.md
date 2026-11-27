@@ -13,6 +13,8 @@ Backends:
   its own BSD-style licence; the configuration is that directory's `ffconf.h`). It runs on any *block device*
   (`fs_blockdev_t`: 512-byte sectors): `fs_blk_file.c` is a disk image in a host file, for debugging the whole stack on a PC,
   `fs_blk_ram.c` a block of RAM, and an SD card on SPI is the third (below).
+- `fs_zip.c`: a zip archive, read only. The archive is a file of another mount (the SD card's, say), and what is in it becomes a
+  mount of its own, so a game's programs, graphics and sounds can travel as one file and be read as ordinary files (below).
 
 The same program then runs on all of them. To make that true the layer is stricter than any one of them: portable FAT-style
 names, no holes in files (seeking outside the file is an error), `rename` never replaces, a file that is open cannot be
@@ -50,6 +52,23 @@ The bus runs at 400 kHz until the card is set up and then at the speed given (25
 safe first try on a new board). The FatFs code needs more than the pico-sdk's default 2 KB of stack: build with
 `PICO_STACK_SIZE=0x1000`.
 
+## Zip archives
+
+    fs_zip_t z;                              // must stay where it is while mounted
+    fs_zip_open(&z, "/sd/game.zip");         // finds the archive's directory; z.index_bytes is the memory it needs
+    fs_zip_load(&z, index);                  // reads it into `index` (z.index_bytes bytes, kept until fs_zip_close)
+    fs_mount("ar", &fs_zip_ops, &z);         // "/ar/main.lua" is the archive's main.lua
+    ...
+    fs_unmount("ar"); fs_zip_close(&z);
+
+Only entries stored without compression can be read: `zip -0 -r game.zip main.lua sprites sounds` makes such an archive.
+Compressed and encrypted entries are listed but give `FS_ENOTSUP` when opened; there is no ZIP64 (archives over 4 GB). Names are
+matched without regard to case, as on FAT; folders are what the entries' paths say (an archive need not have folder entries),
+backslashes count as slashes, and entries whose names tilefs cannot reach are left out. Writing, making, deleting and renaming
+give `FS_EROFS`. Every file open in the archive shares one handle on it, so the archive costs one of the `FS_MAX_FILES` handles while
+mounted, and it cannot be deleted, renamed or written then (`FS_EBUSY`). The central directory is kept in the caller's memory and
+looked up there (about 50 to 100 bytes an entry), so opening a file reads only its 30-byte local header from the archive.
+
 ## Tests
 
 `make check` builds with AddressSanitizer and UBSan and runs:
@@ -69,7 +88,10 @@ safe first try on a new board). The FatFs code needs more than the pico-sdk's de
   a multiple block write; also cards that do not know CMD59 and cards that send junk CRCs when checking is off): version 1, version 2 and SDHC cards, sizes from the CSD, block I/O against a shadow copy, transient and
   lasting read and write faults, no card, a stuck busy line, and the whole stack (FatFs on the driver on the model, checked by fsck);
 - a random differential test of each backend against the host's file system (the host stands in as the reference;
-  `./test_tilefs OPS SEED` runs more of it).
+  `./test_tilefs OPS SEED` runs more of it);
+- **zip archives** (`test_zip.c`): archives made entry by entry, good and broken (stubs in front, comments up to 64 KB with a fake end
+  record in them, sizes and offsets that do not add up, local headers in the wrong place, ZIP64, compressed and encrypted entries,
+  backslashes and names tilefs cannot reach), and two made by real tools (Info-ZIP's `zip -0` and Python's `zipfile`).
 
 Mutation testing (deliberate breaks of the core and the backends) is caught except changes where another layer gives the same
 answer anyway. MIT licensed (FatFs under its own licence).
