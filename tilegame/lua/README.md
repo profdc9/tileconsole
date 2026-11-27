@@ -203,11 +203,22 @@ Actors are in front of the map (of every layer, unless `actorlayer` says otherwi
 `"down"`, `"left"`, `"right"`, `"a"`, `"b"`, `"x"`, `"y"`, `"start"`, `"select"`, `"l"`, `"r"`, or a number (1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048 in that order; add them
 for any of several).
 
+**The keyboard and the mouse.** For what buttons do not say: shortcuts, a name typed with the picture up, a pointer.
+
+| function | what it does |
+|---|---|
+| `key()` | the next key typed since the program started, or nil if there is none; it does not wait. A character gives itself (`"a"`, `"A"`, `"7"`, `" "`, `"?"`), the other keys their names: `"enter"`, `"backspace"`, `"tab"`, `"escape"`, `"delete"`, `"up"`, `"down"`, `"left"`, `"right"`, `"home"`, `"end"`, `"pageup"`, `"pagedown"`, `"insert"`, `"f1"` to `"f12"`, and Ctrl with a letter `"ctrl+a"` to `"ctrl+z"` (Ctrl+C stops the program). Keys not read yet wait for it, 32 at most; `while key() do end` throws them away |
+| `mouse()` | `x, y, left, right, middle, wheel`: where the pointer is on the screen (x 0 to 319, y 0 to 239, as the picture's pixels; add `camx()`, `camy()` for the place on the map), whether each button is held, and how far the wheel turned since the last frame (away from you is positive). As it was at the last frame, like the buttons. With no mouse the pointer stays in the middle of the screen and nothing is held |
+| `mouse(x, y)` | puts the pointer there (kept on the screen); `mouse()` says so at once |
+| `click([button])` | the button went down since the last frame: `"left"` (with none named), `"right"`, `"middle"`, or 1, 2, 4 (added for any of several). A click shorter than a frame is not seen |
+
+The program draws the pointer itself, as an actor that it moves to `mouse()` each frame. A key counts for `btn` and `pressed` too (the arrow keys
+are the pad's), so a game can read the same press both ways. `examples/paint.lua` paints with the mouse (or the arrow keys and space without one)
+and saves the picture with `savemap`.
+
 A mistake (an actor that is not there, a number out of range, a map that was not made) stops the program with a line that says what, the function's name and the program line.
 
 `examples/layers.lua` uses all four layers.
-
-Not here yet: loading tiles and maps from files.
 
 ## Sound
 

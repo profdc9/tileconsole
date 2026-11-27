@@ -11,6 +11,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "platform.h"
 #include "tg_console.h"
 #include "tilegfx.h"
 
@@ -35,6 +36,9 @@ typedef struct {
     uint32_t (*wait_frame)(void);
     void (*present)(const tg_t *g);
     unsigned (*buttons)(int player, int kind);
+    /* optional (NULL: no mouse): plat_mouse and plat_mouse_set_position */
+    plat_mouse_t (*mouse)(void);
+    void (*set_mouse)(int x, int y);
     /* optional (NULL: malloc and free): memory for the game's tiles, map and actors. fast = 1 for what the display reads (tile graphics, the window of the map),
      * which belongs in the fastest RAM; 0 for the rest (a big map can be in the PSRAM). The block need not be cleared. */
     void *(*alloc)(size_t size, int fast);
@@ -104,6 +108,9 @@ tl_env_t *tl_env_current(void);
 void tl_env_problem(tl_env_t *e, const char *fmt, ...) __attribute__((format(printf, 2, 3)));
 void tl_env_poll(tl_env_t *e);
 int tl_env_read_line(tl_env_t *e, char *out, int size);
+/* The next key typed while a program runs (as plat_getchar gives it), or -1 if there is none, without waiting: first those tl_env_poll kept, then the
+ * keyboard's. Ctrl+C is not given: it sets stop. */
+int tl_env_key(tl_env_t *e);
 
 /* A full garbage collection, if there is a Lua state. The environment does it after an error at the prompt (what a failed program built is garbage
  * from then on), before HEAP and before the editor. Lua collects by itself when its own memory runs short, but nothing else makes it: a machine that

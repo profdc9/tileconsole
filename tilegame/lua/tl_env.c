@@ -81,16 +81,24 @@ void tl_env_problem(tl_env_t *e, const char *fmt, ...)
 
 /* ---- keys ---- */
 
+/* The oldest of the keys typed while a program ran, taken out; -1 if there are none. */
+static int take_typeahead(tl_env_t *e)
+{
+    if (!e->typeahead_count)
+        return -1;
+    const int ch = e->typeahead[0];
+    memmove(e->typeahead, e->typeahead + 1, sizeof(int) * (size_t)(--e->typeahead_count));
+    return ch;
+}
+
 /* The next key: from what was typed while a program ran, then from the keyboard, waiting (and showing the screen) if there is none. */
 static int next_key(tl_env_t *e)
 {
     for (;;) {
-        if (e->typeahead_count) {
-            const int ch = e->typeahead[0];
-            memmove(e->typeahead, e->typeahead + 1, sizeof(int) * (size_t)(--e->typeahead_count));
+        int ch = take_typeahead(e);
+        if (ch >= 0)
             return ch;
-        }
-        const int ch = e->hooks.getchar();
+        ch = e->hooks.getchar();
         if (ch >= 0)
             return ch;
         tl_sound_tick(e);
@@ -239,6 +247,16 @@ void tl_env_poll(tl_env_t *e)
             e->typeahead[e->typeahead_count++] = ch;
     }
     e->last_poll = e->hooks.millis();
+}
+
+int tl_env_key(tl_env_t *e)
+{
+    int ch = take_typeahead(e);
+    if (ch < 0 && (ch = e->hooks.getchar()) == 3) {
+        e->stop = 1;
+        ch = -1;
+    }
+    return ch;
 }
 
 /* Lua's hook: with ticks from the machine it was set by tl_env_tick for this one look; without, it comes every COUNT_HOOK instructions. Once

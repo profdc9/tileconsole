@@ -159,7 +159,7 @@ typedef struct {
 /* As sampled by the last plat_wait_frame, like the buttons. Without a mouse everything is 0 and present is false. */
 plat_mouse_t plat_mouse(void);
 
-/* Put the pointer somewhere (clamped to the screen), for instance in the middle when a game starts. */
+/* Put the pointer somewhere (clamped to the screen), for instance in the middle when a game starts. plat_mouse() says so at once. */
 void plat_mouse_set_position(int x, int y);
 
 /* ---- diagnostics ---- */

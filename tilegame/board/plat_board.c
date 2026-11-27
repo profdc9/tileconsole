@@ -808,6 +808,8 @@ void plat_mouse_set_position(int x, int y)
 {
 #if PLAT_USB_HID
     usb_hid_mouse_set_position(x, y);
+    mouse_frame.x = (int16_t)(x < 0 ? 0 : x > TG_WIDTH - 1 ? TG_WIDTH - 1 : x);   /* (seen at once, as usb_hid's own snapshot is moved) */
+    mouse_frame.y = (int16_t)(y < 0 ? 0 : y > TG_HEIGHT - 1 ? TG_HEIGHT - 1 : y);
 #else
     (void)x;
     (void)y;

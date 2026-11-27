@@ -23,7 +23,7 @@ typedef struct {
 void mouse_acc_init(mouse_acc_t *m);
 void mouse_acc_move(mouse_acc_t *m, int dx, int dy, int wheel);   /* marks a mouse as present */
 void mouse_acc_buttons(mouse_acc_t *m, uint8_t buttons);          /* the buttons held now; marks a mouse as present */
-void mouse_acc_set_position(mouse_acc_t *m, int x, int y);
+void mouse_acc_set_position(mouse_acc_t *m, int x, int y);                 /* the snapshot of this frame is moved there too */
 void mouse_acc_frame(mouse_acc_t *m);                              /* take the snapshot for this frame and start adding up again */
 
 #endif

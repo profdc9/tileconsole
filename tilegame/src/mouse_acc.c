@@ -30,6 +30,8 @@ void mouse_acc_set_position(mouse_acc_t *m, int x, int y)
 {
     m->x = clamp32(x, 0, TG_WIDTH - 1);
     m->y = clamp32(y, 0, TG_HEIGHT - 1);
+    m->frame.x = (int16_t)m->x;   /* (what this frame says too: a program that puts the pointer somewhere sees it there at once) */
+    m->frame.y = (int16_t)m->y;
 }
 
 void mouse_acc_frame(mouse_acc_t *m)

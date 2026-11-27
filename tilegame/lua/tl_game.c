@@ -1335,6 +1335,99 @@ static int button_state(lua_State *L, int kind)
 static int l_btn(lua_State *L) { return button_state(L, 0); }
 static int l_pressed(lua_State *L) { return button_state(L, 1); }
 
+/* ---- the keyboard and the mouse ---- */
+
+/*
+ * key(): the next key typed since the program started, or nil if there is none; it does not wait. A character gives itself ("a", "A", "7", " ", "?"), the
+ * other keys their names: "enter", "backspace", "tab", "escape", "delete", "up", "down", "left", "right", "home", "end", "pageup", "pagedown", "insert",
+ * "f1" to "f12", and Ctrl with a letter "ctrl+a" to "ctrl+z" (Ctrl+C stops the program). Keys typed and not read wait for it, 32 at most: `while key() do
+ * end` throws them away. The same key presses count for btn and pressed too.
+ */
+static int l_key(lua_State *L)
+{
+    static const char *const moves[] = {"up", "down", "left", "right", "home", "end", "pageup", "pagedown", "insert"};
+    tl_env_t *e = E;
+    for (;;) {
+        const int ch = tl_env_key(e);
+        if (e->stop)
+            return luaL_error(L, "Break");
+        if (ch < 0) {
+            lua_pushnil(L);
+            return 1;
+        }
+        char name[12];
+        const char *s = name;
+        if (ch >= 32 && ch < 127) {
+            name[0] = (char)ch;
+            name[1] = 0;
+        } else if (ch == 10 || ch == 13) {
+            s = "enter";
+        } else if (ch == 8) {
+            s = "backspace";
+        } else if (ch == 9) {
+            s = "tab";
+        } else if (ch == 27) {
+            s = "escape";
+        } else if (ch == 127) {
+            s = "delete";
+        } else if (ch < 32) {   /* Ctrl with a letter, or with @ \ ] ^ _ */
+            snprintf(name, sizeof name, "ctrl+%c", ch >= 1 && ch <= 26 ? ch + 'a' - 1 : ch + '@');
+        } else if (ch >= PLAT_KEY_UP && ch <= PLAT_KEY_INSERT) {
+            s = moves[ch - PLAT_KEY_UP];
+        } else if (ch >= PLAT_KEY_F(1) && ch <= PLAT_KEY_F(12)) {
+            snprintf(name, sizeof name, "f%d", ch - PLAT_KEY_F1 + 1);
+        } else {
+            continue;   /* (nothing else is typed) */
+        }
+        lua_pushstring(L, s);
+        return 1;
+    }
+}
+
+/*
+ * mouse(): x, y, left, right, middle, wheel: where the pointer is on the screen (x 0 to 319, y 0 to 239; the camera is not in it), whether each button is
+ * held, and how far the wheel turned since the last frame (away from you is positive). As it was at the last frame, like the buttons. With no mouse the
+ * pointer stays in the middle of the screen. mouse(x, y) puts the pointer there (kept on the screen).
+ */
+static int l_mouse(lua_State *L)
+{
+    tl_env_t *e = E;
+    if (lua_gettop(L) > 0) {
+        const int x = iarg(L, 1), y = iarg(L, 2);
+        if (e->hooks.set_mouse)
+            e->hooks.set_mouse(x, y);
+        return 0;
+    }
+    const plat_mouse_t m = e->hooks.mouse ? e->hooks.mouse() : (plat_mouse_t){.x = TG_WIDTH / 2, .y = TG_HEIGHT / 2};
+    lua_pushinteger(L, m.x);
+    lua_pushinteger(L, m.y);
+    lua_pushboolean(L, m.buttons & PLAT_MOUSE_LEFT);
+    lua_pushboolean(L, m.buttons & PLAT_MOUSE_RIGHT);
+    lua_pushboolean(L, m.buttons & PLAT_MOUSE_MIDDLE);
+    lua_pushinteger(L, m.wheel);
+    return 6;
+}
+
+/* click([button]): the mouse button went down since the last frame: "left" (with none named), "right", "middle", or 1, 2, 4 (added for any of several). */
+static int l_click(lua_State *L)
+{
+    tl_env_t *e = E;
+    int mask = 0;
+    const int type = lua_type(L, 1);
+    if (type == LUA_TNONE || type == LUA_TNIL) {
+        mask = PLAT_MOUSE_LEFT;
+    } else if (type == LUA_TNUMBER) {
+        mask = iarg(L, 1) & 7;
+    } else if (type == LUA_TSTRING) {
+        const char *name = lua_tostring(L, 1);
+        mask = same_name(name, "left") ? PLAT_MOUSE_LEFT : same_name(name, "right") ? PLAT_MOUSE_RIGHT : same_name(name, "middle") ? PLAT_MOUSE_MIDDLE : 0;
+    }
+    if (!mask)
+        return luaL_error(L, "click(button): \"left\" \"right\" \"middle\", or 1, 2, 4");
+    lua_pushboolean(L, e->hooks.mouse && (e->hooks.mouse().pressed & mask));
+    return 1;
+}
+
 /* ---- registration ---- */
 
 /* ---- graphics and map files (TGF: ../src/tgf.h, ../docs/tgf-format.md) ---- */
@@ -1612,6 +1705,7 @@ void tl_game_open(lua_State *L)
         F(actor), F(actorfree), F(actorpos), F(actorx), F(actory), F(actorvel), F(actortile), F(actorsize), F(actorflip), F(actorhide), F(actorprio),
         F(actorbox), F(actoruser), F(actorlayer), F(animdef), F(actoranim), F(animdone), F(animframe), F(ysort), F(actormove), F(hitx), F(hity), F(hittile), F(hitflags),
         F(lastx), F(lasty), F(actorhit), F(waitframe), F(onframe), F(run), F(textmode), F(frames), F(millis), F(btn), F(pressed),
+        F(key), F(mouse), F(click),
         {NULL, NULL},
     };
     for (const luaL_Reg *r = functions; r->func; r++)

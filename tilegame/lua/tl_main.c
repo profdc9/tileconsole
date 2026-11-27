@@ -60,7 +60,7 @@ int main(int argc, char **argv)
 {
     const char *dir = "lua_files";
     tl_hooks_t hooks = {.getchar = get_char, .frame = frame, .millis = plat_millis, .wait_frame = plat_wait_frame, .present = plat_present,
-                        .buttons = buttons, .poll = plat_poll, .async_ticks = 1};
+                        .buttons = buttons, .mouse = plat_mouse, .set_mouse = plat_mouse_set_position, .poll = plat_poll, .async_ticks = 1};
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "-2") || !strcmp(argv[i], "--double")) {
             plat_sdl_window_scale(2);

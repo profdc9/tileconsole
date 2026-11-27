@@ -551,6 +551,7 @@ static void test_mouse_accumulator(void)
     CHECK(m.frame.pressed == 0 && m.frame.buttons == 0);
 
     mouse_acc_set_position(&m, -50, 9999);
+    CHECK(m.frame.x == 0 && m.frame.y == TG_HEIGHT - 1);                            /* seen at once */
     mouse_acc_frame(&m);
     CHECK(m.frame.x == 0 && m.frame.y == TG_HEIGHT - 1);
     mouse_acc_set_position(&m, 100, 80);

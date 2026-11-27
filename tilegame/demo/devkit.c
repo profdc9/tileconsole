@@ -655,11 +655,12 @@ static void devkit(void)
 #endif
 #ifdef DEVKIT_BOARD
     tl_hooks_t hooks = {.getchar = get_char, .frame = frame, .millis = plat_millis, .info = board_info, .wait_frame = plat_wait_frame,
-                        .present = plat_present, .buttons = buttons, .alloc = game_alloc, .release = game_release,
+                        .present = plat_present, .buttons = buttons, .mouse = plat_mouse, .set_mouse = plat_mouse_set_position,
+                        .alloc = game_alloc, .release = game_release,
                         .activity = plat_activity_hook, .poll = plat_poll, .lua_alloc = lua_alloc};
 #else
     tl_hooks_t hooks = {.getchar = get_char, .frame = frame, .millis = plat_millis, .wait_frame = plat_wait_frame, .present = plat_present,
-                        .buttons = buttons, .poll = plat_poll};
+                        .buttons = buttons, .mouse = plat_mouse, .set_mouse = plat_mouse_set_position, .poll = plat_poll};
 #endif
 #ifdef DEVKIT_BOARD
     static char note_copy[200];

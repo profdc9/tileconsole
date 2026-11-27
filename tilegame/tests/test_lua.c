@@ -142,7 +142,8 @@ static void type(const char *spec)
 {
     static const struct { const char *name; int key; } names[] = {
         {"UP", PLAT_KEY_UP}, {"DOWN", PLAT_KEY_DOWN}, {"LEFT", PLAT_KEY_LEFT}, {"RIGHT", PLAT_KEY_RIGHT}, {"HOME", PLAT_KEY_HOME}, {"END", PLAT_KEY_END},
-        {"ESC", 27}, {"BS", 8}, {"DEL", 127},
+        {"ESC", 27}, {"BS", 8}, {"DEL", 127}, {"PGUP", PLAT_KEY_PAGEUP}, {"PGDN", PLAT_KEY_PAGEDOWN}, {"INS", PLAT_KEY_INSERT}, {"F1", PLAT_KEY_F(1)},
+        {"F12", PLAT_KEY_F(12)}, {"TAB", 9}, {"CR", 13}, {"NUL", 0}, {"FS", 28}, {"X128", 128}, {"X200", 0x200},
     };
     while (*spec) {
         int key = -1;
@@ -216,6 +217,21 @@ static unsigned t_buttons(int player, int kind)
     return player == 0 ? (kind == 0 ? held : kind == 1 ? went_down : 0) : 0;
 }
 
+/* the mouse: plat_mouse gives what the test puts in tmouse, and plat_mouse_set_position moves it there (kept on the screen, as the machine does); with
+ * mouse_on 0 the environment has no mouse hooks */
+static int mouse_on = 1;
+static plat_mouse_t tmouse;
+static int mouse_sets;
+
+static plat_mouse_t t_mouse(void) { return tmouse; }
+
+static void t_set_mouse(int x, int y)
+{
+    mouse_sets++;
+    tmouse.x = (int16_t)(x < 0 ? 0 : x > TG_WIDTH - 1 ? TG_WIDTH - 1 : x);
+    tmouse.y = (int16_t)(y < 0 ? 0 : y > TG_HEIGHT - 1 ? TG_HEIGHT - 1 : y);
+}
+
 static size_t lua_bytes;   /* what Lua has through the allocator hook */
 static size_t shared_limit;   /* nonzero: the game's memory and Lua's share this much, as the board's PSRAM pool does (Lua's own does not fail) */
 static int shared_collect;    /* ... and when it is full, the hook has Lua collect and tries again, as the devkit's game_alloc does */
@@ -272,6 +288,12 @@ static void fresh(void)
         hooks.alloc = t_alloc;
         hooks.release = t_release;
     }
+    if (mouse_on) {
+        hooks.mouse = t_mouse;
+        hooks.set_mouse = t_set_mouse;
+    }
+    tmouse = (plat_mouse_t){.x = TG_WIDTH / 2, .y = TG_HEIGHT / 2};
+    mouse_sets = 0;
     lua_bytes = 0;   /* (the state from before is not closed, as a cut may have left it half way: what it had does not count) */
     allocs = releases = fast_allocs = 0;
     snd_init(&tsnd, PLAT_AUDIO_RATE);
@@ -629,7 +651,7 @@ static void test_input_and_break(void)
     async_on = 0;
     /* keys typed while a program runs are kept for its io.read */
     fresh();
-    CHECK(put_file("/sd/wait.lua", "for k = 1, 30000 do end\nio.write(\"x? \")\nlocal x = io.read(\"n\")\nprint(x * 2)\n") > 0);
+    CHECK(put_file("/sd/wait.lua", "for k = 1, 1000000 do end\nio.write(\"x? \")\nlocal x = io.read(\"n\")\nprint(x * 2)\n") > 0);
     type("LOAD wait\nRUN\n21\n");
     CHECK(go() == -1 && shows("x? 21") && shows("42"));
 }
@@ -2689,6 +2711,194 @@ static void test_tgf_files(void)
     CHECK(fs_stat("/sd/gfxfiles.tgf", &st) == 0 && fs_stat("/sd/gfxfiles.map", &st) == 0);
 }
 
+/* A program in t.lua, run with these keys typed after RUN (the mouse is as the test set it after fresh, which this calls: set it in `setup`) */
+static void run_with_keys(const char *text, const char *keys, void (*setup)(void))
+{
+    fresh();
+    if (setup)
+        setup();
+    CHECK(put_file("/sd/t.lua", text) > 0);
+    type("LOAD t\nRUN\n");
+    type(keys);
+    CHECK(go() == -1);
+}
+
+static void mouse_held(void)
+{
+    tmouse = (plat_mouse_t){.present = true, .x = 10, .y = 20, .buttons = PLAT_MOUSE_LEFT | PLAT_MOUSE_MIDDLE, .pressed = PLAT_MOUSE_LEFT | PLAT_MOUSE_RIGHT,
+                            .wheel = -2};   /* (right went down and up again within the frame: pressed, not held) */
+}
+
+/* key(): the keys typed while the program runs, by name; mouse() and click(): the pointer and the buttons, as the machine has them at the frame */
+static void test_keys_and_mouse(void)
+{
+    /* every kind of key, in the order typed; what nothing types is passed over */
+    static const char collect[] =
+        "local got = {}\n"
+        "repeat\n"
+        "  local k = key()\n"
+        "  got[#got + 1] = k\n"
+        "until not k\n"
+        "print(#got .. \" keys\")\n"
+        "for i = 1, #got, 8 do\n"
+        "  print(table.concat(got, \",\", i, math.min(i + 7, #got)))\n"
+        "end\n";
+    run_with_keys(collect, "aZ 7?{UP}{DOWN}{LEFT}{RIGHT}{HOME}{END}{PGUP}{X128}{PGDN}{INS}{F1}{F12}\n{BS}{TAB}{X200}{ESC}{DEL}^A^Z{NUL}{CR}{FS}", NULL);
+    CHECK(printed("26 keys"));
+    {
+        static const char *const want[] = {"a,Z, ,7,?,up,down,left", "right,home,end,pageup,pagedown,insert,f1,f12",
+                                           "enter,backspace,tab,escape,delete,ctrl+a,ctrl+z,ctrl+@", "enter,ctrl+\\", "Ready."};
+        CHECK(rows_after("26 keys", want, 5));
+    }
+    CHECK(env.game == NULL && presents == 0);   /* (no graphics needed) */
+
+    /* Ctrl+C is not a key: it stops the program */
+    run_with_keys("local k\nrepeat k = key() until k\nprint(\"got \" .. k)\n", "^C", NULL);
+    CHECK(shows("Break") && !shows("got "));
+
+    /* keys typed while the program was busy (kept for it by the environment, as for io.read: the loop is long enough for it to look at the keys) come
+     * first, in order */
+    run_with_keys("for i = 1, 1000000 do end\nlocal s = \"\"\nrepeat\n  local k = key()\n  s = s .. (k or \"\")\nuntil not k\nprint(\"[\" .. s .. \"]\")\n",
+                  "abc", NULL);
+    CHECK(printed("[abc]"));
+
+    /* with the picture up */
+    run_with_keys("gfx(8)\nlocal n = 0\nrepeat\n  waitframe()\n  n = n + 1\nuntil key() == \"q\" or n > 300\nprint(n <= 300 and \"quit by key\" or \"no key\")\n",
+                  "xq", NULL);
+    CHECK(printed("quit by key"));
+
+    /* the mouse */
+    static const char pointer[] =
+        "local function b(...)\n"
+        "  local t = {}\n"
+        "  for i = 1, select(\"#\", ...) do t[i] = tostring((select(i, ...))) end\n"
+        "  return table.concat(t, \" \")\n"
+        "end\n"
+        "print(\"m \" .. b(mouse()))\n"
+        "print(b(click(), click(\"left\"), click(\"right\"), click(2), click(\"Middle\"), click(4), click(6), click(nil)))\n"
+        "mouse(700, -5)\n"
+        "print(b(mouse()))\n"
+        "mouse(12.7, 30)\n"
+        "print(b(mouse()))\n";
+    run_with_keys(pointer, "", mouse_held);
+    {
+        static const char *const want[] = {"true true true true false false true true", "319 0 true false true -2", "12 30 true false true -2", "Ready."};
+        CHECK(strcmp(row(row_of("m ")), "m 10 20 true false true -2") == 0 && rows_after("m ", want, 4));
+    }
+    CHECK(mouse_sets == 2 && env.game == NULL && presents == 0);
+    /* no mouse: the pointer in the middle, nothing held or clicked, and putting it somewhere does nothing */
+    mouse_on = 0;
+    run_with_keys("print(\"m \" .. table.concat({tostring(click(\"right\")), mouse()}, \" \", 1, 3))\nprint(select(6, mouse()))\nmouse(1, 2)\nprint(\"m2 \" .. mouse())\n",
+                  "", mouse_held);
+    mouse_on = 1;
+    CHECK(printed("m false 160 120") && printed("0") && printed("m2 160") && !shows("Error"));
+    /* mistakes */
+    run_with_keys("print(click(\"jump\"))\n", "", NULL);
+    CHECK(shows("click(button): \"left\" \"right\" \"middle\", or 1, 2, 4"));
+    run_with_keys("print(click(8))\n", "", NULL);
+    CHECK(shows("click(button): \"left\" \"right\" \"middle\", or 1, 2, 4"));
+    run_with_keys("mouse(\"x\", 1)\n", "", NULL);
+    CHECK(shows("bad argument #1 to 'mouse'"));
+    run_with_keys("mouse(5)\n", "", NULL);
+    CHECK(shows("bad argument #2 to 'mouse'"));
+}
+
+/* examples/paint.lua, which runs until Escape: keys given one a frame (so that each frame's picture shows what the one before did), and a mouse that
+ * moves as paint_mouse_at says */
+static int paint_frame, paint_mouse;
+static int feed_keys[64], feed_n, feed_pos;
+
+static void paint_mouse_at(int f)
+{
+    tmouse.pressed = 0;
+    tmouse.wheel = 0;
+    if (f == 5) {                                       /* on the blue of the bar (cells 12 to 14): click */
+        tmouse = (plat_mouse_t){.present = true, .x = 12 * 8 + 5, .y = 5, .buttons = PLAT_MOUSE_LEFT, .pressed = PLAT_MOUSE_LEFT};
+    } else if (f == 6) {
+        tmouse.buttons = 0;
+    } else if (f >= 10 && f <= 15) {                    /* a stroke along row 10 from cell 2 to cell 22, 4 cells a frame */
+        tmouse.x = (int16_t)((2 + (f - 10) * 4) * 8 + 3);
+        tmouse.y = 10 * 8 + 3;
+        tmouse.buttons = PLAT_MOUSE_LEFT;
+        tmouse.pressed = f == 10 ? PLAT_MOUSE_LEFT : 0;
+    } else if (f == 16) {
+        tmouse.buttons = 0;
+    } else if (f == 18) {                               /* 1 chooses black (a key, below) ... */
+    } else if (f == 20) {                               /* ... and the right button on a blue cell picks blue up again */
+        tmouse.x = 12 * 8 + 1;
+        tmouse.buttons = PLAT_MOUSE_RIGHT;
+    } else if (f == 21) {
+        tmouse.buttons = 0;
+        tmouse.wheel = -1;                              /* towards you: the next colour, yellow */
+    } else if (f == 22) {
+        tmouse.x = 200;
+        tmouse.y = 200;
+    }
+}
+
+static uint32_t paced_wait_frame(void)
+{
+    const int f = ++paint_frame;
+    if (paint_mouse)
+        paint_mouse_at(f);
+    if (feed_pos < feed_n) {
+        CHECK(script_len < 8192);
+        script[script_len++] = feed_keys[feed_pos++];
+    }
+    return t_wait_frame();
+}
+
+/* paint.lua run afresh, with these keys (one a frame from the first; "." is a frame with none) and the mouse if asked; it must end by itself */
+static void paint_run(const char *text, const char *keys, int with_mouse)
+{
+    fresh();
+    CHECK(put_file("/sd/paint.lua", text) > 0);
+    env.hooks.wait_frame = paced_wait_frame;
+    paint_frame = 0;
+    paint_mouse = with_mouse;
+    type(keys);
+    feed_n = script_len;
+    CHECK(feed_n <= 64);
+    for (int i = 0; i < feed_n; i++)
+        feed_keys[i] = script[i] == '.' ? 0x1FF : script[i];   /* (a code that types nothing) */
+    feed_pos = 0;
+    script_len = 0;
+    type("LOAD paint\nRUN\n");
+    CHECK(go() == -1 && shows("Painted.") && !shows("Error"));
+}
+
+#define CELL(x, y) image[(y) * 8 + 1][(x) * 8 + 7]   /* a pixel of the cell that the pointer's sprite does not cover */
+
+static void test_example_paint(void)
+{
+    const char *text = read_example("paint.lua");
+    fs_stat_t st;
+    /* with the keys only: the pointer starts in the middle (160, 120: cell 20, 15); 3 chooses red; two cells right and one down; space paints; s saves */
+    paint_run(text, "3{RIGHT}{RIGHT}{DOWN} s{ESC}", 0);
+    CHECK(CELL(22, 16) == '3' && CELL(20, 15) == '2' && CELL(23, 16) == '2');     /* the red cell on the white canvas */
+    CHECK(image[0][36 * 8] == '3' && image[0][30 * 8] == '4');                   /* red chosen; the bar green: saved */
+    CHECK(tmouse.x == 176 && tmouse.y == 128 && image[128][176] == '1');         /* the pointer moved, and is drawn there */
+    CHECK(fs_stat("/sd/paint.map", &st) == 0);
+    /* c clears */
+    paint_run(text, "3{RIGHT}{RIGHT}{DOWN} c{ESC}", 0);
+    CHECK(CELL(22, 16) == '2' && image[0][36 * 8] == '3' && image[0][30 * 8] == '9');
+    /* save, clear, choose black, load: the red cell is back, and the bar shows black chosen */
+    paint_run(text, "3{RIGHT}{RIGHT}{DOWN} sc1l{ESC}", 0);
+    CHECK(CELL(22, 16) == '3' && image[0][36 * 8] == '1' && image[0][30 * 8] == '4');
+    /* l with nothing saved: the bar turns red, and the program goes on */
+    paint_run(text, "l{ESC}", 0);
+    CHECK(image[0][30 * 8] == '3');
+
+    /* with the mouse: the bar chooses blue; a stroke fills the cells between where the mouse was at each frame; the right button picks blue up again
+     * after 1 chose black; the wheel then gives yellow */
+    paint_run(text, "..................1.......{ESC}", 1);
+    for (int x = 2; x <= 22; x++)
+        CHECK(CELL(x, 10) == '5');
+    CHECK(CELL(1, 10) == '2' && CELL(23, 10) == '2' && CELL(12, 11) == '2' && CELL(12, 9) == '2');
+    CHECK(image[0][36 * 8] == '6' && image[200][200] == '1');
+}
+#undef CELL
+
 /* What Lua no longer uses goes back when something else needs the memory: after an error (a failed program leaves what it built), before HEAP and
  * the editor, and when a machine whose game memory shares a pool with Lua (the board) has it collect from its alloc hook */
 static void test_garbage(void)
@@ -2754,6 +2964,8 @@ int main(void)
     test_garbage();
     test_archives();
     test_tgf_files();
+    test_keys_and_mouse();
+    test_example_paint();
     printf("all %d checks passed\n", checks);
     return 0;
 }
