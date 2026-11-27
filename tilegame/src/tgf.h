@@ -19,6 +19,9 @@
 #define TGF_FRAMES 32        /* frames in a table */
 #define TGF_LAYERS 4         /* map layers, numbered from 1 */
 #define TGF_MAP_MAX (1u << 20)   /* the most tiles in a map */
+#define TGF_CHARS 512        /* characters a CHAR table can name */
+#define TGF_NO_TILE 0xFFFF   /* a character's lower half: none (it is one tile tall) */
+#define TGF_CODEPOINT_MAX 0x10FFFFu
 
 /* Map entries: bits 0-9 the tile (TGF_SET at most here), 10 flipped across, 11 flipped up and down (as tilegfx's TG_HFLIP, TG_VFLIP). */
 #define TGF_HFLIP 0x0400
@@ -60,10 +63,17 @@ typedef struct {
 } tgf_map_t;
 
 typedef struct {
+    uint32_t at;             /* where its entries are */
+    uint16_t count;
+    uint8_t present;
+} tgf_chars_info_t;
+
+typedef struct {
     uint8_t tile_size;               /* 8 or 16 */
     tgf_range_t part[TGF_KINDS];     /* TGF_PALT ... TGF_FLAG */
     tgf_table_t table[TGF_TABLES];   /* table n is [n - 1] */
     tgf_map_t map[TGF_LAYERS];       /* layer n is [n - 1] */
+    tgf_chars_info_t chars;          /* the character table (CHAR) */
     int tables, maps;                /* how many are in the file */
 } tgf_info_t;
 
@@ -71,6 +81,12 @@ typedef struct {
     uint16_t sprite;
     uint8_t ticks;
 } tgf_frame_t;
+
+/* An entry of the character table: which tile is the character (and, for one two tiles tall, which is its lower half). */
+typedef struct {
+    uint32_t codepoint;
+    uint16_t tile, lower;    /* lower: TGF_NO_TILE for a character one tile tall */
+} tgf_char_t;
 
 /* Reads the whole file and checks it: 0, or a TGF_E* (or the I/O's) error, with what is wrong in `why` (n bytes; may be NULL). */
 int tgf_check(const tgf_io_t *io, tgf_info_t *info, char *why, size_t n);
@@ -82,6 +98,8 @@ int tgf_read_part(const tgf_io_t *io, const tgf_info_t *info, int kind, void *de
 int tgf_read_table(const tgf_io_t *io, const tgf_info_t *info, int n, tgf_frame_t *frames);
 /* Layer n's map: w * h entries, row by row. */
 int tgf_read_map(const tgf_io_t *io, const tgf_info_t *info, int n, uint16_t *entries);
+/* The character table (info->chars.count entries, in rising order of codepoint); nothing if the file has none. */
+int tgf_read_chars(const tgf_io_t *io, const tgf_info_t *info, tgf_char_t *chars);
 
 /* Writing: the header first and tgf_write_end last, the rest in between, each at most once (a table and a map once each for its number).
  * Each returns 0 or the I/O's error. */
@@ -89,6 +107,8 @@ int tgf_write_header(const tgf_io_t *io, int tile_size);
 int tgf_write_part(const tgf_io_t *io, int kind, int first, int count, int tile_size, const void *items);   /* items: those of `first` on */
 int tgf_write_table(const tgf_io_t *io, int n, int mode, int count, const tgf_frame_t *frames);
 int tgf_write_map(const tgf_io_t *io, int n, int flags, uint32_t w, uint32_t h, const uint16_t *entries);
+/* The character table: at most TGF_CHARS entries in rising order of codepoint, each once, tiles 0 to 255 (TGF_ERANGE otherwise). */
+int tgf_write_chars(const tgf_io_t *io, int count, const tgf_char_t *chars);
 int tgf_write_end(const tgf_io_t *io);
 
 #endif

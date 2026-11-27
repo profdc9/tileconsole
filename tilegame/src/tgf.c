@@ -134,6 +134,40 @@ int tgf_check(const tgf_io_t *io, tgf_info_t *info, char *why, size_t n)
             tb->count = (uint8_t)count;
             tb->at = p + 4;
             info->tables++;
+        } else if (!strcmp(tag, "CHAR")) {
+            if (len < 4)
+                return fail(why, n, TGF_EBROKEN, "a CHAR chunk shorter than its fields");
+            if ((e = read_at(io, p, f, 4)) < 0)
+                return io_fail(why, n, e);
+            const uint32_t count = get16(f);
+            if (count > TGF_CHARS)
+                return fail(why, n, TGF_ERANGE, "a character table of %lu (%d at most)", (unsigned long)count, TGF_CHARS);
+            if (len < 4 + 8 * count)
+                return fail(why, n, TGF_EBROKEN, "the CHAR chunk is shorter than its %lu characters", (unsigned long)count);
+            if (info->chars.present)
+                return fail(why, n, TGF_EBROKEN, "two CHAR chunks");
+            uint8_t buf[512];
+            uint32_t last = 0;
+            for (uint32_t done = 0; done < count;) {
+                const uint32_t k = count - done < sizeof buf / 8 ? count - done : (uint32_t)(sizeof buf / 8);
+                if ((e = read_at(io, p + 4 + 8 * done, buf, 8 * k)) < 0)
+                    return io_fail(why, n, e);
+                for (uint32_t i = 0; i < k; i++) {
+                    const uint32_t cp = get32(buf + 8 * i);
+                    const unsigned tile = get16(buf + 8 * i + 4), lower = get16(buf + 8 * i + 6);
+                    if (cp > TGF_CODEPOINT_MAX)
+                        return fail(why, n, TGF_ERANGE, "character %lX in the character table (Unicode ends at 10FFFF)", (unsigned long)cp);
+                    if (done + i > 0 && cp <= last)
+                        return fail(why, n, TGF_EBROKEN, "the character table is not in order (U+%04lX after U+%04lX)", (unsigned long)cp, (unsigned long)last);
+                    if (tile >= TGF_SET || (lower >= TGF_SET && lower != TGF_NO_TILE))
+                        return fail(why, n, TGF_ERANGE, "character U+%04lX is tile %u (and %u below it): tiles are 0 to %d", (unsigned long)cp, tile, lower, TGF_SET - 1);
+                    last = cp;
+                }
+                done += k;
+            }
+            info->chars.present = 1;
+            info->chars.count = (uint16_t)count;
+            info->chars.at = p + 4;
         } else if (!strcmp(tag, "MAP ")) {
             if (len < 12)
                 return fail(why, n, TGF_EBROKEN, "a MAP chunk shorter than its fields");
@@ -246,6 +280,21 @@ int tgf_read_map(const tgf_io_t *io, const tgf_info_t *info, int n, uint16_t *en
     return 0;
 }
 
+int tgf_read_chars(const tgf_io_t *io, const tgf_info_t *info, tgf_char_t *chars)
+{
+    uint8_t buf[512];
+    for (uint32_t done = 0, count = info->chars.count; done < count;) {
+        const uint32_t k = count - done < sizeof buf / 8 ? count - done : (uint32_t)(sizeof buf / 8);
+        const int e = read_at(io, info->chars.at + 8 * done, buf, 8 * k);
+        if (e < 0)
+            return e;
+        for (uint32_t i = 0; i < k; i++)
+            chars[done + i] = (tgf_char_t){get32(buf + 8 * i), get16(buf + 8 * i + 4), get16(buf + 8 * i + 6)};
+        done += k;
+    }
+    return 0;
+}
+
 /* ---- writing ---- */
 
 static int write_all(const tgf_io_t *io, const void *buf, uint32_t n)
@@ -317,6 +366,31 @@ int tgf_write_map(const tgf_io_t *io, int n, int flags, uint32_t w, uint32_t h, 
         for (; k < sizeof buf / 2 && i < count; k++, i++)
             set16(buf + 2 * k, entries[i]);
         e = write_all(io, buf, 2 * k);
+    }
+    return e;
+}
+
+int tgf_write_chars(const tgf_io_t *io, int count, const tgf_char_t *chars)
+{
+    if (count < 0 || count > TGF_CHARS)
+        return TGF_ERANGE;
+    for (int i = 0; i < count; i++)
+        if (chars[i].codepoint > TGF_CODEPOINT_MAX || (i > 0 && chars[i].codepoint <= chars[i - 1].codepoint) || chars[i].tile >= TGF_SET ||
+            (chars[i].lower >= TGF_SET && chars[i].lower != TGF_NO_TILE))
+            return TGF_ERANGE;
+    const uint8_t f[4] = {(uint8_t)count, (uint8_t)(count >> 8), 0, 0};
+    int e = chunk(io, "CHAR", 4u + 8u * (uint32_t)count);
+    if (!e)
+        e = write_all(io, f, 4);
+    uint8_t buf[512];
+    for (int i = 0; !e && i < count;) {
+        uint32_t k = 0;
+        for (; k < sizeof buf / 8 && i < count; k++, i++) {
+            set32(buf + 8 * k, chars[i].codepoint);
+            set16(buf + 8 * k + 4, chars[i].tile);
+            set16(buf + 8 * k + 6, chars[i].lower);
+        }
+        e = write_all(io, buf, 8 * k);
     }
     return e;
 }

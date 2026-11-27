@@ -146,7 +146,7 @@ set(TDE_OS_SOURCES ${TDE_DIR}/os/console.c ${TDE_DIR}/os/port.c ${TDE_DIR}/os/cr
 embed_files(${CMAKE_CURRENT_BINARY_DIR}/devkit_config.c devkit_config_files ${TDE_DIR}/config tde.cfg tde.hlp tde.shl)
 tilegame_board_app(devkit ${DEMO_DIR}/devkit.c ${CMAKE_CURRENT_LIST_DIR}/psram.c ${CMAKE_CURRENT_LIST_DIR}/../src/pool.c ${CMAKE_CURRENT_LIST_DIR}/../src/tgf.c ${CMAKE_CURRENT_BINARY_DIR}/devkit_config.c ${LUA_ENV_DIR}/tl_env.c ${LUA_ENV_DIR}/tl_game.c ${LUA_ENV_DIR}/tl_io.c ${LUA_ENV_DIR}/tl_sound.c ${LUA_SOURCES}
                    ${TILEGFX_DIR}/tg_world.c ${TILEGFX_DIR}/tg_actor.c ${TDE_SOURCES} ${TDE_OS_SOURCES} ${TILEGFX_DIR}/tg_console.c ${TILEGFX_DIR}/tg_text.c ${TILEGFX_DIR}/tg_text_cp437.c
-                   ${TILEGFX_DIR}/tg_font.c ${TILEGFX_DIR}/fonts/unscii16.c)
+                   ${TILEGFX_DIR}/tg_font.c ${TILEGFX_DIR}/fonts/unscii16.c ${TILEGFX_DIR}/fonts/unscii8.c)
 tilefs_add(devkit)
 target_include_directories(devkit PRIVATE ${CMAKE_CURRENT_LIST_DIR} ${CMAKE_CURRENT_LIST_DIR}/../src ${DEMO_DIR} ${LUA_ENV_DIR} ${LUA_DIR})
 # TDE: built like its Unix version; char is signed (its allocator stores -1 in a char); the C library's file functions are the file layer's (tde_libc.c).

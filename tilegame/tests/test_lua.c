@@ -12,6 +12,7 @@
 #include "lua.h"
 #include "platform.h"
 #include "snd.h"
+#include "tg_fonts.h"
 #include "tg_text.h"
 #include "tilefs.h"
 #include "tl_env.h"
@@ -2595,11 +2596,212 @@ static void test_game_readback_tables(void)
     CHECK(shows("animdef(n): n is 1 to 32"));
 }
 
+/* (print would put tabs between) */
+#define P_HELPER                                                                  \
+    "local function p(...)\n"                                                     \
+    "  local t = {}\n"                                                            \
+    "  for i = 1, select(\"#\", ...) do t[i] = tostring((select(i, ...))) end\n"  \
+    "  print(table.concat(t, \" \"))\n"                                           \
+    "end\n"
+
+/* The cell at tile x, y of the last picture shows character c of the 8 x 8 font in `colour` on 0, doubled for tiles of 16 pixels. */
+static int cell_shows(int x, int y, int size, uint32_t c, int colour)
+{
+    const uint8_t *g = tg_font_glyph(&tg_font_unscii8, c);
+    const int scale = size / 8;
+    for (int r = 0; r < size; r++)
+        for (int k = 0; k < size; k++) {
+            const int want = (g[r / scale] >> (7 - k / scale)) & 1 ? colour : 0;
+            if (image[y * size + r][x * size + k] != want)
+                return 0;
+        }
+    return 1;
+}
+
+/* The standard colours, font() into free tiles, text() through the character table, chartile() */
+static void test_game_text(void)
+{
+    run_program(P_HELPER
+        "gfx(8)\n"
+        "p(\"std\", palette(248)) p(\"std\", palette(252)) p(\"std\", palette(253)) p(\"std\", palette(255))\n"
+        "newmap(40, 30)\n"
+        "p(\"added\", font(\"SCORE 0123456789\"))\n"
+        "p(\"tiles\", chartile(\"S\"), chartile(\"E\"), chartile(\" \"), chartile(\"0\"), chartile(\"9\"))\n"
+        "p(\"again\", font(\"SCORE 42\"))\n"
+        "p(\"next\", text(2, 3, \"SCORE 100\"))\n"
+        "text(0, 5, \"SAX\")\n"                                          /* A and X have no tiles: passed over */
+        "p(\"cells\", gettile(0, 5), gettile(1, 5), gettile(2, 5))\n"
+        "p(\"lines\", text(5, 10, \"12\\n34\"), gettile(5, 10), gettile(6, 10), gettile(5, 11), gettile(6, 11))\n"
+        "p(\"box\", font(\"\\u{2500}\"), chartile(\"\\u{2500}\"), chartile(0x2500), text(30, 0, \"\\u{2500}\\u{2500}\"))\n"
+        "p(\"red\", font(\"A\", 254), chartile(\"A\"))\n"
+        "text(0, 20, \"A\")\n"
+        "tiledef(237, \"1\")\n"                                          /* not transparent: not free */
+        "settileflags(235, 1)\n"                                         /* transparent, but with flags: not free either */
+        "p(\"skip\", font(\"B\"), chartile(\"B\"), font(\"J\"), chartile(\"J\"))\n"
+        "p(\"range\", font(\"D\", 252, 10, 12), chartile(\"D\"), font(\"EF\", 252, 10, 10), chartile(\"F\"))\n"
+        "waitframe()\n");
+    CHECK(printed("std 0 0 0") && printed("std 255 255 255") && printed("std 255 220 0") && printed("std 40 80 220"));
+    CHECK(printed("added 16") && printed("tiles 240 244 245 246 255") && printed("again 0") && printed("next 11"));
+    CHECK(printed("cells 240 0 0") && printed("lines 7 247 248 249 250") && printed("box 1 239 239 32"));
+    CHECK(printed("red 1 238") && printed("skip 1 236 1 234") && printed("range 1 12 1 10") && !shows("Error"));
+    const char *score = "SCORE 100";
+    for (int i = 0; score[i]; i++)
+        CHECK(cell_shows(2 + i, 3, 8, (uint8_t)score[i], 252));
+    CHECK(cell_shows(30, 0, 8, 0x2500, 252) && cell_shows(31, 0, 8, 0x2500, 252) && cell_shows(0, 20, 8, 'A', 254));
+
+    /* not enough free tiles: an error that says how many there are, and nothing changes */
+    run_program(P_HELPER
+        "gfx(8)\n"
+        "font(\"F\", 252, 10, 10)\n"
+        "local before = tiledef(11)\n"
+        "p(\"ok\", pcall(font, \"GH\", 252, 10, 11))\n"
+        "p(\"same\", tiledef(11) == before, chartile(\"G\"), chartile(\"H\"))\n"
+        "font(\"GH\", 252, 10, 11)\n");
+    CHECK(printed("same true nil nil") && shows("font: 2 new characters, and 1 free tiles among 10 to 11"));
+    run_program("gfx(8)\nfont(\"x\", 256)\n");
+    CHECK(shows("font(chars, colour): the colour is 0 to 255"));
+    run_program("gfx(8)\nfont(\"x\", 1, 5, 4)\n");
+    CHECK(shows("font(chars, colour, first, last): first and last are tiles, 0 to"));   /* (the line wraps) */
+    run_program("gfx(8)\nfont(\"x\", 1, 0, 256)\n");
+    CHECK(shows("first and last are tiles, 0 to"));
+
+    /* tiles of 16 pixels: the font doubled */
+    run_program(P_HELPER
+        "gfx(16)\n"
+        "newmap(20, 15)\n"
+        "p(\"big\", font(\"Wq\"), chartile(\"W\"), text(1, 2, \"qW\"))\n"
+        "waitframe()\n");
+    CHECK(printed("big 2 254 3") && cell_shows(1, 2, 16, 'q', 252) && cell_shows(2, 2, 16, 'W', 252));
+
+    /* chartile: set, read, take out, by string or number; and the mistakes */
+    run_program(P_HELPER
+        "gfx(8)\n"
+        "newmap(10, 10)\n"
+        "chartile(\"a\", 40)\n"
+        "text(0, 0, \"aa\")\n"
+        "p(\"set\", chartile(\"a\"), chartile(97), gettile(1, 0))\n"
+        "chartile(97, 5, 6)\n"
+        "text(0, 1, \"a\")\n"
+        "p(\"tall\", chartile(\"a\"))\n"
+        "p(\"cells\", gettile(0, 1), gettile(0, 2))\n"
+        "chartile(\"a\", nil)\n"
+        "p(\"gone\", chartile(\"a\"), chartile(\"\\u{20AC}\"))\n"
+        "chartile(\"\\u{20AC}\", 7)\n"
+        "chartile(\"\\u{20AC}\", false)\n"
+        "p(\"gone2\", chartile(0x20AC))\n");
+    CHECK(printed("set 40 40 40") && printed("tall 5 6") && printed("cells 5 6") && printed("gone nil nil") && printed("gone2 nil"));
+    run_program("gfx(8)\nchartile(\"ab\", 1)\n");
+    CHECK(shows("chartile: the character is a string of one character"));
+    run_program("gfx(8)\nchartile(\"\", 1)\n");
+    CHECK(shows("chartile: the character is a string of one character"));
+    run_program("gfx(8)\nchartile(\"\\xFF\", 1)\n");
+    CHECK(shows("chartile: the character is a string of one character"));
+    run_program("gfx(8)\nchartile(0x110000, 1)\n");
+    CHECK(shows("a character's number is 0 to 0x10FFFF"));
+    run_program("gfx(8)\nchartile(\"a\", 256)\n");
+    CHECK(shows("chartile(c, n, lower): the tiles are 0 to 255"));
+    run_program("gfx(8)\nchartile(\"a\", 1, 256)\n");
+    CHECK(shows("chartile(c, n, lower): the tiles are 0 to 255"));
+    /* a full table */
+    run_program(P_HELPER
+        "gfx(8)\n"
+        "for i = 1, 512 do chartile(0x10000 + i, i % 256) end\n"
+        "p(\"full\", pcall(chartile, 0x10000 + 513, 1))\n"
+        "chartile(0x10001, 9)\n"                                         /* (replacing one is not adding) */
+        "p(\"repl\", chartile(0x10001))\n"
+        "font(\"Z\")\n");
+    CHECK(shows("chartile: the character table is full (512 characters)") && printed("repl 9"));
+    CHECK(shows("font: the character table is full (512 characters)"));
+}
+
+/* Working tiles: gfx(size, extra) gives tiles 256 and up, which the map functions take and the files never hold */
+static void test_game_working_tiles(void)
+{
+    run_program(P_HELPER
+        "gfx(8, 100)\n"
+        "newmap(8, 8)\n"
+        "tiledef(355, string.rep(\"4\", 64))\n"
+        "tile(0, 0, 355)\n"
+        "tilefill(1, 0, 2, 1, 300)\n"
+        "tilepix(300, 1, 1, 9)\n"
+        "settileflags(300, 1)\n"
+        "p(\"work\", gettile(0, 0), gettile(2, 0), tilepix(300, 1, 1), tilepix(355, 0, 0), settileflags(300), #tilerow(355, 0))\n"
+        "p(\"font\", font(\"Q\", 252, 256, 355), chartile(\"Q\"))\n"
+        "tilestr(0, 1, 8, \"\\0\\1\", 299)\n"
+        "p(\"str\", gettile(0, 1), gettile(1, 1))\n"
+        "p(\"map\", pcall(savemap, \"m.map\"))\n"
+        "tile(0, 0, 1) tilefill(1, 0, 2, 1, 2) tilestr(0, 1, 8, \"\\3\\3\")\n"
+        "tile(7, 7, 256)\n"                                              /* the first working tile, at the far corner */
+        "p(\"edge\", (pcall(savemap, \"m.map\")))\n"
+        "tile(7, 7, 255)\n"                                              /* (255 is a file's) */
+        "savemap(\"m.map\")\n"
+        "font(\"R\")\n"
+        "savegfx(\"w.tgf\")\n"
+        "gfx(8)\n"
+        "loadgfx(\"w.tgf\")\n"
+        "p(\"back\", chartile(\"Q\"), chartile(\"R\"))\n"                  /* (Q was in a working tile: not in the file) */
+        "waitframe()\n");
+    CHECK(printed("work 355 300 9 52 1 8") && printed("font 1 354") && printed("str 299 300") && printed("back nil 255") && printed("edge false"));
+    CHECK(shows("savemap: layer 1 has working tile 355 at 0, 0") && !shows("Error"));   /* (the line wraps) */
+    run_program("gfx(8, 100)\nnewmap(4, 4)\ntile(0, 0, 356)\n");
+    CHECK(shows("tile(x, y, n): n is 0 to 355"));
+    run_program("gfx(8, 100)\nsprdef(256, \"1\")\n");
+    CHECK(shows("sprdef(n, graphics): n is 0 to 255"));
+    run_program("gfx(8, 769)\n");
+    CHECK(shows("gfx(size, extra): the working tiles are 0 to 768"));
+    run_program("gfx(8, -1)\n");
+    CHECK(shows("gfx(size, extra): the working tiles are 0 to 768"));
+    run_program(P_HELPER "gfx(16, 768)\ntiledef(1023, string.rep(\"7\", 256))\np(\"last\", tilepix(1023, 15, 15))\n");
+    CHECK(printed("last 55"));
+    run_program("gfx(8)\ntiledef(256, \"1\")\n");
+    CHECK(shows("tiledef(n, graphics): n is 0 to 255"));
+}
+
+static long file_bytes(const char *path, uint8_t *out, size_t cap);
+
+/* The character table in files: savegfx writes it, loadgfx adds it to what the game has, and a full table is an error that changes nothing */
+static void test_game_char_files(void)
+{
+    static uint8_t a[64 * 1024], b[64 * 1024];
+    run_program(P_HELPER
+        "gfx(8)\n"
+        "font(\"HELLO\")\n"
+        "chartile(\"x\", 3, 4)\n"
+        "savegfx(\"c.tgf\")\n"
+        "gfx(8)\n"
+        "chartile(\"z\", 9)\n"
+        "chartile(\"x\", 1)\n"
+        "loadgfx(\"c.tgf\")\n"
+        "p(\"load\", chartile(\"H\"), chartile(\"O\"), chartile(\"z\"))\n"
+        "p(\"x\", chartile(\"x\"))\n"
+        "chartile(\"z\", nil)\n"
+        "savegfx(\"d.tgf\")\n");
+    CHECK(printed("load 252 255 9") && printed("x 3 4") && !shows("Error"));
+    const long na = file_bytes("/sd/c.tgf", a, sizeof a), nb = file_bytes("/sd/d.tgf", b, sizeof b);
+    CHECK(na > 0 && na == nb && memcmp(a, b, (size_t)na) == 0);   /* saved, loaded and saved again: the same bytes */
+    run_program(P_HELPER
+        "gfx(8)\n"
+        "font(\"AB\")\n"
+        "palette(\"1\", 1, 2, 3)\n"
+        "savegfx(\"c.tgf\")\n"
+        "gfx(8)\n"
+        "for i = 1, 511 do chartile(0x10000 + i, 1) end\n"
+        "p(\"fail\", pcall(loadgfx, \"c.tgf\"))\n"
+        "p(\"kept\", palette(\"1\"))\n"
+        "chartile(0x10001, nil)\n"
+        "loadgfx(\"c.tgf\")\n"
+        "p(\"fits\", chartile(\"A\"), palette(\"1\"))\n");
+    CHECK(shows("c.tgf has 2 characters the character table") && shows("room for 1") && printed("kept 0 0 170") && printed("fits 254 1 2 3"));   /* (1 is the PC's blue at first) */
+}
+
 static void test_game(void)
 {
     test_game_draw();
     test_game_readback();
     test_game_readback_tables();
+    test_game_text();
+    test_game_working_tiles();
+    test_game_char_files();
     test_game_tilestr();
     test_game_textmode();
     test_game_actors();

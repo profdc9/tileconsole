@@ -83,6 +83,7 @@ static int check_bytes(uint8_t *buf, uint32_t len)
 static uint8_t pal[TGF_SET][3], tiles[TGF_SET * 256], sprites[TGF_SET * 256], flags[TGF_SET];
 static tgf_frame_t frames1[3] = {{5, 10}, {6, 2}, {255, 0}}, frames32[1] = {{0, 7}};
 static uint16_t map1[3 * 2] = {0, 1 | TGF_HFLIP, 2 | TGF_VFLIP, 255, 3 | TGF_HFLIP | TGF_VFLIP, 7}, map4[1] = {9};
+static const tgf_char_t chars3[3] = {{' ', 10, TGF_NO_TILE}, {'A', 11, 12}, {0x2500, 255, TGF_NO_TILE}};
 static uint32_t len_at[16], n_chunks;   /* where each chunk's length is, for the tests that spoil it */
 
 static uint32_t write_full(int size)
@@ -116,6 +117,8 @@ static uint32_t write_full(int size)
     MARK();
     EQ(tgf_write_table(&io, 32, 1, 1, frames32), 0);
     MARK();
+    EQ(tgf_write_chars(&io, 3, chars3), 0);
+    MARK();
     EQ(tgf_write_map(&io, 1, 0, 3, 2, map1), 0);
     MARK();
     EQ(tgf_write_map(&io, 4, TGF_MAP_WRAPS, 1, 1, map4), 0);
@@ -141,6 +144,7 @@ static void test_round_trip(int size)
     EQ(info.maps, 2);
     CHECK(info.map[0].present && info.map[0].w == 3 && info.map[0].h == 2 && info.map[0].flags == 0);
     CHECK(info.map[3].present && info.map[3].w == 1 && info.map[3].h == 1 && info.map[3].flags == TGF_MAP_WRAPS && !info.map[1].present);
+    CHECK(info.chars.present && info.chars.count == 3);
 
     mem_t m;
     tgf_io_t io = io_of(&m, file, len);
@@ -170,6 +174,10 @@ static void test_round_trip(int size)
     CHECK(e4[0] == 9);
     EQ(tgf_read_map(&io, &info, 5, e4), TGF_ERANGE);
     EQ(tgf_read_part(&io, &info, TGF_KINDS, f2), TGF_ERANGE);
+    tgf_char_t ch[4];
+    memset(ch, 0xEE, sizeof ch);
+    EQ(tgf_read_chars(&io, &info, ch), 0);
+    CHECK(!memcmp(ch, chars3, sizeof chars3) && ch[3].codepoint == 0xEEEEEEEE);
 
     /* the bytes, as the format says */
     static const uint8_t head[] = {'T', 'G', 'A', 'C', 'T', 'G', 'F', '1', 4, 0, 0, 0, 16, 0, 0, 0};
@@ -382,6 +390,92 @@ static void test_rules(void)
     start(8);
     raw_chunk("MAP ", big, 12);
     EQ(finish(), TGF_ERANGE);
+
+    /* the character table */
+    {
+        uint8_t c[4 + 8 * 4];
+        const uint8_t ok[4 + 8 * 2] = {2, 0, 0, 0, 'A', 0, 0, 0, 5, 0, 0xFF, 0xFF, 0x00, 0x25, 0, 0, 255, 0, 254, 0};
+        start(8);
+        raw_chunk("CHAR", ok, sizeof ok);
+        EQ(finish(), 0);
+        CHECK(info.chars.present && info.chars.count == 2);
+        memcpy(c, ok, sizeof ok);
+        start(8);
+        raw_chunk("CHAR", c, sizeof ok + 3);   /* (bytes after the entries: skipped) */
+        EQ(finish(), 0);
+        start(8);
+        raw_chunk("CHAR", "\0\0\0\0", 4);     /* an empty table */
+        EQ(finish(), 0);
+        CHECK(info.chars.present && info.chars.count == 0);
+        static const struct { uint32_t cp1; unsigned tile1, lower1; uint32_t cp2; int want; const char *what; } cases[] = {
+            {'A', 5, TGF_NO_TILE, 'A', TGF_EBROKEN, "not in order"},          /* the same character twice */
+            {'B', 5, TGF_NO_TILE, 'A', TGF_EBROKEN, "not in order"},
+            {'A', 256, TGF_NO_TILE, 'B', TGF_ERANGE, "tiles are 0 to 255"},
+            {'A', 5, 256, 'B', TGF_ERANGE, "tiles are 0 to 255"},
+            {'A', 5, 0xFFFE, 'B', TGF_ERANGE, "tiles are 0 to 255"},
+            {'A', 5, TGF_NO_TILE, 0x110000, TGF_ERANGE, "Unicode ends"},
+            {'A', 0, 255, 0x10FFFF, 0, ""},                                     /* the edges */
+        };
+        for (size_t i = 0; i < sizeof cases / sizeof *cases; i++) {
+            uint8_t b[4 + 16] = {2, 0, 0, 0};
+            b[4] = (uint8_t)cases[i].cp1, b[5] = (uint8_t)(cases[i].cp1 >> 8);
+            b[8] = (uint8_t)cases[i].tile1, b[9] = (uint8_t)(cases[i].tile1 >> 8);
+            b[10] = (uint8_t)cases[i].lower1, b[11] = (uint8_t)(cases[i].lower1 >> 8);
+            b[12] = (uint8_t)cases[i].cp2, b[13] = (uint8_t)(cases[i].cp2 >> 8), b[14] = (uint8_t)(cases[i].cp2 >> 16);
+            b[16] = 1, b[18] = 0xFF, b[19] = 0xFF;
+            start(8);
+            raw_chunk("CHAR", b, sizeof b);
+            const int r = finish();
+            if (r != cases[i].want)
+                fprintf(stderr, "char case %zu: %d (%s)\n", i, r, why);
+            EQ(r, cases[i].want);
+            CHECK(strstr(why, cases[i].what) != NULL);
+        }
+        /* shorter than its fields, or than its entries; two tables; the most, and one more */
+        start(8);
+        raw_chunk("CHAR", "\1\0", 2);
+        EQ(finish(), TGF_EBROKEN);
+        start(8);
+        raw_chunk("CHAR", ok, sizeof ok - 1);
+        EQ(finish(), TGF_EBROKEN);
+        start(8);
+        raw_chunk("CHAR", ok, sizeof ok);
+        raw_chunk("CHAR", ok, sizeof ok);
+        EQ(finish(), TGF_EBROKEN);
+        static uint8_t most[4 + 8 * (TGF_CHARS + 1)];
+        for (uint32_t i = 0; i <= TGF_CHARS; i++) {
+            most[4 + 8 * i] = (uint8_t)i, most[5 + 8 * i] = (uint8_t)(i >> 8);
+            most[8 + 8 * i] = (uint8_t)(i % 256), most[10 + 8 * i] = 0xFF, most[11 + 8 * i] = 0xFF;
+        }
+        most[0] = (uint8_t)TGF_CHARS, most[1] = (uint8_t)(TGF_CHARS >> 8);
+        start(8);
+        raw_chunk("CHAR", most, 4 + 8 * TGF_CHARS);
+        EQ(finish(), 0);
+        CHECK(info.chars.count == TGF_CHARS);
+        static tgf_char_t back[TGF_CHARS];
+        mem_t m;
+        tgf_io_t io = io_of(&m, file, at);
+        EQ(tgf_read_chars(&io, &info, back), 0);
+        CHECK(back[0].codepoint == 0 && back[TGF_CHARS - 1].codepoint == TGF_CHARS - 1 && back[300].tile == 300 % 256 && back[300].lower == TGF_NO_TILE);
+        most[0] = (uint8_t)(TGF_CHARS + 1), most[1] = (uint8_t)((TGF_CHARS + 1) >> 8);
+        start(8);
+        raw_chunk("CHAR", most, sizeof most);
+        EQ(finish(), TGF_ERANGE);
+        /* the writer will not write what the reader would refuse */
+        tgf_io_t w = io_of(&m, copy, 0);
+        const tgf_char_t unsorted[2] = {{'B', 1, TGF_NO_TILE}, {'A', 2, TGF_NO_TILE}}, twice[2] = {{'A', 1, TGF_NO_TILE}, {'A', 2, TGF_NO_TILE}};
+        const tgf_char_t far[1] = {{0x110000, 1, TGF_NO_TILE}}, high[1] = {{'A', 256, TGF_NO_TILE}}, low[1] = {{'A', 1, 300}};
+        EQ(tgf_write_chars(&w, 2, unsorted), TGF_ERANGE);
+        EQ(tgf_write_chars(&w, 2, twice), TGF_ERANGE);
+        EQ(tgf_write_chars(&w, 1, far), TGF_ERANGE);
+        EQ(tgf_write_chars(&w, 1, high), TGF_ERANGE);
+        EQ(tgf_write_chars(&w, 1, low), TGF_ERANGE);
+        EQ(tgf_write_chars(&w, TGF_CHARS + 1, back), TGF_ERANGE);
+        EQ(tgf_write_chars(&w, -1, back), TGF_ERANGE);
+        CHECK(m.len == 0);
+        EQ(tgf_write_chars(&w, 0, back), 0);
+        CHECK(m.len == 16);
+    }
     (void)copy;
 }
 
@@ -449,6 +543,11 @@ static void test_random_damage(void)
         tgf_frame_t fr[TGF_FRAMES];
         for (int n = 1; n <= TGF_TABLES; n++)
             EQ(tgf_read_table(&io, &info, n, fr), 0);
+        static tgf_char_t ch[TGF_CHARS];
+        EQ(tgf_read_chars(&io, &info, ch), 0);
+        for (int i = 0; i < info.chars.count; i++)
+            CHECK(ch[i].codepoint <= TGF_CODEPOINT_MAX && (i == 0 || ch[i].codepoint > ch[i - 1].codepoint) && ch[i].tile < TGF_SET &&
+                  (ch[i].lower < TGF_SET || ch[i].lower == TGF_NO_TILE));
         for (int n = 1; n <= TGF_LAYERS; n++) {
             EQ(tgf_read_map(&io, &info, n, entries), 0);
             for (uint32_t i = 0; info.map[n - 1].present && i < info.map[n - 1].w * info.map[n - 1].h; i++)

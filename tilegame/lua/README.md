@@ -114,7 +114,7 @@ actors, call the function with the frames that went by. It ends when the functio
 
 | function | what it does |
 |---|---|
-| `gfx(size)` | the size of tiles and sprites, 8 or 16 pixels (8 if you do not say); starts the graphics afresh, so call it first |
+| `gfx(size [, extra])` | the size of tiles and sprites, 8 or 16 pixels (8 if you do not say); starts the graphics afresh, so call it first. `extra` working tiles (up to 768) come after the 256, numbered from 256: the map functions take them like any other, but files never hold them |
 | `palette(c, r, g, b)` | colour c from red, green and blue, each 0 to 255. c is one character, such as `"A"`, or a number 0 to 255 for the entry itself (entry 0 is the backdrop) |
 | `palette(c, -1, -1, -1)` | makes the character c the see-through one in strings (it is `"."` at first) |
 | `palette(c)` | the red, green and blue of colour c now |
@@ -126,7 +126,9 @@ actors, call the function with the frames that went by. It ends when the functio
 
 A colour is named by the character whose code is its palette entry, and the same character draws it in a string: `palette("A", 255, 0, 0)` makes `A` red, and a `tiledef` string with
 `A`s in it is red there. `.` is see-through (so are the pixels of a tile you have not defined), unless `palette("@", -1, -1, -1)` made `@` the see-through one. At the start the PC's 16
-text colours are on `0` to `9` and `A` to `F` (`0` black, `1` blue, `4` red, `F` white), entry 0 is a black backdrop, and every other colour is black. Lua joins strings with `..`, and
+text colours are on `0` to `9` and `A` to `F` (`0` black, `1` blue, `4` red, `F` white), entry 0 is a black backdrop, the eight standard colours
+are on entries 248 to 255 (black, three greys, white 252, yellow, red, blue: for text, and for what has to stand out whatever the game's colours are;
+the sprite and tile editor relies on them), and every other colour is black. Lua joins strings with `..`, and
 `string.rep` repeats one, so a big tile can be built: `sprdef(1, string.rep("4", 256))`. Read back as a string, a see-through pixel is the see-through character and any other its
 colour's character; a pixel of the see-through character's own entry (46 for `.`) comes back as that character too, which a string then reads as see-through, so
 `tilepix` is the one that tells them apart.
@@ -135,14 +137,25 @@ colour's character; a pixel of the see-through character's own entry (46 for `.`
 
 | function | what it does |
 |---|---|
-| `loadgfx(file)` | the palette, tiles, sprites, tile flags and animation tables in the file (what it has of them: a file can fill only part of a set, so files add up). With no graphics yet it calls `gfx(size)` with the file's tile size; graphics of another size are an error |
+| `loadgfx(file)` | the palette, tiles, sprites, tile flags, animation tables and characters in the file (what it has of them: a file can fill only part of a set, so files add up; its characters join the table, replacing the same ones). With no graphics yet it calls `gfx(size)` with the file's tile size; graphics of another size are an error |
 | `loadmap(file [, layer])` | the file's maps, each into its layer, made at its size as `newmap` makes one, and wrapping if it was saved wrapping; with a layer, the file's one map goes into that layer |
-| `savegfx(file)` | the palette, the tiles and sprites up to the last one that is not empty, the flags and the animation tables |
-| `savemap(file [, layer])` | the maps of the layers that have one (or of the one layer), each with whether it wraps |
+| `savegfx(file)` | the palette, the tiles and sprites up to the last one that is not empty, the flags, the animation tables and the character table |
+| `savemap(file [, layer])` | the maps of the layers that have one (or of the one layer), each with whether it wraps. A map with a working tile in it cannot be saved |
 
 A file is checked all through before anything changes, so a broken one (cut short, a length that is wrong, a tile number past 255, tiles of
 another size) is an error that leaves the game as it was. Saving writes a new file that then takes the old one's place, so a full card leaves
 the old file as it was. A file in a cartridge loads like any other: `loadgfx("gfx/level1.tgf")`.
+
+**Text** on a map: a character table says which tile is which character, so a game needs tiles only for the characters it shows.
+
+| function | what it does |
+|---|---|
+| `font(chars [, colour [, first, last]])` | tiles from the built-in 8 x 8 font (doubled for tiles of 16 pixels) for the characters of the string the table does not have yet, in the colour (white, 252, if not given) on see-through. Each goes into a free tile among first to last (1 to 255 if not given), from the top down: a tile that is transparent, has no flags and is not in the table already, so nothing that is drawn or used is written over. All or nothing; returns how many it added. `font("SCORE 0123456789")` takes 16 tiles |
+| `text(x, y, s)` | the string on the current layer's map from tile x, y, through the table; a character with no tile is passed over (its place is left as it was), `"\n"` goes on at x on the next row. UTF-8, so `"\u{2500}"` (a box line) works once `font` has made it. Returns the column after the end |
+| `chartile(c, n [, lower])`, `chartile(c)` | character c (a one-character string, or its number) is tile n, with `lower` below it for a character two tiles tall: tiles you drew yourself, or another character's (`chartile("a", chartile("A"))`). `chartile(c, nil)` takes it out; `chartile(c)` gives its tile (and the one below), or nil |
+
+The table holds 512 characters. `savegfx` saves it with the tiles and `loadgfx` adds a file's to it, so a game's font travels with its graphics; the
+characters in working tiles are left out of files.
 
 **The map** (tiles in a grid, in front of the backdrop; up to four layers of them, see below)
 

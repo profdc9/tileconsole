@@ -11,12 +11,17 @@
 #include "lua.h"
 #include "platform.h"
 #include "tg_actor.h"
+#include "tg_font.h"
+#include "tg_fonts.h"
 #include "tg_world.h"
 #include "tgf.h"
 #include "tilefs.h"
 
 #define TL_MAX_ACTORS 128
-#define TL_TILES 256                /* tiles in the map's set and in the sprite sheet */
+#define TL_TILES 256                /* tiles in a file's set (TGF), and in the sprite sheet; the map's set can have working tiles after them */
+#define TL_WORK_MAX 768             /* working tiles at most: tile numbers end at 1023 */
+#define TL_CHARS TGF_CHARS          /* characters the character table holds */
+#define TL_WHITE 252                /* the standard colours (entries 248 to 255): white is what font() draws in */
 #define TL_MAP_MAX (1 << 20)        /* the most tiles in a map */
 #define TL_MAX_ANIMS 32             /* animation tables, numbered from 1 */
 #define TL_ANIM_FRAMES 32           /* frames in a table */
@@ -37,7 +42,10 @@ typedef struct {
 struct tl_game {
     tg_t g;
     int size_log2;                  /* 3 or 4: the size of tiles and of sprite tiles, 8 or 16 pixels */
-    uint8_t *tiles, *sprites;       /* TL_TILES of size * size bytes each, one byte a pixel */
+    uint8_t *tiles, *sprites;       /* ntiles and TL_TILES of size * size bytes each, one byte a pixel */
+    int ntiles;                     /* tiles in the map's set: TL_TILES, and the working tiles after them (gfx(size, extra)) */
+    tg_charmap_t cm;                /* which tile is which character (font, text, chartile) */
+    tg_char_t chars[TL_CHARS];
     uint8_t flags[TG_TILES_MAX];    /* what each tile number is (solid ...) */
     uint8_t rgb[256][3];            /* the palette as palette() was given it, 0 to 255 each (the display's is RGB565): what savegfx writes */
     tl_layer_t lay[TG_MAX_LAYERS];
@@ -115,6 +123,10 @@ static const uint8_t ega[16][3] = {{0x00, 0x00, 0x00}, {0x00, 0x00, 0xAA}, {0x00
                                    {0xAA, 0x55, 0x00}, {0xAA, 0xAA, 0xAA}, {0x55, 0x55, 0x55}, {0x55, 0x55, 0xFF}, {0x55, 0xFF, 0x55}, {0x55, 0xFF, 0xFF},
                                    {0xFF, 0x55, 0x55}, {0xFF, 0x55, 0xFF}, {0xFF, 0xFF, 0x55}, {0xFF, 0xFF, 0xFF}};
 
+/* The standard colours, entries 248 to 255, for text and what must stand out whatever the game's colours are: black, three greys, white, yellow, red,
+ * blue. gfx() sets them; a program that changes them changes them for anything that relies on them (the sprite and tile editor). */
+static const uint8_t standard[8][3] = {{0, 0, 0}, {64, 64, 64}, {128, 128, 128}, {192, 192, 192}, {255, 255, 255}, {255, 220, 0}, {220, 40, 40}, {40, 80, 220}};
+
 /* Palette entry i: the colour as given, and as the display has it. */
 static void set_colour(tl_game_t *G, int i, int r, int g, int b)
 {
@@ -124,14 +136,15 @@ static void set_colour(tl_game_t *G, int i, int r, int g, int b)
     G->g.palette[i] = (uint16_t)(((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3));
 }
 
-static int setup_state(tl_env_t *e, int size_log2)
+static int setup_state(tl_env_t *e, int size_log2, int extra)
 {
     tl_game_reset(e);
     tl_game_t *G = mem(e, sizeof *G, 0);
     if (!G)
         return 0;
     const size_t bytes = (size_t)TL_TILES << (2 * size_log2);
-    G->tiles = mem(e, bytes, 1);
+    G->ntiles = TL_TILES + extra;
+    G->tiles = mem(e, (size_t)G->ntiles << (2 * size_log2), 1);
     G->sprites = mem(e, bytes, 1);
     e->game = G;
     if (!G->tiles || !G->sprites) {
@@ -146,7 +159,10 @@ static int setup_state(tl_env_t *e, int size_log2)
     G->g.sprite_tiles = G->sprites;
     for (int i = 0; i < 16; i++)
         set_colour(G, (unsigned char)"0123456789ABCDEF"[i], ega[i][0], ega[i][1], ega[i][2]);
+    for (int i = 0; i < 8; i++)
+        set_colour(G, 248 + i, standard[i][0], standard[i][1], standard[i][2]);
     set_colour(G, 0, 0, 0, 0);   /* (the backdrop) */
+    tg_charmap_init(&G->cm, G->chars, TL_CHARS);
     G->bg = '.';
     G->frame_ref = LUA_NOREF;
     G->follow_id = -1;
@@ -162,11 +178,11 @@ static int setup_state(tl_env_t *e, int size_log2)
 }
 
 /* (the board writes down what the program is doing with its video log: 7 is making the graphics state, 5 running) */
-static int setup(tl_env_t *e, int size_log2)
+static int setup(tl_env_t *e, int size_log2, int extra)
 {
     if (e->hooks.activity)
         e->hooks.activity(7);
-    const int r = setup_state(e, size_log2);
+    const int r = setup_state(e, size_log2, extra);
     if (e->hooks.activity)
         e->hooks.activity(5);
     return r;
@@ -177,7 +193,7 @@ static tl_env_t *E;
 
 static tl_game_t *make_game(lua_State *L)
 {
-    if (!setup(E, 3))
+    if (!setup(E, 3, 0))
         luaL_error(L, "not enough memory for the graphics");
     return E->game;
 }
@@ -329,12 +345,16 @@ static int same_name(const char *name, const char *word)
 
 /* ---- graphics ---- */
 
+/* gfx(size [, extra]): graphics afresh, with tiles and sprites of size x size pixels, and `extra` working tiles after the 256 (numbered from 256; never
+ * in files). */
 static int l_gfx(lua_State *L)
 {
-    const int size = iarg(L, 1);
+    const int size = iarg(L, 1), extra = iopt(L, 2, 0);
     if (size != 8 && size != 16)
         return luaL_error(L, "gfx(size): the size of a tile is 8 or 16");
-    if (!setup(E, size == 8 ? 3 : 4))
+    if (extra < 0 || extra > TL_WORK_MAX)
+        return luaL_error(L, "gfx(size, extra): the working tiles are 0 to %d", TL_WORK_MAX);
+    if (!setup(E, size == 8 ? 3 : 4, extra))
         return luaL_error(L, "not enough memory for the graphics");
     return 0;
 }
@@ -409,8 +429,9 @@ static int define_tile(lua_State *L, int sprites)
     const int get = lua_isnone(L, 2);
     size_t len = 0;
     const char *text = get ? NULL : luaL_checklstring(L, 2, &len);
-    if (n < 0 || n >= TL_TILES)
-        return luaL_error(L, "%s(n%s): n is 0 to %d", sprites ? "sprdef" : "tiledef", get ? "" : ", graphics", TL_TILES - 1);
+    const int limit = sprites ? TL_TILES : G->ntiles;
+    if (n < 0 || n >= limit)
+        return luaL_error(L, "%s(n%s): n is 0 to %d", sprites ? "sprdef" : "tiledef", get ? "" : ", graphics", limit - 1);
     const size_t px = (size_t)1 << (2 * G->size_log2);
     uint8_t *dst = (sprites ? G->sprites : G->tiles) + (size_t)n * px;
     if (get)
@@ -432,9 +453,9 @@ static int define_row(lua_State *L, int sprites)
     const int get = lua_isnone(L, 3);
     size_t len = 0;
     const char *text = get ? NULL : luaL_checklstring(L, 3, &len);
-    const int size = 1 << G->size_log2;
-    if (n < 0 || n >= TL_TILES || y < 0 || y >= size)
-        return luaL_error(L, "%s(n, y%s): n is 0 to %d, y 0 to %d", sprites ? "sprrow" : "tilerow", get ? "" : ", graphics", TL_TILES - 1, size - 1);
+    const int size = 1 << G->size_log2, limit = sprites ? TL_TILES : G->ntiles;
+    if (n < 0 || n >= limit || y < 0 || y >= size)
+        return luaL_error(L, "%s(n, y%s): n is 0 to %d, y 0 to %d", sprites ? "sprrow" : "tilerow", get ? "" : ", graphics", limit - 1, size - 1);
     uint8_t *dst = (sprites ? G->sprites : G->tiles) + ((size_t)n << (2 * G->size_log2)) + (size_t)y * (size_t)size;
     if (get)
         return push_pixels(L, G, dst, (size_t)size);
@@ -454,12 +475,12 @@ static int set_pixel(lua_State *L, int sprites)
     const int n = iarg(L, 1), x = iarg(L, 2), y = iarg(L, 3);
     const int get = lua_isnone(L, 4);
     const int c = get ? 0 : iarg(L, 4);
-    const int size = 1 << G->size_log2;
+    const int size = 1 << G->size_log2, limit = sprites ? TL_TILES : G->ntiles;
     const char *who = sprites ? "sprpix" : "tilepix";
-    if (n < 0 || n >= TL_TILES || x < 0 || x >= size || y < 0 || y >= size || c < 0 || c > 255) {
+    if (n < 0 || n >= limit || x < 0 || x >= size || y < 0 || y >= size || c < 0 || c > 255) {
         if (get)
-            return luaL_error(L, "%s(n, x, y): n 0 to %d, x and y 0 to %d", who, TL_TILES - 1, size - 1);
-        return luaL_error(L, "%s(n, x, y, colour): n 0 to %d, x and y 0 to %d, colour 0 to 255", who, TL_TILES - 1, size - 1);
+            return luaL_error(L, "%s(n, x, y): n 0 to %d, x and y 0 to %d", who, limit - 1, size - 1);
+        return luaL_error(L, "%s(n, x, y, colour): n 0 to %d, x and y 0 to %d, colour 0 to 255", who, limit - 1, size - 1);
     }
     uint8_t *p = (sprites ? G->sprites : G->tiles) + ((size_t)n << (2 * G->size_log2)) + (size_t)y * (size_t)size + (size_t)x;
     if (get) {
@@ -574,8 +595,8 @@ static int l_tile(lua_State *L)
     tl_game_t *G = need_game(L);
     tg_world_t *w = cur_world(L, G);
     const int x = iarg(L, 1), y = iarg(L, 2), n = iarg(L, 3), flip = iopt(L, 4, 0);
-    if (n < 0 || n >= TL_TILES)
-        return luaL_error(L, "tile(x, y, n): n is 0 to %d", TL_TILES - 1);
+    if (n < 0 || n >= G->ntiles)
+        return luaL_error(L, "tile(x, y, n): n is 0 to %d", G->ntiles - 1);
     tg_world_set(w, x, y, TG_ENTRY(n, 0, ((flip & 1) ? TG_HFLIP : 0) | ((flip & 2) ? TG_VFLIP : 0)));
     return 0;
 }
@@ -592,8 +613,8 @@ static int l_tilefill(lua_State *L)
     tl_game_t *G = need_game(L);
     tg_world_t *world = cur_world(L, G);
     const int x = iarg(L, 1), y = iarg(L, 2), w = iarg(L, 3), h = iarg(L, 4), n = iarg(L, 5);
-    if (n < 0 || n >= TL_TILES)
-        return luaL_error(L, "tilefill(x, y, width, height, n): n is 0 to %d", TL_TILES - 1);
+    if (n < 0 || n >= G->ntiles)
+        return luaL_error(L, "tilefill(x, y, width, height, n): n is 0 to %d", G->ntiles - 1);
     tg_world_fill(world, x, y, w, h, TG_ENTRY(n, 0, 0));
     return 0;
 }
@@ -612,8 +633,8 @@ static int l_tilestr(lua_State *L)
         return luaL_error(L, "tilestr(x, y, width, string): the width is 1 or more");
     for (size_t i = 0; i < len; i++) {
         const int n = (unsigned char)text[i] + offset;
-        if (n < 0 || n >= TL_TILES)
-            return luaL_error(L, "tilestr: character %d is tile %d, tiles are 0 to %d", (int)i + 1, n, TL_TILES - 1);
+        if (n < 0 || n >= G->ntiles)
+            return luaL_error(L, "tilestr: character %d is tile %d, tiles are 0 to %d", (int)i + 1, n, G->ntiles - 1);
     }
     for (size_t i = 0; i < len; i++)
         tg_world_set(world, x + (int)(i % (size_t)w), y + (int)(i / (size_t)w), TG_ENTRY((unsigned char)text[i] + offset, 0, 0));
@@ -626,14 +647,14 @@ static int l_settileflags(lua_State *L)
     tl_game_t *G = need_game(L);
     const int n = iarg(L, 1);
     if (lua_isnone(L, 2)) {
-        if (n < 0 || n >= TL_TILES)
-            return luaL_error(L, "settileflags(n): n is 0 to %d", TL_TILES - 1);
+        if (n < 0 || n >= G->ntiles)
+            return luaL_error(L, "settileflags(n): n is 0 to %d", G->ntiles - 1);
         lua_pushinteger(L, G->flags[n]);
         return 1;
     }
     const int f = iarg(L, 2);
-    if (n < 0 || n >= TL_TILES || f < 0 || f > 255)
-        return luaL_error(L, "settileflags(n, flags): n is 0 to %d, flags 0 to 255 (1 solid, 2 one-way, 4 trigger)", TL_TILES - 1);
+    if (n < 0 || n >= G->ntiles || f < 0 || f > 255)
+        return luaL_error(L, "settileflags(n, flags): n is 0 to %d, flags 0 to 255 (1 solid, 2 one-way, 4 trigger)", G->ntiles - 1);
     G->flags[n] = (uint8_t)f;
     return 0;
 }
@@ -1501,6 +1522,149 @@ static int l_click(lua_State *L)
     return 1;
 }
 
+/* ---- text: the character table (tg_charmap_t) ---- */
+
+/* A character argument: a string of one character (UTF-8), or its number. */
+static uint32_t char_arg(lua_State *L, int i, const char *who)
+{
+    if (lua_type(L, i) == LUA_TSTRING) {
+        const char *s = lua_tostring(L, i), *p = s;
+        const uint32_t cp = *s ? tg_utf8_next(&p) : TG_BAD_UTF8;
+        if (cp == TG_BAD_UTF8 || *p)
+            luaL_error(L, "%s: the character is a string of one character, or its number", who);
+        return cp;
+    }
+    const lua_Integer v = luaL_checkinteger(L, i);
+    if (v < 0 || v > (lua_Integer)TGF_CODEPOINT_MAX)
+        luaL_error(L, "%s: a character's number is 0 to 0x10FFFF", who);
+    return (uint32_t)v;
+}
+
+/* The characters of the string that font() would add: in the font, not in the table yet, the first time each comes. */
+static int new_chars(const tl_game_t *G, const char *text)
+{
+    int n = 0;
+    for (const char *p = text; *p;) {
+        const char *at = p;
+        const uint32_t cp = tg_utf8_next(&p);
+        if (cp == TG_BAD_UTF8 || !tg_font_glyph(&tg_font_unscii8, cp) || tg_charmap_find(&G->cm, cp))
+            continue;
+        int seen = 0;
+        for (const char *q = text; q < at && !seen;)
+            seen = tg_utf8_next(&q) == cp;
+        n += !seen;
+    }
+    return n;
+}
+
+/* Tiles that font() may draw in: transparent, with no flags, and not in the character table. */
+static int free_tiles(const tl_game_t *G, int lo, int hi)
+{
+    const size_t px = (size_t)1 << (2 * G->size_log2);
+    int n = 0;
+    for (int t = lo; t <= hi; t++) {
+        const uint8_t *p = G->tiles + (size_t)t * px;
+        size_t k = 0;
+        while (k < px && !p[k])
+            k++;
+        int named = 0;
+        for (int i = 0; i < G->cm.count && !named; i++)
+            named = G->chars[i].tile == t || G->chars[i].lower == t;
+        n += k == px && !G->flags[t] && !named;
+    }
+    return n;
+}
+
+/*
+ * font(chars [, colour [, first, last]]): tiles from the built-in 8 x 8 font (doubled for tiles of 16 pixels) for the characters of the string that the
+ * character table does not have yet, drawn in the colour (white, 252, if not given) on see-through, each into a free tile (transparent, with no flags,
+ * not in the table) among first .. last (1 to 255 if not given), from the top down, and entered in the table. All or nothing. Returns how many it added.
+ */
+static int l_font(lua_State *L)
+{
+    tl_game_t *G = need_game(L);
+    const char *text = luaL_checkstring(L, 1);
+    const int colour = iopt(L, 2, TL_WHITE), lo = iopt(L, 3, 1), hi = iopt(L, 4, TL_TILES - 1);
+    if (colour < 0 || colour > 255)
+        return luaL_error(L, "font(chars, colour): the colour is 0 to 255");
+    if (lo < 0 || hi < lo || hi >= G->ntiles)
+        return luaL_error(L, "font(chars, colour, first, last): first and last are tiles, 0 to %d, first no more than last", G->ntiles - 1);
+    const int r = tg_font_add_chars(&G->cm, &tg_font_unscii8, text, G->tiles, (unsigned)G->size_log2, 8, (unsigned)lo, (unsigned)hi, G->flags,
+                                    (uint8_t)colour, 0);
+    if (r < 0) {
+        const int n = new_chars(G, text);
+        if (G->cm.count + n > G->cm.capacity)
+            return luaL_error(L, "font: the character table is full (%d characters)", TL_CHARS);
+        return luaL_error(L, "font: %d new characters, and %d free tiles among %d to %d (a free tile is transparent, with no flags and not in the "
+                          "character table)", n, free_tiles(G, lo, hi), lo, hi);
+    }
+    lua_pushinteger(L, r);
+    return 1;
+}
+
+/*
+ * text(x, y, s): the string on the current layer's map from tile x, y, a tile for each character from the character table (and the one below it for a
+ * character two tiles tall). A character without a tile is passed over, leaving its place as it was; "\n" goes on at x on the next row. Returns the
+ * column after the last character.
+ */
+static int l_text(lua_State *L)
+{
+    tl_game_t *G = need_game(L);
+    tg_world_t *w = cur_world(L, G);
+    const int x0 = iarg(L, 1);
+    int x = x0, y = iarg(L, 2);
+    const char *p = luaL_checkstring(L, 3);
+    while (*p) {
+        const uint32_t cp = tg_utf8_next(&p);
+        if (cp == '\n') {
+            x = x0;
+            y++;
+            continue;
+        }
+        const tg_char_t *c = cp == TG_BAD_UTF8 ? NULL : tg_charmap_find(&G->cm, cp);
+        if (c) {
+            tg_world_set(w, x, y, TG_ENTRY(c->tile, 0, 0));
+            if (c->lower != TG_NO_TILE)
+                tg_world_set(w, x, y + 1, TG_ENTRY(c->lower, 0, 0));
+        }
+        x++;
+    }
+    lua_pushinteger(L, x);
+    return 1;
+}
+
+/*
+ * chartile(c, n [, lower]): character c (a string of one character, or its number) is tile n (with `lower` below it, for one two tiles tall);
+ * chartile(c, nil) takes it out of the table. chartile(c): its tile (and the one below it, if it has one), or nil.
+ */
+static int l_chartile(lua_State *L)
+{
+    tl_game_t *G = need_game(L);
+    const uint32_t cp = char_arg(L, 1, "chartile");
+    if (lua_isnone(L, 2)) {
+        const tg_char_t *c = tg_charmap_find(&G->cm, cp);
+        if (!c) {
+            lua_pushnil(L);
+            return 1;
+        }
+        lua_pushinteger(L, c->tile);
+        if (c->lower == TG_NO_TILE)
+            return 1;
+        lua_pushinteger(L, c->lower);
+        return 2;
+    }
+    if (lua_isnil(L, 2) || (lua_isboolean(L, 2) && !lua_toboolean(L, 2))) {
+        tg_charmap_remove(&G->cm, cp);
+        return 0;
+    }
+    const int n = iarg(L, 2), lower = lua_isnoneornil(L, 3) ? -1 : iarg(L, 3);
+    if (n < 0 || n >= G->ntiles || lower < -1 || lower >= G->ntiles)
+        return luaL_error(L, "chartile(c, n, lower): the tiles are 0 to %d", G->ntiles - 1);
+    if (!tg_charmap_set(&G->cm, cp, (unsigned)n, lower < 0 ? TG_NO_TILE : (unsigned)lower))
+        return luaL_error(L, "chartile: the character table is full (%d characters)", TL_CHARS);
+    return 0;
+}
+
 /* ---- registration ---- */
 
 /* ---- graphics and map files (TGF: ../src/tgf.h, ../docs/tgf-format.md) ---- */
@@ -1589,12 +1753,26 @@ static int l_loadgfx(lua_State *L)
         fs_close(f.fd);
         return luaL_error(L, "loadgfx: %s has tiles of %d pixels, the graphics now %d (gfx(%d) first)", path, info.tile_size, 1 << G->size_log2, info.tile_size);
     }
-    if (!G && !setup(e, log2)) {
+    if (!G && !setup(e, log2, 0)) {
         fs_close(f.fd);
         return luaL_error(L, "not enough memory for the graphics");
     }
     G = e->game;
-    int r = tgf_read_part(&io, &info, TGF_PALT, G->rgb);
+    /* The character table first: its characters join the game's, and must fit before anything changes. */
+    tgf_char_t *chars = info.chars.count ? lua_newuserdatauv(L, sizeof *chars * info.chars.count, 0) : NULL;
+    int r = chars ? tgf_read_chars(&io, &info, chars) : 0;
+    if (!r) {
+        int fresh = 0;
+        for (int i = 0; i < info.chars.count; i++)
+            fresh += !tg_charmap_find(&G->cm, chars[i].codepoint);
+        if (G->cm.count + fresh > G->cm.capacity) {
+            fs_close(f.fd);
+            return luaL_error(L, "loadgfx: %s has %d characters the character table does not, and there is room for %d", path, fresh,
+                              G->cm.capacity - G->cm.count);
+        }
+    }
+    if (!r)
+        r = tgf_read_part(&io, &info, TGF_PALT, G->rgb);
     for (int i = info.part[TGF_PALT].first; !r && i < info.part[TGF_PALT].first + info.part[TGF_PALT].count; i++)
         set_colour(G, i, G->rgb[i][0], G->rgb[i][1], G->rgb[i][2]);
     if (!r)
@@ -1613,6 +1791,8 @@ static int l_loadgfx(lua_State *L)
         G->anims[t].count = info.table[t].count;
         G->anims[t].mode = info.table[t].mode;
     }
+    for (int i = 0; !r && i < info.chars.count; i++)
+        tg_charmap_set(&G->cm, chars[i].codepoint, chars[i].tile, chars[i].lower);   /* (it fits: checked above) */
     fs_close(f.fd);
     if (r)
         return luaL_error(L, "loadgfx: %s could not be read: %s", path, fs_strerror(r));
@@ -1694,9 +1874,16 @@ static int tiles_used(const uint8_t *set, int px)
     return n;
 }
 
+typedef struct {
+    const tl_game_t *G;
+    tgf_char_t *chars;   /* the character table as the file has it: what is in working tiles left out */
+    int nchars;
+} gfx_job_t;
+
 static int gfx_body(const tgf_io_t *io, void *arg)
 {
-    const tl_game_t *G = arg;
+    const gfx_job_t *j = arg;
+    const tl_game_t *G = j->G;
     const int size = 1 << G->size_log2, px = size * size;
     const int nt = tiles_used(G->tiles, px), ns = tiles_used(G->sprites, px);
     int nf = TL_TILES;
@@ -1719,6 +1906,8 @@ static int gfx_body(const tgf_io_t *io, void *arg)
             fr[i] = (tgf_frame_t){.sprite = G->anim_frames[t][i].tile, .ticks = G->anim_frames[t][i].ticks};
         r = tgf_write_table(io, t + 1, G->anims[t].mode, G->anims[t].count, fr);
     }
+    if (!r && j->nchars)
+        r = tgf_write_chars(io, j->nchars, j->chars);
     return r ? r : tgf_write_end(io);
 }
 
@@ -1727,8 +1916,17 @@ static int l_savegfx(lua_State *L)
 {
     const char *path = luaL_checkstring(L, 1);
     tl_game_t *G = need_game(L);
+    gfx_job_t j = {G, NULL, 0};
+    if (G->cm.count) {
+        j.chars = lua_newuserdatauv(L, sizeof *j.chars * G->cm.count, 0);
+        for (int i = 0; i < G->cm.count; i++) {
+            const tg_char_t *c = &G->chars[i];
+            if (c->tile < TL_TILES && (c->lower < TL_TILES || c->lower == TG_NO_TILE))
+                j.chars[j.nchars++] = (tgf_char_t){c->codepoint, c->tile, c->lower};
+        }
+    }
     char why[160];
-    if (write_tgf(path, gfx_body, G, why, sizeof why) < 0)
+    if (write_tgf(path, gfx_body, &j, why, sizeof why) < 0)
         return luaL_error(L, "savegfx: %s: %s", path, why);
     return 0;
 }
@@ -1762,6 +1960,15 @@ static int l_savemap(lua_State *L)
         any |= G->lay[i].has_world && (j.only < 0 || i == j.only);
     if (!any)
         return j.only >= 0 ? luaL_error(L, "savemap: there is no map on layer %d", j.only + 1) : luaL_error(L, "savemap: there is no map to save");
+    for (int i = 0; i < TG_MAX_LAYERS; i++) {   /* (files hold tiles 0 to 255: a working tile in a map would not load back) */
+        const tg_world_t *w = &G->lay[i].world;
+        if (!G->lay[i].has_world || (j.only >= 0 && i != j.only))
+            continue;
+        for (int32_t k = 0; k < w->map_w * w->map_h; k++)
+            if ((w->map[k] & TG_TILE_MASK) >= TL_TILES)
+                return luaL_error(L, "savemap: layer %d has working tile %d at %d, %d: a file holds tiles 0 to %d", i + 1, w->map[k] & TG_TILE_MASK,
+                                  (int)(k % w->map_w), (int)(k / w->map_w), TL_TILES - 1);
+    }
     char why[160];
     if (write_tgf(path, map_body, &j, why, sizeof why) < 0)
         return luaL_error(L, "savemap: %s: %s", path, why);
@@ -1778,7 +1985,7 @@ void tl_game_open(lua_State *L)
         F(actor), F(actorfree), F(actorpos), F(actorx), F(actory), F(actorvel), F(actortile), F(actorsize), F(actorflip), F(actorhide), F(actorprio),
         F(actorbox), F(actoruser), F(actorlayer), F(animdef), F(actoranim), F(animdone), F(animframe), F(ysort), F(actormove), F(hitx), F(hity), F(hittile), F(hitflags),
         F(lastx), F(lasty), F(actorhit), F(waitframe), F(onframe), F(run), F(textmode), F(frames), F(millis), F(btn), F(pressed),
-        F(key), F(mouse), F(click),
+        F(key), F(mouse), F(click), F(font), F(text), F(chartile),
         {NULL, NULL},
     };
     for (const luaL_Reg *r = functions; r->func; r++)
