@@ -437,6 +437,7 @@ int tl_env_load(tl_env_t *e, const char *path)
     e->program[n] = 0;
     e->length = n;
     snprintf(e->name, sizeof e->name, "%.*s", TL_NAME_MAX, full);
+    e->cart[0] = 0;   /* (RUN game.zip sets it again after loading main.lua) */
     return 0;
 }
 
@@ -552,6 +553,94 @@ static void cmd_run(tl_env_t *e)
         with(e, ATTR_OK, "Ready.\n");
 }
 
+/* RUN: in the archive the program came from, if it did (the current folder is the archive's while it runs, and as it was afterwards) */
+static void cmd_run_here(tl_env_t *e)
+{
+    if (!e->cart[0] || !e->length) {
+        cmd_run(e);
+        return;
+    }
+    char back[FS_PATH_MAX + 1];
+    snprintf(back, sizeof back, "%s", fs_getcwd());
+    const int r = fs_chdir(e->cart);
+    if (r < 0) {
+        problem(e, "Cannot go to %s: %s (UNMOUNT took it away? RUN the archive again)", e->cart, fs_strerror(r));
+        return;
+    }
+    cmd_run(e);
+    if (fs_chdir(back) < 0)
+        fs_chdir("/");
+}
+
+static int is_zip_name(const char *path)
+{
+    const size_t n = strlen(path);
+    return n > 4 && !strcasecmp(path + n - 4, ".zip");
+}
+
+/* RUN file: a program loaded and run; RUN game.zip: the archive mounted at /ar and its main.lua run there, as a cartridge */
+static void cmd_run_file(tl_env_t *e, const char *path)
+{
+    if (!is_zip_name(path)) {
+        const int r = tl_env_load(e, path);
+        if (r == -100)
+            problem(e, "That file is too big: the most is %d bytes.", TL_PROGRAM_MAX);
+        else if (r < 0)
+            problem(e, "Cannot load %s: %s", path, fs_strerror(r));
+        else
+            cmd_run(e);
+        return;
+    }
+    close_state(e);   /* (a file the last program left open in an archive at /ar would keep it from being replaced) */
+    char why[120];
+    if (tl_io_mount(e, path, TL_ARCHIVE_DEFAULT, why, sizeof why) < 0) {
+        problem(e, "Cannot mount %s: %s", path, why);
+        return;
+    }
+    const int r = tl_env_load(e, "/" TL_ARCHIVE_DEFAULT "/main.lua");
+    if (r < 0) {
+        if (r == FS_ENOENT)
+            problem(e, "%s has no main.lua: it is mounted at /%s (FILES /%s shows what is in it).", path, TL_ARCHIVE_DEFAULT, TL_ARCHIVE_DEFAULT);
+        else
+            problem(e, "Cannot load main.lua from %s: %s", path, r == -100 ? "too big" : fs_strerror(r));
+        return;
+    }
+    snprintf(e->cart, sizeof e->cart, "/%s", TL_ARCHIVE_DEFAULT);
+    cmd_run_here(e);
+}
+
+/* MOUNT: the archives mounted; MOUNT archive [name]: one more (at /ar if no name) */
+static void cmd_mount(tl_env_t *e, char *args)
+{
+    if (!*args) {
+        const char *path;
+        int i = 0;
+        for (const char *name; (name = tl_io_archive(i, &path)) != NULL; i++) {
+            if (i == 0)
+                with(e, ATTR_HEAD, "Archives:\n");
+            say(e, "  /%-15s %s\n", name, path);
+        }
+        if (i == 0)
+            say(e, "No archives mounted. MOUNT game.zip puts one at /%s.\n", TL_ARCHIVE_DEFAULT);
+        return;
+    }
+    char *name = args;
+    while (*name && !isspace((unsigned char)*name))
+        name++;
+    if (*name) {
+        *name++ = 0;
+        while (isspace((unsigned char)*name))
+            name++;
+    }
+    if (!*name)
+        name = TL_ARCHIVE_DEFAULT;
+    char why[120];
+    if (tl_io_mount(e, args, name, why, sizeof why) < 0)
+        problem(e, "Cannot mount %s: %s", args, why);
+    else
+        say(e, "%s is at /%s.\n", args, *name == '/' ? name + 1 : name);
+}
+
 /* Prints what a line typed at the prompt gave back (as Lua's own interpreter does: 2 + 2 prints 4). */
 static void print_results(tl_env_t *e, lua_State *L)
 {
@@ -627,7 +716,10 @@ static void show_help(tl_env_t *e)
     with(e, ATTR_HEAD, "Commands:\n");
     say(e, "  HELP             this list              CLS              clear the screen\n");
     say(e, "  NEW              forget the program     LIST [from [to]] show the program\n");
-    say(e, "  RUN              run the program        Ctrl+C           stop a running program\n");
+    say(e, "  RUN [file]       run the program, or load the file and run it\n");
+    say(e, "  RUN game.zip     mount the zip archive at /ar and run its main.lua there\n");
+    say(e, "  MOUNT zip [name] the archive's files under /ar (or /name); MOUNT lists\n");
+    say(e, "  UNMOUNT [name]   let go of an archive   Ctrl+C           stop a program\n");
     say(e, "  LOAD file        load a program         SAVE [file]      save the program\n");
     say(e, "  FILES [folder]   list a folder          KILL file        delete a file\n");
     say(e, "  CD [folder]      change folder          EDIT [file]      edit a program\n");
@@ -658,7 +750,7 @@ static int command_word(const char *line, const char *args, char *word, size_t s
         rest++;
     if (*rest && strchr("=+-*%^#<>~,:;[({\"'", *rest))   /* (an operator or a bracket after it: "list = 7", "run + 1"; a file name may start with a dot or a slash) */
         return 0;
-    static const char *const words[] = {"HELP", "CLS", "NEW", "LIST", "RUN", "LOAD", "SAVE", "SCRATCH", "STACK", "HEAP", "USBLOG", "VIDEO", "FILES",
+    static const char *const words[] = {"HELP", "CLS", "NEW", "LIST", "RUN", "LOAD", "SAVE", "MOUNT", "UNMOUNT", "SCRATCH", "STACK", "HEAP", "USBLOG", "VIDEO", "FILES",
                                         "DIR", "LS", "KILL", "DEL", "CD", "EDIT", "VER", "VERSION", "BYE", "QUIT", "EXIT", NULL};
     for (int i = 0; words[i]; i++)
         if (!strcmp(word, words[i]))
@@ -697,14 +789,29 @@ static int run_line(tl_env_t *e, char *line)
         e->length = 0;
         e->program[0] = 0;
         e->name[0] = 0;
+        e->cart[0] = 0;
         open_state(e);
     } else if (!strcmp(word, "LIST")) {
         cmd_list(e, args);
     } else if (!strcmp(word, "RUN")) {
-        cmd_run(e);
+        if (*args)
+            cmd_run_file(e, args);
+        else
+            cmd_run_here(e);
+    } else if (!strcmp(word, "MOUNT")) {
+        cmd_mount(e, args);
+    } else if (!strcmp(word, "UNMOUNT")) {
+        const char *name = *args ? args : TL_ARCHIVE_DEFAULT;
+        const int r = tl_io_unmount(e, name);
+        if (r == FS_ENOENT)
+            problem(e, "No archive is mounted at /%s.", *name == '/' ? name + 1 : name);
+        else if (r < 0)
+            problem(e, "Cannot unmount /%s: a file in it is open.", *name == '/' ? name + 1 : name);
     } else if (!strcmp(word, "LOAD")) {
         if (!*args) {
             problem(e, "Usage: LOAD file");
+        } else if (is_zip_name(args)) {
+            problem(e, "%s is an archive: RUN it (its main.lua), or MOUNT it.", args);
         } else {
             const int r = tl_env_load(e, args);
             if (r == -100)
@@ -723,8 +830,10 @@ static int run_line(tl_env_t *e, char *line)
             if (r < 0) {
                 problem(e, "Cannot save %s: %s", target, fs_strerror(r));
             } else {
-                if (*args)
+                if (*args) {
                     snprintf(e->name, sizeof e->name, "%s", args);
+                    e->cart[0] = 0;
+                }
                 say(e, "Saved %s, %lu bytes.\n", target, (unsigned long)e->length);
             }
         }
@@ -794,6 +903,7 @@ void tl_env_init(tl_env_t *e, tg_text_t *screen, const tl_hooks_t *hooks)
     memset(e, 0, sizeof *e);
     e->hooks = *hooks;
     cur = e;
+    tl_io_forget_archives(e);
     tg_console_init(&e->con, screen, ATTR_TEXT);
     tg_console_clear(&e->con);
     with(e, ATTR_HEAD, "TILEGAME LUA");

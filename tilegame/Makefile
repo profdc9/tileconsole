@@ -128,7 +128,7 @@ clean:
 # The SD card test, with the file system layer (tilefs) beside this directory.
 TILEFS = ../tilefs
 FATFS = $(TILEFS)/third_party/fatfs
-TILEFSSRC = $(TILEFS)/tilefs.c $(TILEFS)/fs_ram.c $(TILEFS)/fs_posix.c $(TILEFS)/fs_blk.c $(TILEFS)/fs_blk_file.c $(TILEFS)/fs_fat.c $(TILEFS)/fs_fat_diskio.c $(FATFS)/ff.c $(FATFS)/ffunicode.c
+TILEFSSRC = $(TILEFS)/tilefs.c $(TILEFS)/fs_ram.c $(TILEFS)/fs_zip.c $(TILEFS)/fs_posix.c $(TILEFS)/fs_blk.c $(TILEFS)/fs_blk_file.c $(TILEFS)/fs_fat.c $(TILEFS)/fs_fat_diskio.c $(FATFS)/ff.c $(FATFS)/ffunicode.c
 SDINC = -I$(TILEFS) -I$(FATFS) -Idemo
 SDTESTSRC = demo/sdtest_logic.c $(TILEGFX)/tg_console.c $(TILEGFX)/tg_text.c $(TILEGFX)/tg_text_cp437.c $(TILEGFX)/tg_font.c $(TILEGFX)/fonts/unscii16.c $(TILEFSSRC)
 

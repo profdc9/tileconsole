@@ -78,9 +78,11 @@ typedef struct tl_env {
     int at_prompt;                       /* the prompt is on the screen and no line has been read since (so that going on after the keys ran out does not print it again) */
     struct tl_game *game;                /* the game functions' state (tl_game.c): made by the first of them, kept until the next RUN or NEW */
     int game_active;                     /* a picture of the game is being shown: a running program does not put the text screen up while it runs */
+    char cart[20];                       /* the folder of the archive the program came from (RUN game.zip: "/ar"), where RUN runs it; "" if none */
 } tl_env_t;
 
-/* Sets up the screen (glyphs loaded by the caller) and the Lua state, clears the screen and prints the banner. */
+/* Sets up the screen (glyphs loaded by the caller) and the Lua state, clears the screen and prints the banner. Archives an earlier environment
+ * mounted are forgotten (their memory given back): the file system must have been reset since (fs_reset), or this be the first. */
 void tl_env_init(tl_env_t *e, tg_text_t *screen, const tl_hooks_t *hooks);
 
 /* Loads a program file into memory (0, or a negative tilefs error, or -100 if it is too big); the environment does not need to be running. */

@@ -2462,6 +2462,128 @@ static void test_game(void)
     test_tile_flags_program();
 }
 
+/* A zip archive of stored files (as zip -0 makes them), in out: its length. */
+static size_t zip_of(uint8_t *out, int n, const char *const *names, const char *const *texts)
+{
+    size_t at = 0, local[16], cd;
+#define Z16(v) (out[at++] = (uint8_t)(v), out[at++] = (uint8_t)((v) >> 8))
+#define Z32(v) (Z16((v) & 0xFFFF), Z16((uint32_t)(v) >> 16))
+    for (int i = 0; i < n; i++) {
+        const size_t nl = strlen(names[i]), dl = strlen(texts[i]);
+        local[i] = at;
+        Z32(0x04034b50u); Z16(10); Z16(0); Z16(0); Z16(0); Z16(0x21); Z32(0); Z32(dl); Z32(dl); Z16(nl); Z16(0);
+        memcpy(out + at, names[i], nl);
+        at += nl;
+        memcpy(out + at, texts[i], dl);
+        at += dl;
+    }
+    cd = at;
+    for (int i = 0; i < n; i++) {
+        const size_t nl = strlen(names[i]), dl = strlen(texts[i]);
+        Z32(0x02014b50u); Z16(0x031e); Z16(10); Z16(0); Z16(0); Z16(0); Z16(0x21); Z32(0); Z32(dl); Z32(dl); Z16(nl); Z16(0); Z16(0);
+        Z16(0); Z16(0); Z32(0); Z32(local[i]);
+        memcpy(out + at, names[i], nl);
+        at += nl;
+    }
+    const size_t cd_size = at - cd;
+    Z32(0x06054b50u); Z16(0); Z16(0); Z16(n); Z16(n); Z32(cd_size); Z32(cd); Z16(0);
+#undef Z16
+#undef Z32
+    return at;
+}
+
+static int put_zip(const char *path, int n, const char *const *names, const char *const *texts)
+{
+    static uint8_t buf[4096];
+    return put_data(path, buf, zip_of(buf, n, names, texts));
+}
+
+/* Zip archives: RUN game.zip as a cartridge (its main.lua run inside it, with require and relative paths finding its files), MOUNT and UNMOUNT,
+ * mount() and unmount(), and what cannot be done in an archive */
+static void test_archives(void)
+{
+    static const char *const game_names[] = {"main.lua", "lib.lua", "data.txt", "sub/more.txt"};
+    static const char *const game_texts[] = {
+        "local lib = require(\"lib\")\nprint(\"main: \" .. lib.hello())\nlocal f = io.open(\"data.txt\")\nprint(\"data: \" .. f:read(\"a\"))\nf:close()\n"
+        "print(\"more: \" .. io.open(\"sub/more.txt\"):read(\"a\"))\n",
+        "return {hello = function() return \"hi\" end}\n", "from the archive", "and more"};
+    static const char *const other_names[] = {"main.lua"};
+    static const char *const other_texts[] = {"print(\"the other game\")\n"};
+    static const char *const nomain_names[] = {"readme.txt"};
+    static const char *const nomain_texts[] = {"no program here"};
+    fresh();
+    const int allocs_before = allocs, releases_before = releases;
+    CHECK(put_zip("/sd/game.zip", 4, game_names, game_texts) > 0 && put_zip("/sd/other.zip", 1, other_names, other_texts) > 0 &&
+          put_zip("/sd/nomain.zip", 1, nomain_names, nomain_texts) > 0 && put_file("/sd/notzip.zip", "only text, not an archive at all") > 0 &&
+          put_file("/sd/hello.lua", "print(\"hello from the card\")\n") > 0);
+
+    /* the cartridge, twice; the folder is the card's again afterwards */
+    type("RUN game.zip\n");
+    CHECK(go() == -1 && printed("main: hi") && printed("data: from the archive") && printed("more: and more") && shows("Ready.") && !shows("Error"));
+    CHECK(!strcmp(fs_getcwd(), "/sd") && !strcmp(env.cart, "/ar") && !strcmp(env.name, "/ar/main.lua"));
+    type("CLS\nRUN\n");
+    CHECK(go() == -1 && printed("main: hi") && printed("more: and more") && !strcmp(fs_getcwd(), "/sd"));
+    type("CLS\nMOUNT\n");
+    CHECK(go() == -1 && shows("/ar") && shows("/sd/game.zip"));
+    type("CLS\nFILES /ar\n");
+    CHECK(go() == -1 && shows("main.lua") && shows("lib.lua") && shows("data.txt") && shows("sub") && shows("<DIR>"));
+    type("CLS\nLIST\n");
+    CHECK(go() == -1 && shows("require(\"lib\")"));
+
+    /* nothing can be written there */
+    type("CLS\nprint(io.open(\"/ar/new.txt\", \"w\"))\n");
+    CHECK(go() == -1 && shows("read-only"));
+    type("CLS\nSAVE\n");
+    CHECK(go() == -1 && shows("Cannot save /ar/main.lua: read-only"));
+    type("CLS\nLOAD game.zip\n");
+    CHECK(go() == -1 && shows("game.zip is an archive: RUN it"));
+
+    /* an open file keeps it mounted; UNMOUNT takes it away, and RUN says the program's archive is gone */
+    type("CLS\nf = io.open(\"/ar/data.txt\")\nUNMOUNT\n");
+    CHECK(go() == -1 && shows("Cannot unmount /ar: a file in it is open."));
+    type("CLS\nf:close()\nUNMOUNT\nRUN\n");
+    fs_stat_t st;
+    CHECK(go() == -1 && fs_stat("/ar/main.lua", &st) == FS_ENOENT && shows("Cannot go to /ar"));
+    type("CLS\nUNMOUNT\nMOUNT\n");
+    CHECK(go() == -1 && shows("No archive is mounted at /ar.") && shows("No archives mounted."));
+
+    /* one cartridge in place of another; RUN file for a plain program, which is not a cartridge's */
+    type("CLS\nRUN game.zip\nRUN other.zip\n");
+    CHECK(go() == -1 && printed("the other game"));
+    type("CLS\nMOUNT\n");
+    CHECK(go() == -1 && shows("/sd/other.zip") && !shows("/sd/game.zip"));
+    type("CLS\nRUN hello\n");
+    CHECK(go() == -1 && printed("hello from the card") && env.cart[0] == 0 && !strcmp(env.name, "hello.lua"));
+
+    /* mount() and unmount() in Lua, and a second archive under another name */
+    type("CLS\nprint(mount(\"game.zip\", \"cart\"))\nprint(io.open(\"/cart/sub/more.txt\"):read(\"a\"))\n");
+    CHECK(go() == -1 && printed("true") && printed("and more"));
+    type("CLS\nprint(mount(\"game.zip\", \"cart\"))\n");   /* (the same archive again: nothing to do) */
+    CHECK(go() == -1 && printed("true"));
+    type("CLS\nprint(unmount(\"cart\"))\nprint(unmount(\"cart\"))\n");
+    CHECK(go() == -1 && printed("true") && shows("no archive is mounted at /cart"));
+    type("CLS\nprint(mount(\"notzip.zip\"))\n");
+    CHECK(go() == -1 && shows("cannot mount notzip.zip: not a zip archive"));
+
+    /* what goes wrong */
+    type("CLS\nMOUNT notzip.zip\n");
+    CHECK(go() == -1 && shows("Cannot mount notzip.zip: not a zip archive"));
+    type("CLS\nRUN missing.zip\n");
+    CHECK(go() == -1 && shows("Cannot mount missing.zip: no such file or directory"));
+    type("CLS\nRUN nomain.zip\n");
+    CHECK(go() == -1 && shows("nomain.zip has no main.lua") && fs_stat("/ar/readme.txt", &st) == 0);
+    type("CLS\nMOUNT game.zip sd\nUNMOUNT sd\n");
+    CHECK(go() == -1 && shows("that name is taken (and not by an archive)") && shows("No archive is mounted at /sd.") && fs_stat("/sd/hello.lua", &st) == 0);
+    type("CLS\nMOUNT game.zip a/b\n");
+    CHECK(go() == -1 && shows("not a name for a mount"));
+    type("CLS\nMOUNT game.zip g1\nMOUNT other.zip g2\nMOUNT nomain.zip g3\n");   /* (with /ar: four mounts and the card) */
+    CHECK(go() == -1 && shows("too many archives mounted"));
+
+    /* all of it let go of, and their memory back */
+    type("CLS\nUNMOUNT\nUNMOUNT g1\nUNMOUNT g2\nMOUNT\n");
+    CHECK(go() == -1 && shows("No archives mounted.") && allocs - allocs_before == releases - releases_before);
+}
+
 /* What Lua no longer uses goes back when something else needs the memory: after an error (a failed program leaves what it built), before HEAP and
  * the editor, and when a machine whose game memory shares a pool with Lua (the board) has it collect from its alloc hook */
 static void test_garbage(void)
@@ -2525,6 +2647,7 @@ int main(void)
     test_game();
     test_sound();
     test_garbage();
+    test_archives();
     printf("all %d checks passed\n", checks);
     return 0;
 }

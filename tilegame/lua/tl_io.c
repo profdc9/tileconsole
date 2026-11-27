@@ -3,7 +3,9 @@
 
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 
 #include "lauxlib.h"
 #include "lua.h"
@@ -21,6 +23,156 @@ typedef struct {
 } tl_file_t;
 
 static char exit_key;            /* what os.exit raises: its address */
+
+/* ---- zip archives ---- */
+
+#define TL_ARCHIVES (FS_MAX_MOUNTS - 1)   /* (the card takes one mount) */
+
+/* A mounted archive, in one block from the alloc hook (the PSRAM on the board), with the archive's directory after it */
+typedef struct {
+    fs_zip_t z;
+    char name[FS_MOUNT_NAME_MAX + 1];
+    char path[FS_PATH_MAX + 1];
+} archive_t;
+
+static archive_t *archives[TL_ARCHIVES];   /* NULL: a free slot */
+
+static void *archive_mem(tl_env_t *e, size_t n) { return e->hooks.alloc ? e->hooks.alloc(n, 0) : malloc(n); }
+
+static void archive_free(tl_env_t *e, int i)
+{
+    if (e->hooks.release)
+        e->hooks.release(archives[i]);
+    else
+        free(archives[i]);
+    archives[i] = NULL;
+}
+
+static int archive_named(const char *name)
+{
+    if (*name == '/')
+        name++;
+    for (int i = 0; i < TL_ARCHIVES; i++)
+        if (archives[i] && !strcasecmp(archives[i]->name, name))
+            return i;
+    return -1;
+}
+
+int tl_io_unmount(tl_env_t *e, const char *name)
+{
+    const int i = archive_named(name);
+    if (i < 0)
+        return FS_ENOENT;
+    int r = fs_unmount(archives[i]->name);
+    if (r == FS_EBUSY) {   /* (a file a program left open, which nothing refers to any more, is closed by the collector) */
+        tl_env_collect(e);
+        r = fs_unmount(archives[i]->name);
+    }
+    if (r < 0 && r != FS_ENOENT)
+        return r;
+    if (r == 0)   /* (not mounted any more: the file system was reset, and its handle on the archive closed with everything else) */
+        fs_zip_close(&archives[i]->z);
+    archive_free(e, i);
+    return 0;
+}
+
+int tl_io_mount(tl_env_t *e, const char *archive, const char *name, char *why, size_t n)
+{
+    char full[FS_PATH_MAX + 1];
+    int r = fs_normalise(archive, full, sizeof full);
+    if (*name == '/')
+        name++;
+    if (r < 0) {
+        snprintf(why, n, "%s", fs_strerror(r));
+        return r;
+    }
+    const int old = archive_named(name);
+    if (old >= 0 && !strcasecmp(archives[old]->path, full))
+        return 0;   /* (mounted there already) */
+    if (old >= 0 && (r = tl_io_unmount(e, name)) < 0) {
+        snprintf(why, n, "/%s is in use (a file in it is open)", archives[old]->name);
+        return r;
+    }
+    int slot = -1;
+    for (int i = 0; i < TL_ARCHIVES && slot < 0; i++)
+        if (!archives[i])
+            slot = i;
+    fs_zip_t probe;
+    if (slot < 0 || (r = fs_zip_open(&probe, full)) < 0) {
+        r = slot < 0 ? FS_ENOMEM : r;
+        snprintf(why, n, "%s", slot < 0 ? "too many archives mounted" : r == FS_ENODEV ? "not a zip archive" : r == FS_ENOTSUP ? "a ZIP64 archive (over 4 GB)" : fs_strerror(r));
+        return r;
+    }
+    archive_t *a = archive_mem(e, sizeof *a + probe.index_bytes);
+    if (!a) {
+        fs_zip_close(&probe);
+        snprintf(why, n, "not enough memory for its directory (%lu bytes)", (unsigned long)probe.index_bytes);
+        return FS_ENOMEM;
+    }
+    a->z = probe;   /* (nothing in it points into it yet: no file in the archive is open) */
+    snprintf(a->name, sizeof a->name, "%s", strlen(name) < sizeof a->name ? name : "");
+    snprintf(a->path, sizeof a->path, "%s", full);
+    archives[slot] = a;
+    r = fs_zip_load(&a->z, a + 1);
+    if (r == 0)
+        r = fs_mount(name, &fs_zip_ops, &a->z);
+    if (r < 0) {
+        snprintf(why, n, "%s", r == FS_ENODEV ? "a broken zip archive" : r == FS_EEXIST ? "that name is taken (and not by an archive)"
+                               : r == FS_EINVAL ? "not a name for a mount (one name, up to 15 letters)" : r == FS_ENOMEM ? "too many mounts" : fs_strerror(r));
+        fs_zip_close(&a->z);
+        archive_free(e, slot);
+        return r;
+    }
+    return 0;
+}
+
+const char *tl_io_archive(int i, const char **path)
+{
+    for (int k = 0; k < TL_ARCHIVES; k++)
+        if (archives[k] && i-- == 0) {
+            *path = archives[k]->path;
+            return archives[k]->name;
+        }
+    return NULL;
+}
+
+void tl_io_forget_archives(tl_env_t *e)
+{
+    for (int i = 0; i < TL_ARCHIVES; i++)
+        if (archives[i])
+            archive_free(e, i);
+}
+
+/* mount(archive [, name]): the zip archive's files under /name (/ar if not given); true, or nil and what went wrong */
+static int l_mount(lua_State *L)
+{
+    const char *archive = luaL_checkstring(L, 1), *name = luaL_optstring(L, 2, TL_ARCHIVE_DEFAULT);
+    char why[120];
+    const int r = tl_io_mount(tl_env_current(), archive, name, why, sizeof why);
+    if (r < 0) {
+        luaL_pushfail(L);
+        lua_pushfstring(L, "cannot mount %s: %s", archive, why);
+        lua_pushinteger(L, r);
+        return 3;
+    }
+    lua_pushboolean(L, 1);
+    return 1;
+}
+
+/* unmount([name]): the archive at /name (/ar) goes; true, or nil and what went wrong */
+static int l_unmount(lua_State *L)
+{
+    const char *name = luaL_optstring(L, 1, TL_ARCHIVE_DEFAULT);
+    const int r = tl_io_unmount(tl_env_current(), name);
+    if (r < 0) {
+        luaL_pushfail(L);
+        lua_pushfstring(L, r == FS_ENOENT ? "no archive is mounted at /%s" : "cannot unmount /%s: a file in it is open", *name == '/' ? name + 1 : name);
+        lua_pushinteger(L, r);
+        return 3;
+    }
+    lua_pushboolean(L, 1);
+    return 1;
+}
 
 int tl_io_is_exit(lua_State *L, int idx)
 {
@@ -612,6 +764,8 @@ void tl_io_open(lua_State *L)
     luaL_newlib(L, os);
     lua_setglobal(L, "os");
 
+    lua_register(L, "mount", l_mount);
+    lua_register(L, "unmount", l_unmount);
     lua_register(L, "loadfile", l_loadfile);
     lua_register(L, "dofile", l_dofile);
     lua_register(L, "require", l_require);

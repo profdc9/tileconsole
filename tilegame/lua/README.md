@@ -5,11 +5,12 @@ integers and floats), with programs as text files on `tilefs` (the SD card on th
 
     ] LOAD hello       load hello.lua into memory (a name with no extension finds NAME.lua)
     ] LIST             show it, numbered (the numbers are for reading: the file has none)
-    ] RUN              run it (Ctrl+C stops it)
+    ] RUN              run it (Ctrl+C stops it); RUN file loads the file and runs it
+    ] RUN game.zip     a game in one zip archive: mounted at /ar and its main.lua run there
     ] EDIT             start the editor (TDE) on it; back at the prompt with the file reloaded
     ] print(2 + 2)     anything else is Lua and runs at once
     ] 2 + 2            an expression is shown: 4
-    HELP CLS NEW LIST [from [to]] RUN LOAD SAVE [file] FILES [folder] KILL CD EDIT VER BYE  (and STACK HEAP VIDEO USBLOG SCRATCH on the board)
+    HELP CLS NEW LIST [from [to]] RUN [file] LOAD SAVE [file] FILES [folder] KILL CD EDIT MOUNT UNMOUNT VER BYE  (and STACK HEAP VIDEO USBLOG SCRATCH on the board)
 
 `tl_env.[ch]` is the environment (keys, screen and clock through hooks, so a test can type at it); `tl_main.c` is the desktop program (`make tglua`, `./tglua [-2] [folder]`,
 whose files are /sd; EDIT runs `./tde_ed` on the file); `make test_lua` is the test (typed keys, screen, files; run with AddressSanitizer and UBSan). On the board the
@@ -46,8 +47,35 @@ Lua 5.4 is unchanged except for `LUA_32BITS` (see `../third_party/lua/README-til
 | `os.clock()`, `os.time()` | seconds since the machine started (a float, and a whole number); there is no calendar |
 | `os.exit()` | ends the program (not an error) |
 | `require(name)`, `dofile(name)`, `loadfile(name)` | run another Lua file: `require("lib.maths")` runs `lib/maths.lua` once and keeps what it returns in `package.loaded` |
+| `mount(archive [, name])`, `unmount([name])` | a zip archive's files under `/name` (`/ar` if no name), and away again (below). `true`, or `nil, message, code` |
 
 A file that is open cannot be renamed or deleted (tilefs refuses): close it first. Files a program leaves open are closed at the next RUN or NEW.
+
+### Zip archives: a game in one file
+
+A zip archive can be mounted as a folder that can only be read, so a game's programs, graphics, sounds and music travel as one file:
+
+    zip -0 -r game.zip main.lua lib.lua sprites sounds     (on the PC: -0 stores the files without compressing them)
+
+    ] RUN game.zip     the cartridge: game.zip is mounted at /ar, and its main.lua runs with /ar as the current folder,
+                       so require("lib"), io.open("sprites/hero.txt") and loadsample("sounds/boom.wav") find its files
+    ] RUN              the same program again, in the archive again
+    ] MOUNT game.zip   the archive at /ar without running anything (MOUNT game.zip name puts it at /name); MOUNT lists the archives
+    ] FILES /ar        what is in it; LOAD, LIST, EDIT, CD and io.open work on it as on any folder
+    ] UNMOUNT          lets go of the archive at /ar (UNMOUNT name for another)
+
+- **Read only.** Writing, deleting, renaming or making a folder in an archive gives the error `read-only`, and SAVE does too. A game keeps its saved
+  state on the card (`io.open("/sd/game.sav", "w")`); after a cartridge run the current folder is the card's again, as it was before RUN.
+- **Stored files only.** A file that was compressed (zip without `-0`) is listed but cannot be opened: `not supported (a compressed or encrypted file?)`.
+- **What stays.** An archive stays mounted until UNMOUNT (or another RUN of an archive, which takes its place at /ar): NEW and RUN leave it, and so does
+  the end of the program. While it is mounted the archive file on the card cannot be deleted or written, and it cannot be unmounted while a file in it
+  is open (one that nothing refers to any more is closed first). Up to three archives at once, each under its own name.
+- **Names** in an archive are matched without regard to case, as on the card. Folders need no entries of their own in the archive, and an archive
+  made on Windows (backslashes in its names) works too.
+- **Memory.** The archive's directory is kept in memory while it is mounted (about 50 to 100 bytes a file; in the PSRAM on the board); opening a file
+  reads only its header from the card, and reads go straight to the card as for any file.
+
+The backend is `fs_zip.c` in tilefs (`../../tilefs/README.md`).
 
 ## Game functions: tiles, a scrolling map, actors, buttons
 
