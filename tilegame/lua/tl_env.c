@@ -342,6 +342,12 @@ static int open_state(tl_env_t *e)
     return 1;
 }
 
+void tl_env_collect(tl_env_t *e)
+{
+    if (e->L)
+        lua_gc(e->L, LUA_GCCOLLECT);   /* (does nothing if the collector is running: Lua checks) */
+}
+
 /* What an error says, or "Break" for Ctrl+C. 1 for an end that is not an error (os.exit). */
 static int report(tl_env_t *e, lua_State *L)
 {
@@ -389,6 +395,7 @@ static int call(tl_env_t *e, int nresults)
         return 1;
     const int fine = report(e, L);
     lua_settop(L, 0);
+    tl_env_collect(e);   /* (what it built before the error is garbage now: give it back at once, for what is not Lua's and shares its memory) */
     return fine;
 }
 
@@ -730,6 +737,8 @@ static int run_line(tl_env_t *e, char *line)
     } else if (!strcmp(word, "STACK") || !strcmp(word, "HEAP") || !strcmp(word, "USBLOG") || !strcmp(word, "VIDEO")) {
         char text[160];
         const char *what = word[0] == 'S' ? "stack" : word[0] == 'H' ? "heap" : word[0] == 'V' ? "video" : "usblog";
+        if (word[0] == 'H')
+            tl_env_collect(e);   /* (what is free once the garbage is gone) */
         const int got = e->hooks.info && e->hooks.info(what, text, sizeof text);
         if (got)
             say(e, "%s\n", text);
@@ -812,6 +821,7 @@ int tl_env_run(tl_env_t *e)
         const int r = run_line(e, e->command);
         if (r >= 0) {
             tl_sound_silence(e);   /* (the editor, or what comes after BYE, starts quiet) */
+            tl_env_collect(e);     /* (and has what Lua no longer uses: the editor takes its memory from the same pool on the board) */
             e->exit_code = r;
             return r;
         }

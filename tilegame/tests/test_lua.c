@@ -44,10 +44,11 @@ static int presents;
 /* The sound engine, and an audio thread played by the hooks: every frame, poll and frame wait mixes a block (the machine's thread would, now and then) */
 static snd_t tsnd;
 static int sound_on = 1;
+static int audio_stalled;   /* the audio thread does not run (the machine's core 1 held up) */
 static int16_t sbuf[2 * 4800];
 static void pump(void)
 {
-    if (env.hooks.snd)
+    if (env.hooks.snd && !audio_stalled)
         snd_render(&tsnd, sbuf, 64);
 }
 
@@ -215,8 +216,16 @@ static unsigned t_buttons(int player, int kind)
     return player == 0 ? (kind == 0 ? held : kind == 1 ? went_down : 0) : 0;
 }
 
+static size_t lua_bytes;   /* what Lua has through the allocator hook */
+static size_t shared_limit;   /* nonzero: the game's memory and Lua's share this much, as the board's PSRAM pool does (Lua's own does not fail) */
+static int shared_collect;    /* ... and when it is full, the hook has Lua collect and tries again, as the devkit's game_alloc does */
+
 static void *t_alloc(size_t n, int fast)
 {
+    if (shared_limit && lua_bytes + n > shared_limit && shared_collect)
+        tl_env_collect(&env);
+    if (shared_limit && lua_bytes + n > shared_limit)
+        return NULL;
     allocs++;
     fast_allocs += fast;
     return malloc(n);
@@ -228,7 +237,6 @@ static void t_release(void *p)
     free(p);
 }
 
-static size_t lua_bytes;   /* what Lua has through the allocator hook */
 static void *t_lua_alloc(void *ud, void *ptr, size_t osize, size_t nsize)
 {
     (void)ud;
@@ -293,15 +301,17 @@ static int go(void)
     return r;
 }
 
-static int put_file(const char *path, const char *text)
+static int put_data(const char *path, const void *data, size_t len)
 {
     const int fd = fs_open(path, FS_WRONLY | FS_CREAT | FS_TRUNC);
     if (fd < 0)
         return fd;
-    const int w = fs_write(fd, text, strlen(text));
+    const int w = fs_write(fd, data, len);
     fs_close(fd);
     return w;
 }
+
+static int put_file(const char *path, const char *text) { return put_data(path, text, strlen(text)); }
 
 static int file_is(const char *path, const char *text)
 {
@@ -758,20 +768,24 @@ static void test_gaps(void)
 static int run_jump = 1;   /* the frames that pass at each waitframe */
 static unsigned run_held, run_down;   /* the buttons a run sees */
 
-static struct { const char *path, *text; } seeds[8];   /* files every run_program starts with (fresh empties the disk) */
+static struct { const char *path, *text; size_t len; } seeds[8];   /* files every run_program starts with (fresh empties the disk) */
 static int seed_count;
 
-static void seed_file(const char *path, const char *text)
+static void seed_data(const char *path, const void *data, size_t len)
 {
     for (int i = 0; i < seed_count; i++)
         if (!strcmp(seeds[i].path, path)) {
-            seeds[i].text = text;
+            seeds[i].text = data;
+            seeds[i].len = len;
             return;
         }
     CHECK(seed_count < 8);
     seeds[seed_count].path = path;
-    seeds[seed_count++].text = text;
+    seeds[seed_count].text = data;
+    seeds[seed_count++].len = len;
 }
+
+static void seed_file(const char *path, const char *text) { seed_data(path, text, strlen(text)); }
 
 static void run_program(const char *text)
 {
@@ -784,7 +798,7 @@ static void run_program(const char *text)
             *slash = 0;
             fs_mkdir(dir);
         }
-        CHECK(put_file(seeds[i].path, seeds[i].text) > 0);
+        CHECK(put_data(seeds[i].path, seeds[i].text, seeds[i].len) > 0);
     }
     frame_jump = run_jump;
     held = run_held;
@@ -1361,7 +1375,7 @@ static void test_game_input_and_errors(void)
 
 static char *read_example(const char *name)
 {
-    static char text[8192];
+    static char text[65536];
     char path[64];
     snprintf(path, sizeof path, "lua/examples/%s", name);
     FILE *f = fopen(path, "rb");
@@ -2205,6 +2219,24 @@ static void test_sound_lifetime(void)
     run_program("for i = 1, 300 do volume(1, i % 256) end\nprint(\"done\")\n");
     CHECK(printed("done") && voice(1)->vol == 300 % 256);
 
+    /* an audio thread that stops answering, with the queue full: music() and music() say so, NEW keeps the song that plays (the audio thread still
+     * reads it), and once the thread runs again the song plays on and the next music() stops it and gives it back (ASan: no use after free, no leak) */
+    fresh();
+    type("music(\"L c d e f\")\n");
+    CHECK(go() == -1 && !shows("Error") && voice(16)->kind == SND_PULSE);
+    audio_stalled = 1;
+    type("for i = 1, 64 do volume(1, 1) end\nmusic(\"L g a\")\n");
+    CHECK(go() == -1 && shows("music: the sound is not answering"));
+    type("music()\n");
+    CHECK(go() == -1 && shows("the music plays on"));
+    type("NEW\n");
+    CHECK(go() == -1);
+    audio_stalled = 0;
+    type("print(musicplaying())\n");
+    CHECK(go() == -1 && printed("true") && voice(16)->kind == SND_PULSE && voice(1)->vol == 1);
+    type("music()\nprint(musicplaying())\n");
+    CHECK(go() == -1 && printed("false") && voice(16)->kind == SND_OFF && !tsnd.song);
+
     /* a machine without sound: the functions do nothing, and samples are still made */
     sound_on = 0;
     run_program("tone(1, \"pulse\", 60)\nprint(playing(1))\nprint(sample(1, \"abc\", 8000))\nplay(1, 1)\nslide(1, 2, 100)\nsilence()\nprint(\"quiet\")\n");
@@ -2343,6 +2375,62 @@ static void test_sound_example_music(void)
     CHECK(go() == -1 && freed_by_new());
 }
 
+/* examples/midi.lua: a MIDI file (a C major chord on the piano for two bars, a kick and a closed hi-hat) played, and made into a program
+ * that plays it */
+static void test_sound_midi(void)
+{
+    static const unsigned char mid[] = {
+        'M', 'T', 'h', 'd', 0, 0, 0, 6, 0, 0, 0, 1, 0, 96,   /* format 0, one track, 96 ticks a quarter */
+        'M', 'T', 'r', 'k', 0, 0, 0, 49,
+        0x00, 0xFF, 0x51, 0x03, 0x09, 0x27, 0xC0,              /* 600000 us a quarter note: 100 a minute */
+        0x00, 0xC0, 0,                                         /* channel 1: the piano */
+        0x00, 0x90, 60, 100, 0x00, 64, 100, 0x00, 67, 100,     /* C E G, the second and third by running status */
+        0x00, 0x99, 36, 127, 0x00, 42, 80,                     /* channel 10: kick and closed hi-hat */
+        0x0A, 0x89, 36, 0, 0x00, 42, 0,
+        0x85, 0x76, 0x80, 60, 0, 0x00, 64, 0, 0x00, 67, 0,     /* eight quarter notes after it began (758 ticks after the drums) the chord ends */
+        0x00, 0xFF, 0x2F, 0x00,
+    };
+    static char module[65536];
+    snprintf(module, sizeof module, "%s", read_example("midi.lua"));
+    seed_file("/sd/midi.lua", module);
+    seed_data("/sd/t.mid", mid, sizeof mid);
+    run_program("midi = require(\"midi\")\n"
+                "print(midi.play(\"t.mid\"))\n"
+                "print(musicplaying())\n"
+                "print(select(2, pcall(midi.load, \"nothere.mid\")))\n"
+                "print(select(2, pcall(midi.load, \"midi.lua\")))\n"
+                "print(select(2, pcall(midi.load, \"t.mid\", {grid = 5})))\n"
+                "print(midi.load(\"t.mid\", {voices = 2}).summary)\n");
+    CHECK(printed("t.mid: 5 tracks, 5 notes, 0:04") && printed("true") && !shows("Error"));
+    /* each track's note on its voice, at the track's volume times the instrument's (the notes may have ended: the loads after play() take
+     * a while on the test's clock, but a voice keeps what it played last) */
+    CHECK(voice(12)->inc == music_inc(67) && voice(13)->inc == music_inc(64) && voice(14)->inc == music_inc(60) && voice(12)->vol == 12 * 17 * 51 / 255);
+    CHECK(voice(15)->vol == 51 && voice(16)->vol == 9 * 17 * 51 / 255);
+    CHECK(printed("midi: nothere.mid") && printed("midi: midi.lua is not a MIDI file") && printed("midi: the grid is a division of a whole note"));
+    CHECK(printed("t.mid: 2 tracks, 2 notes, 0:04, 3 notes left out (more at once than 2 tracks)"));   /* the top of the chord and the kick */
+
+    /* the program it writes: the instruments, and a track for each line, each as long as the others when it loops */
+    run_program("midi = require(\"midi\")\n"
+                "print(midi.convert(\"t.mid\", \"song.lua\", {loop = true}))\n"
+                "dofile(\"song.lua\")\n"
+                "print(musicplaying())\n");
+    CHECK(printed("t.mid: 5 tracks, 5 notes, 0:04") && printed("true") && !shows("Error"));
+    static char text[4096];
+    const int fd = fs_open("/sd/song.lua", FS_RDONLY);
+    CHECK(fd >= 0);
+    const int n = fs_read(fd, text, sizeof text - 1);
+    fs_close(fd);
+    text[n > 0 ? n : 0] = 0;
+    CHECK(strstr(text, "instrument(1, \"pulse\", {duty = 100, decay = 900, sustain = 70, release = 200, volume = 51})   -- Acoustic Grand Piano\n"));
+    CHECK(strstr(text, "instrument(2, \"noise\", {decay = 80, sustain = 0, volume = 51})   -- drums: kick\n"));
+    CHECK(strstr(text, "instrument(3, \"buzz\", {decay = 30, sustain = 0, volume = 51})   -- drums: hat\n"));
+    CHECK(strstr(text, "[=[L l4 t100 @1 v12 o4 g1 | ^1 |]=],") && strstr(text, "[=[L l4 @1 v12 o4 c1 | ^1 |]=],"));   /* (tied at the bar line) */
+    CHECK(strstr(text, "[=[L l4 @2 v15 n60,1 | ^1 |]=],") && strstr(text, "[=[L l4 @3 v9 n127,1 | ^1 |]=])"));   /* (a drum lasts to the next) */
+    type("music()\n");
+    CHECK(go() == -1 && freed_by_new());
+    seed_count = 0;
+}
+
 static void test_sound(void)
 {
     test_sound_notes();
@@ -2351,6 +2439,7 @@ static void test_sound(void)
     test_sound_example();
     test_sound_music();
     test_sound_example_music();
+    test_sound_midi();
 }
 
 static void test_game(void)
@@ -2373,6 +2462,56 @@ static void test_game(void)
     test_tile_flags_program();
 }
 
+/* What Lua no longer uses goes back when something else needs the memory: after an error (a failed program leaves what it built), before HEAP and
+ * the editor, and when a machine whose game memory shares a pool with Lua (the board) has it collect from its alloc hook */
+static void test_garbage(void)
+{
+    static const char big[] = "local t = {}\nfor i = 1, 20000 do t[i] = {i} end\nerror(\"too big\")\n";
+    static const char junk[] = "junk = {}\nfor i = 1, 20000 do junk[i] = {i} end\njunk = nil\n";
+    fresh();
+    CHECK(put_file("/sd/big.lua", big) > 0 && put_file("/sd/junk.lua", junk) > 0);
+    type("x = 1\n");
+    CHECK(go() == -1);
+    const size_t base = lua_bytes;
+    type("dofile(\"big.lua\")\n");
+    CHECK(go() == -1 && shows("too big") && lua_bytes < base + 64 * 1024);
+
+    fresh();
+    CHECK(put_file("/sd/junk.lua", junk) > 0);
+    type("dofile(\"junk.lua\")\n");
+    CHECK(go() == -1 && lua_bytes > 500 * 1024);   /* (the garbage is still there: nothing has made the collector run) */
+    shared_limit = lua_bytes;                      /* full, unless the garbage goes */
+    shared_collect = 0;                            /* a hook that does not collect: the environment does not do it for it (that is the machine's choice) */
+    type("gfx(8)\n");
+    CHECK(go() == -1 && shows("not enough memory for the graphics") && env.game == NULL);
+    shared_limit = 0;
+    type("dofile(\"junk.lua\")\n");               /* (the error collected the garbage: make it again) */
+    CHECK(go() == -1 && lua_bytes > 500 * 1024);
+    shared_limit = lua_bytes;
+    shared_collect = 1;                            /* the devkit's: Lua collects, from inside gfx(), and the graphics fit */
+    type("gfx(8)\nprint(\"drawn\")\n");
+    CHECK(go() == -1 && printed("drawn") && env.game != NULL && lua_bytes < 200 * 1024);
+    shared_limit = 0;
+    shared_collect = 0;
+    CHECK(freed_by_new());
+
+    /* HEAP collects first, so what it says is free is free */
+    fresh();
+    CHECK(put_file("/sd/junk.lua", junk) > 0);
+    type("dofile(\"junk.lua\")\n");
+    CHECK(go() == -1 && lua_bytes > 500 * 1024);
+    type("HEAP\n");
+    CHECK(go() == -1 && lua_bytes < 200 * 1024);
+
+    /* the editor, which on the board takes its memory from the same pool, starts with the garbage gone */
+    fresh();
+    CHECK(put_file("/sd/junk.lua", junk) > 0);
+    type("dofile(\"junk.lua\")\n");
+    CHECK(go() == -1 && lua_bytes > 500 * 1024);
+    type("EDIT junk.lua\n");
+    CHECK(go() == TL_EXIT_EDIT && lua_bytes < 200 * 1024);
+}
+
 int main(void)
 {
     test_basics();
@@ -2385,6 +2524,7 @@ int main(void)
     test_gaps();
     test_game();
     test_sound();
+    test_garbage();
     printf("all %d checks passed\n", checks);
     return 0;
 }

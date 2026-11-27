@@ -103,4 +103,10 @@ void tl_env_problem(tl_env_t *e, const char *fmt, ...) __attribute__((format(pri
 void tl_env_poll(tl_env_t *e);
 int tl_env_read_line(tl_env_t *e, char *out, int size);
 
+/* A full garbage collection, if there is a Lua state. The environment does it after an error at the prompt (what a failed program built is garbage
+ * from then on), before HEAP and before the editor. Lua collects by itself when its own memory runs short, but nothing else makes it: a machine that
+ * gives the game and the sound (the alloc hook) memory from the same place as Lua's calls this when that place is full, and tries again (the devkit
+ * on the board, whose PSRAM pool they share). Safe from the alloc hook, which a Lua function may be calling. */
+void tl_env_collect(tl_env_t *e);
+
 #endif

@@ -251,6 +251,59 @@ one note to the next and through the repeats; `t` changes the tempo of every tra
 played on one of them is cut off by the track's next note, so effects belong on the others. `silence()`, Ctrl+C, RUN and NEW stop the music;
 making a sample again that an instrument of the music plays stops it too. `examples/music.lua` is eight bars on four tracks.
 
+### MIDI files
+
+`examples/midi.lua` makes a MIDI file (`.mid`, format 0 or 1) into MML. It is a Lua module: copy it to the card beside the
+programs, then
+
+    midi = require("midi")
+    midi.play("song.mid")                  -- plays it now
+    midi.play("song.mid", {loop = true})   -- ... over and over
+    midi.convert("song.mid", "song.lua")   -- writes a program that makes the instruments and plays the MML
+    song = midi.load("song.mid")           -- song.tracks: the MML strings; song.instruments; song.summary
+
+`play` and `convert` return a line saying what came out (`song.mid: 6 tracks, 1190 notes, 2:25`), which the prompt prints. The
+program `convert` writes is plain Lua: RUN it to hear the music, change the MML or the instruments in it, or `dofile("song.lua")`
+from a game to start it (that is all the game needs: not `midi.lua`).
+
+How a file becomes MML:
+
+- **A track is a voice, and plays one note at a time**, so each MIDI channel takes as many tracks as it has notes at once: a
+  three-note chord on the piano is three tracks, the highest note on the first. The drums (channel 10) are split the same way,
+  each kind of drum keeping to a track of its own when it can.
+- **At most 12 tracks** (`voices` changes it, 1 to 16), on the last voices, so that the first four are left to the game's sound
+  effects. When the music needs more, the part that plays least gives up its last track first, and a note that then finds no
+  free track cuts off the one that began longest ago (or is left out, if they all began with it); the line `play` returns says
+  how many notes were left out.
+- **Times are moved to a grid**: 32nd notes or 16th-note triplets, whichever fits the notes of each beat better, so that a file
+  played in by hand comes out as notes MML can write. `grid = 16` moves everything to 16th notes; `grid = false` keeps the times as
+  they are, to a 96th of a quarter note.
+- **Instruments**: one for each General MIDI program the file uses, from a table of envelopes and waves for each family of eight
+  (pianos, organs, guitars, basses, strings, brass ...: `FAMILY` and `PRESET` in `midi.lua`), and one for each kind of drum (kick,
+  snare, hi-hat, cymbal, toms ...: `KIT` and `DRUMS`). They are made from instrument 1 on (`instrument = n` starts elsewhere).
+  Their volumes come from the most notes that sound at once: those notes, all at full volume, add up to about full scale, so
+  the music is not clipped.
+- **Loudness**: the note's velocity times the channel's volume and expression becomes `v`, the loudest note in the file `v15`;
+  a track's `v` changes only when its notes get louder or softer by 2 or more. A channel's pan becomes `p`.
+- **Tempo**: `t` at the start of the first track, and each change on whichever track has a note starting or ending nearest to it
+  (`t` is for every track). Bar lines (`|`) follow the file's time signature.
+
+| option | |
+|---|---|
+| `voices = 8` | at most 8 tracks (12 if not given) |
+| `loop = true` | the music starts again at its end: every track is made as long as the longest, to the end of its last bar, after an `L` |
+| `grid = 16`, `grid = {16, 12}`, `grid = false` | where notes may start and end, as divisions of a whole note (4 or finer); `{32, 24}` if not given |
+| `transpose = -12` | semitones up or down, for all but the drums |
+| `drums = false` | leaves out channel 10 |
+| `channels = {1, 2, 10}` | only these channels |
+| `pedal = true` | the sustain pedal holds notes on (which takes more tracks) |
+| `instrument = 10` | the first instrument number to use (1 if not given) |
+| `first = 1` | `play` and `convert`: the voice of the first track |
+
+What is lost: pitch bends, each instrument's own sound (an envelope and a wave stand in for it), and volume changes in the middle
+of a note (they come in at the next note). Converting takes time and memory (a few hundred bytes for each note while it works,
+in the PSRAM on the board), so a game is better off with the program `convert` wrote than with `play`.
+
 ## Speed (board)
 
 `examples/bench.lua` measures what things cost. Lua compiles a program to bytecode once and allocates nothing for arithmetic, calls or table fields (only for new strings), so on the
@@ -264,6 +317,11 @@ On the board Lua's small blocks (up to 512 bytes) are in SRAM, up to 64 KB; anyt
 how much is in SRAM. The share is a build setting, `cmake -DLUA_SRAM_KB=n` (0: all of Lua's memory in the PSRAM). Measured with `bench.lua`: with all of it in the PSRAM, ordinary
 code and calls were only 2-6% slower (the 16 KB cache holds what a loop keeps using), but making strings was 2.7 times slower (every allocation goes through the PSRAM pool) and
 `tile()` 2.9 times. Putting the game's own state (the actors) in SRAM as well made no measurable difference, so it stays in the PSRAM: SRAM is what the graphics need.
+
+The PSRAM pool is shared: Lua, the game's maps and graphics, songs and samples, and the editor all take from it. Lua collects its garbage by itself when it is
+short of memory, but nothing else makes it. So the devkit's allocator for the game and the sound (`game_alloc` in `../demo/devkit.c`) has Lua collect when the
+pool is full, and tries again; tilegfx and tilesnd, which take their memory from their caller, know nothing of it. The environment also collects after an
+error (what a failed program built is garbage from then on), before `HEAP` (so what it shows as free is free) and before the editor starts.
 
 The allocators themselves, measured on the board on 2026-11-26 with a throwaway test (not in the tree): nanoseconds per free and malloc of a block of 16 to 72 bytes, the
 test loop's own time taken off. "Live" is how many blocks stay allocated while one at random is freed and a new one made (256 is about 12 KB, which fits the cache; 2048 about

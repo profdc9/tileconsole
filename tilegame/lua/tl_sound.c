@@ -184,19 +184,20 @@ static int let_go(tl_env_t *e, int n)
 {
     snd_t *s = e->hooks.snd;
     const int in_song = S.song && ((S.song_samples >> n) & 1);
-    if (in_song && s && room(e, 1))
-        snd_music_stop(s);
+    int queued = 1;   /* (a stop that could not be queued lets go of nothing: the audio thread still plays it) */
+    if (in_song && s)
+        queued = room(e, 1) && snd_music_stop(s);
     for (int v = 0; v < TL_VOICES; v++) {
         voice_t *vo = &S.v[v];
         if (vo->kind == SND_PCM && vo->sample == n + 1) {
-            if (s && room(e, 1))
-                snd_stop(s, v);
+            if (s && !(room(e, 1) && snd_stop(s, v)))
+                queued = 0;
             vo->kind = 0;
             vo->sample = 0;
             forget_motion(vo);
         }
     }
-    const int settled = settle(e);
+    const int settled = queued && settle(e);
     if (in_song)
         drop_song(e, settled);
     return settled;
@@ -238,7 +239,8 @@ void tl_sound_silence(tl_env_t *e)
 void tl_sound_reset(tl_env_t *e)
 {
     snd_t *s = e->hooks.snd;
-    if (s && room(e, 4 + TL_VOICES)) {
+    const int queued = !s || room(e, 4 + TL_VOICES);
+    if (s && queued) {
         snd_music_stop(s);
         snd_music_volume(s, 255);
         snd_stop_all(s);
@@ -246,8 +248,9 @@ void tl_sound_reset(tl_env_t *e)
         for (int v = 0; v < TL_VOICES; v++)
             snd_set_adsr(s, v, 0, 0, 255, 5);   /* (tilesnd's own default) */
     }
-    const int settled = settle(e);
-    drop_song(e, settled);
+    const int settled = queued && settle(e);
+    if (queued)   /* (otherwise the song still plays: it stays this module's, and the next music() stops it and gives it back) */
+        drop_song(e, settled);
     for (int n = 0; n < TL_SAMPLES; n++)
         drop_sample(e, n, settled);
     for (int v = 0; v < TL_VOICES; v++)
@@ -935,15 +938,18 @@ static int l_instrument(lua_State *L)
 
 static void *song_alloc(void *ctx, size_t n) { return mem((tl_env_t *)ctx, n); }
 
-/* The music stops, and its memory is given back once the audio thread has let go of it. */
-static void stop_music(tl_env_t *e)
+/* The music stops, and its memory is given back once the audio thread has let go of it; 0 if the stop could not be queued (the music plays on). */
+static int stop_music(tl_env_t *e)
 {
     snd_t *s = e->hooks.snd;
     if (!S.song)
-        return;
-    if (s && room(e, 1))
+        return 1;
+    if (s && !room(e, 1))
+        return 0;
+    if (s)
         snd_music_stop(s);
     drop_song(e, settle(e));
+    return 1;
 }
 
 /* music([first voice,] track, ...): plays the tracks (MML, one string each) on voices of their own, the first on `first voice` and the next ones
@@ -953,7 +959,8 @@ static int l_music(lua_State *L)
     tl_env_t *e = E;
     const int top = lua_gettop(L);
     if (top == 0) {
-        stop_music(e);
+        if (!stop_music(e))
+            return luaL_error(L, "music: the sound is not answering, and the music plays on");
         return 0;
     }
     int arg = 1, first = -1;
@@ -986,8 +993,12 @@ static int l_music(lua_State *L)
     if (!song)
         return luaL_error(L, "music: %s", err);
     snd_t *s = e->hooks.snd;
+    if (s && !room(e, 1)) {   /* (the old song plays on, and is still read: it must not be given back) */
+        unmem(e, song);
+        return luaL_error(L, "music: the sound is not answering");
+    }
     snd_song_t *old = S.song;
-    if (s && room(e, 1)) {
+    if (s) {
         snd_music_play(s, song, first);   /* (the old song, if any, stops as this one starts) */
         S.music_mark = snd_mark(s);
     }
