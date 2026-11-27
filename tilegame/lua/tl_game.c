@@ -12,6 +12,8 @@
 #include "platform.h"
 #include "tg_actor.h"
 #include "tg_world.h"
+#include "tgf.h"
+#include "tilefs.h"
 
 #define TL_MAX_ACTORS 128
 #define TL_TILES 256                /* tiles in the map's set and in the sprite sheet */
@@ -37,6 +39,7 @@ struct tl_game {
     int size_log2;                  /* 3 or 4: the size of tiles and of sprite tiles, 8 or 16 pixels */
     uint8_t *tiles, *sprites;       /* TL_TILES of size * size bytes each, one byte a pixel */
     uint8_t flags[TG_TILES_MAX];    /* what each tile number is (solid ...) */
+    uint8_t rgb[256][3];            /* the palette as palette() was given it, 0 to 255 each (the display's is RGB565): what savegfx writes */
     tl_layer_t lay[TG_MAX_LAYERS];
     int cur;                        /* the layer the map functions work on (layer(n)) */
     int solid;                      /* the layer whose tiles stop the actors and whose map follow keeps the camera inside (solidlayer(n)) */
@@ -107,9 +110,19 @@ void tl_game_reset(tl_env_t *e)
     e->game_active = 0;
 }
 
-/* The 16 colours of the PC's text mode, as RGB565; they are the palette entries of the characters 0 to 9 and A to F (the hex digits). */
-static const uint16_t ega[16] = {0x0000, 0x0015, 0x0540, 0x0555, 0xA800, 0xA815, 0xAAA0, 0xAD55,
-                                 0x52AA, 0x52BF, 0x57EA, 0x57FF, 0xFAAA, 0xFABF, 0xFFEA, 0xFFFF};
+/* The 16 colours of the PC's text mode; they are the palette entries of the characters 0 to 9 and A to F (the hex digits). */
+static const uint8_t ega[16][3] = {{0x00, 0x00, 0x00}, {0x00, 0x00, 0xAA}, {0x00, 0xAA, 0x00}, {0x00, 0xAA, 0xAA}, {0xAA, 0x00, 0x00}, {0xAA, 0x00, 0xAA},
+                                   {0xAA, 0x55, 0x00}, {0xAA, 0xAA, 0xAA}, {0x55, 0x55, 0x55}, {0x55, 0x55, 0xFF}, {0x55, 0xFF, 0x55}, {0x55, 0xFF, 0xFF},
+                                   {0xFF, 0x55, 0x55}, {0xFF, 0x55, 0xFF}, {0xFF, 0xFF, 0x55}, {0xFF, 0xFF, 0xFF}};
+
+/* Palette entry i: the colour as given, and as the display has it. */
+static void set_colour(tl_game_t *G, int i, int r, int g, int b)
+{
+    G->rgb[i][0] = (uint8_t)r;
+    G->rgb[i][1] = (uint8_t)g;
+    G->rgb[i][2] = (uint8_t)b;
+    G->g.palette[i] = (uint16_t)(((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3));
+}
 
 static int setup_state(tl_env_t *e, int size_log2)
 {
@@ -132,8 +145,8 @@ static int setup_state(tl_env_t *e, int size_log2)
     G->g.sprite_depth = 8;
     G->g.sprite_tiles = G->sprites;
     for (int i = 0; i < 16; i++)
-        G->g.palette[(unsigned char)"0123456789ABCDEF"[i]] = ega[i];
-    G->g.palette[0] = ega[0];   /* (the backdrop) */
+        set_colour(G, (unsigned char)"0123456789ABCDEF"[i], ega[i][0], ega[i][1], ega[i][2]);
+    set_colour(G, 0, 0, 0, 0);   /* (the backdrop) */
     G->bg = '.';
     G->frame_ref = LUA_NOREF;
     G->follow_id = -1;
@@ -354,7 +367,7 @@ static int l_palette(lua_State *L)
     }
     if (i < 0 || i > 255 || r > 255 || g > 255 || b > 255)
         return luaL_error(L, "palette(colour, red, green, blue): the colour is a character or 0 to 255, red, green and blue 0 to 255");
-    G->g.palette[i] = (uint16_t)(((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3));
+    set_colour(G, i, r, g, b);
     return 0;
 }
 
@@ -419,6 +432,68 @@ static int l_sprpix(lua_State *L) { return set_pixel(L, 1); }
 /* ---- the map ---- */
 
 /* newmap(width, height [, layer]): a map for the layer (the one layer(n) chose, if not given), all tile 0; its camera follows the main one. Returns the layer. */
+/* The memory of a layer's map: the window (what the display reads, a little more than the screen, double buffered so that no border is needed), its
+ * bitmap of changes, and the whole map (cleared: all tile 0). */
+typedef struct {
+    uint16_t *win_a, *win_b;
+    uint32_t *dirty;
+    uint16_t *map;
+} layer_mem_t;
+
+static void window_log2(const tl_game_t *G, unsigned *wl, unsigned *hl)
+{
+    *wl = G->size_log2 == 3 ? 6 : 5;
+    *hl = G->size_log2 == 3 ? 5 : 4;
+}
+
+static void layer_mem_free(tl_env_t *e, layer_mem_t *m)
+{
+    unmem(e, m->win_a);
+    unmem(e, m->win_b);
+    unmem(e, m->dirty);
+    unmem(e, m->map);
+    memset(m, 0, sizeof *m);
+}
+
+/* 1, or 0 with nothing kept, if there was not memory enough */
+static int layer_mem(tl_env_t *e, const tl_game_t *G, int32_t w, int32_t h, layer_mem_t *m)
+{
+    unsigned wl, hl;
+    window_log2(G, &wl, &hl);
+    m->win_a = mem(e, TG_WORLD_WIN_ENTRIES(wl, hl) * sizeof *m->win_a, 1);
+    m->win_b = mem(e, TG_WORLD_WIN_ENTRIES(wl, hl) * sizeof *m->win_b, 1);
+    m->dirty = mem(e, TG_WORLD_DIRTY_WORDS(wl, hl) * sizeof *m->dirty, 0);
+    m->map = mem(e, (size_t)w * (size_t)h * sizeof *m->map, 0);
+    if (m->win_a && m->win_b && m->dirty && m->map)
+        return 1;
+    layer_mem_free(e, m);
+    return 0;
+}
+
+/* Layer i (which free_layer has emptied) gets the memory, and its world is set up on the map in it, with its camera where the main one says. 1, or 0 if
+ * the world could not be (the memory is given back). */
+static int install_layer(tl_env_t *e, tl_game_t *G, int i, int32_t w, int32_t h, layer_mem_t *m)
+{
+    tl_layer_t *l = &G->lay[i];
+    unsigned wl, hl;
+    window_log2(G, &wl, &hl);
+    l->win_a = m->win_a;
+    l->win_b = m->win_b;
+    l->dirty = m->dirty;
+    l->map = m->map;
+    memset(m, 0, sizeof *m);
+    G->g.layers[i] = (tg_layer_t){.kind = TG_LAYER_TILES, .tile_log2 = (uint8_t)G->size_log2, .depth = 8, .map_w_log2 = (uint8_t)wl,
+                                  .map_h_log2 = (uint8_t)hl, .tiles = G->tiles};
+    if (!tg_world_init(&l->world, &G->g.layers[i], l->win_a, l->win_b, l->dirty, l->map, w, h)) {
+        free_layer(e, G, i);
+        return 0;
+    }
+    tg_world_set_flags(&l->world, G->flags);
+    l->has_world = 1;
+    tg_world_set_camera(&l->world, layer_cam(G->cam_x, l->fx, l->ox), layer_cam(G->cam_y, l->fy, l->oy));
+    return 1;
+}
+
 static int l_newmap(lua_State *L)
 {
     tl_env_t *e = E;
@@ -428,26 +503,11 @@ static int l_newmap(lua_State *L)
     if (w < 1 || h < 1 || (long)w * h > TL_MAP_MAX)
         return luaL_error(L, "newmap(width, height): the map has at most %d tiles", TL_MAP_MAX);
     free_layer(e, G, i);
-    tl_layer_t *l = &G->lay[i];
-    /* the window: what the display reads, a little more than the screen (double buffered, so no border is needed) */
-    const unsigned wl = G->size_log2 == 3 ? 6 : 5, hl = G->size_log2 == 3 ? 5 : 4;
-    l->win_a = mem(e, TG_WORLD_WIN_ENTRIES(wl, hl) * sizeof *l->win_a, 1);
-    l->win_b = mem(e, TG_WORLD_WIN_ENTRIES(wl, hl) * sizeof *l->win_b, 1);
-    l->dirty = mem(e, TG_WORLD_DIRTY_WORDS(wl, hl) * sizeof *l->dirty, 0);
-    l->map = mem(e, (size_t)w * (size_t)h * sizeof *l->map, 0);
-    if (!l->win_a || !l->win_b || !l->dirty || !l->map) {
-        free_layer(e, G, i);
+    layer_mem_t m;
+    if (!layer_mem(e, G, w, h, &m))
         return luaL_error(L, "not enough memory for a map of %d x %d", w, h);
-    }
-    G->g.layers[i] = (tg_layer_t){.kind = TG_LAYER_TILES, .tile_log2 = (uint8_t)G->size_log2, .depth = 8, .map_w_log2 = (uint8_t)wl,
-                                  .map_h_log2 = (uint8_t)hl, .tiles = G->tiles};
-    if (!tg_world_init(&l->world, &G->g.layers[i], l->win_a, l->win_b, l->dirty, l->map, w, h)) {
-        free_layer(e, G, i);
+    if (!install_layer(e, G, i, w, h, &m))
         return luaL_error(L, "the map could not be set up");
-    }
-    tg_world_set_flags(&l->world, G->flags);
-    l->has_world = 1;
-    tg_world_set_camera(&l->world, layer_cam(G->cam_x, l->fx, l->ox), layer_cam(G->cam_y, l->fy, l->oy));
     lua_pushinteger(L, i + 1);
     return 1;
 }
@@ -1277,12 +1337,277 @@ static int l_pressed(lua_State *L) { return button_state(L, 1); }
 
 /* ---- registration ---- */
 
+/* ---- graphics and map files (TGF: ../src/tgf.h, ../docs/tgf-format.md) ---- */
+
+typedef struct {
+    int fd;
+} file_io_t;
+
+static int fio_read(void *c, void *b, uint32_t n) { return fs_read(((file_io_t *)c)->fd, b, n); }
+static int fio_write(void *c, const void *b, uint32_t n) { return fs_write(((file_io_t *)c)->fd, b, n); }
+static int fio_seek(void *c, uint32_t pos)
+{
+    const int64_t r = fs_seek(((file_io_t *)c)->fd, pos, FS_SEEK_SET);
+    return r < 0 ? (int)r : 0;
+}
+
+/* Opens the file and checks all of it: 0 with the file open (the caller closes f->fd), or an error with what is wrong in `why`. */
+static int open_tgf(const char *path, file_io_t *f, tgf_io_t *io, tgf_info_t *info, char *why, size_t n)
+{
+    fs_stat_t st;
+    int r = fs_stat(path, &st);
+    if (r == 0 && st.is_dir)
+        r = FS_EISDIR;
+    if (r < 0) {
+        snprintf(why, n, "%s", fs_strerror(r));
+        return r;
+    }
+    f->fd = fs_open(path, FS_RDONLY);
+    if (f->fd < 0) {
+        snprintf(why, n, "%s", fs_strerror(f->fd));
+        return f->fd;
+    }
+    *io = (tgf_io_t){fio_read, fio_seek, fio_write, f, st.size > 0xFFFFFFFFll ? 0xFFFFFFFFu : (uint32_t)st.size};
+    r = tgf_check(io, info, why, n);
+    if (r < 0)
+        fs_close(f->fd);
+    return r;
+}
+
+/* Writes a file through `body`, into a new file that then takes the old one's place, so that a failure leaves the old one as it was. 0, or an error
+ * with what went wrong in `why`. */
+static int write_tgf(const char *path, int (*body)(const tgf_io_t *io, void *arg), void *arg, char *why, size_t n)
+{
+    char tmp[FS_PATH_MAX + 1];
+    if (snprintf(tmp, sizeof tmp, "%s.TMP", path) >= (int)sizeof tmp) {
+        snprintf(why, n, "%s", fs_strerror(FS_ENAMETOOLONG));
+        return FS_ENAMETOOLONG;
+    }
+    file_io_t f = {fs_open(tmp, FS_WRONLY | FS_CREAT | FS_TRUNC)};
+    if (f.fd < 0) {
+        snprintf(why, n, "%s", fs_strerror(f.fd));
+        return f.fd;
+    }
+    const tgf_io_t io = {fio_read, fio_seek, fio_write, &f, 0};
+    int r = body(&io, arg);
+    const int closed = fs_close(f.fd);
+    if (!r)
+        r = closed;
+    fs_stat_t st;
+    if (!r && fs_stat(path, &st) == 0)
+        r = fs_unlink(path);
+    if (!r)
+        r = fs_rename(tmp, path);
+    if (r < 0) {
+        fs_unlink(tmp);
+        snprintf(why, n, "%s", r == TGF_EIO ? "the card is full" : fs_strerror(r));
+    }
+    return r;
+}
+
+/* loadgfx(file): the palette, tiles, sprites, flags and animation tables in the file (what it has of them); with no graphics yet, gfx(size) first with the
+ * file's tile size. The file is checked before anything changes. */
+static int l_loadgfx(lua_State *L)
+{
+    tl_env_t *e = E;
+    const char *path = luaL_checkstring(L, 1);
+    file_io_t f;
+    tgf_io_t io;
+    tgf_info_t info;
+    char why[160];
+    if (open_tgf(path, &f, &io, &info, why, sizeof why) < 0)
+        return luaL_error(L, "loadgfx: %s: %s", path, why);
+    const int log2 = info.tile_size == 8 ? 3 : 4;
+    tl_game_t *G = e->game;
+    if (G && G->size_log2 != log2) {
+        fs_close(f.fd);
+        return luaL_error(L, "loadgfx: %s has tiles of %d pixels, the graphics now %d (gfx(%d) first)", path, info.tile_size, 1 << G->size_log2, info.tile_size);
+    }
+    if (!G && !setup(e, log2)) {
+        fs_close(f.fd);
+        return luaL_error(L, "not enough memory for the graphics");
+    }
+    G = e->game;
+    int r = tgf_read_part(&io, &info, TGF_PALT, G->rgb);
+    for (int i = info.part[TGF_PALT].first; !r && i < info.part[TGF_PALT].first + info.part[TGF_PALT].count; i++)
+        set_colour(G, i, G->rgb[i][0], G->rgb[i][1], G->rgb[i][2]);
+    if (!r)
+        r = tgf_read_part(&io, &info, TGF_TILE, G->tiles);
+    if (!r)
+        r = tgf_read_part(&io, &info, TGF_SPRT, G->sprites);
+    if (!r)
+        r = tgf_read_part(&io, &info, TGF_FLAG, G->flags);
+    for (int t = 0; !r && t < TGF_TABLES; t++) {
+        if (!info.table[t].present)
+            continue;
+        tgf_frame_t fr[TGF_FRAMES];
+        r = tgf_read_table(&io, &info, t + 1, fr);
+        for (int i = 0; !r && i < info.table[t].count; i++)
+            G->anim_frames[t][i] = (tg_anim_frame_t){.tile = fr[i].sprite, .ticks = fr[i].ticks};
+        G->anims[t].count = info.table[t].count;
+        G->anims[t].mode = info.table[t].mode;
+    }
+    fs_close(f.fd);
+    if (r)
+        return luaL_error(L, "loadgfx: %s could not be read: %s", path, fs_strerror(r));
+    return 0;
+}
+
+/* loadmap(file [, layer]): the maps in the file, each into its layer, made at its size (as newmap makes one); with a layer, the file's one map into that layer.
+ * The file is checked, and the memory found, before any map changes. */
+static int l_loadmap(lua_State *L)
+{
+    tl_env_t *e = E;
+    const char *path = luaL_checkstring(L, 1);
+    const int target = lua_isnoneornil(L, 2) ? -1 : layer_arg(L, 2, "loadmap(file, layer)");
+    tl_game_t *G = need_game(L);
+    file_io_t f;
+    tgf_io_t io;
+    tgf_info_t info;
+    char why[160];
+    if (open_tgf(path, &f, &io, &info, why, sizeof why) < 0)
+        return luaL_error(L, "loadmap: %s: %s", path, why);
+    if (info.maps == 0 || (target >= 0 && info.maps != 1)) {
+        fs_close(f.fd);
+        if (info.maps == 0)
+            return luaL_error(L, "loadmap: %s has no map", path);
+        return luaL_error(L, "loadmap: %s has %d maps: loadmap(file) puts each in its own layer", path, info.maps);
+    }
+    layer_mem_t m[TGF_LAYERS];
+    memset(m, 0, sizeof m);
+    int r = 0, short_of = 0;
+    for (int k = 0; k < TGF_LAYERS && !r && !short_of; k++) {
+        if (!info.map[k].present)
+            continue;
+        if (!layer_mem(e, G, (int32_t)info.map[k].w, (int32_t)info.map[k].h, &m[k]))
+            short_of = 1;
+        else
+            r = tgf_read_map(&io, &info, k + 1, m[k].map);
+    }
+    fs_close(f.fd);
+    if (r || short_of) {
+        for (int k = 0; k < TGF_LAYERS; k++)
+            layer_mem_free(e, &m[k]);
+        if (short_of)
+            return luaL_error(L, "loadmap: not enough memory for the maps of %s", path);
+        return luaL_error(L, "loadmap: %s could not be read: %s", path, fs_strerror(r));
+    }
+    int bad = 0;
+    for (int k = 0; k < TGF_LAYERS; k++) {
+        if (!info.map[k].present)
+            continue;
+        const int i = target >= 0 ? target : k;
+        free_layer(e, G, i);
+        if (bad || !install_layer(e, G, i, (int32_t)info.map[k].w, (int32_t)info.map[k].h, &m[k])) {
+            layer_mem_free(e, &m[k]);
+            bad = 1;
+            continue;
+        }
+        if (info.map[k].flags & TGF_MAP_WRAPS)
+            tg_world_set_border(&G->lay[i].world, TG_BORDER_WRAP, 0);
+    }
+    wrap_actors(G);   /* (the solid layer's map may be new) */
+    if (bad)
+        return luaL_error(L, "loadmap: a map of %s could not be set up", path);
+    return 0;
+}
+
+/* How many of the set's tiles to write: up to the last that is not all see-through. */
+static int tiles_used(const uint8_t *set, int px)
+{
+    int n = TL_TILES;
+    while (n > 0) {
+        const uint8_t *t = set + (size_t)(n - 1) * (size_t)px;
+        int empty = 1;
+        for (int i = 0; i < px && empty; i++)
+            empty = t[i] == 0;
+        if (!empty)
+            break;
+        n--;
+    }
+    return n;
+}
+
+static int gfx_body(const tgf_io_t *io, void *arg)
+{
+    const tl_game_t *G = arg;
+    const int size = 1 << G->size_log2, px = size * size;
+    const int nt = tiles_used(G->tiles, px), ns = tiles_used(G->sprites, px);
+    int nf = TL_TILES;
+    while (nf > 0 && !G->flags[nf - 1])
+        nf--;
+    int r = tgf_write_header(io, size);
+    if (!r)
+        r = tgf_write_part(io, TGF_PALT, 0, 256, size, G->rgb);
+    if (!r && nt)
+        r = tgf_write_part(io, TGF_TILE, 0, nt, size, G->tiles);
+    if (!r && ns)
+        r = tgf_write_part(io, TGF_SPRT, 0, ns, size, G->sprites);
+    if (!r && nf)
+        r = tgf_write_part(io, TGF_FLAG, 0, nf, size, G->flags);
+    for (int t = 0; !r && t < TL_MAX_ANIMS; t++) {
+        if (!G->anims[t].count)
+            continue;
+        tgf_frame_t fr[TGF_FRAMES];
+        for (int i = 0; i < G->anims[t].count; i++)
+            fr[i] = (tgf_frame_t){.sprite = G->anim_frames[t][i].tile, .ticks = G->anim_frames[t][i].ticks};
+        r = tgf_write_table(io, t + 1, G->anims[t].mode, G->anims[t].count, fr);
+    }
+    return r ? r : tgf_write_end(io);
+}
+
+/* savegfx(file): the palette, tiles, sprites, flags and animation tables, as a TGF file */
+static int l_savegfx(lua_State *L)
+{
+    const char *path = luaL_checkstring(L, 1);
+    tl_game_t *G = need_game(L);
+    char why[160];
+    if (write_tgf(path, gfx_body, G, why, sizeof why) < 0)
+        return luaL_error(L, "savegfx: %s: %s", path, why);
+    return 0;
+}
+
+typedef struct {
+    const tl_game_t *G;
+    int only;   /* the one layer to write, or -1 for all that have a map */
+} map_job_t;
+
+static int map_body(const tgf_io_t *io, void *arg)
+{
+    const map_job_t *j = arg;
+    int r = tgf_write_header(io, 1 << j->G->size_log2);
+    for (int i = 0; !r && i < TG_MAX_LAYERS; i++) {
+        const tl_layer_t *l = &j->G->lay[i];
+        if ((j->only >= 0 && i != j->only) || !l->has_world)
+            continue;
+        r = tgf_write_map(io, i + 1, l->world.border == TG_BORDER_WRAP ? TGF_MAP_WRAPS : 0, (uint32_t)l->world.map_w, (uint32_t)l->world.map_h, l->world.map);
+    }
+    return r ? r : tgf_write_end(io);
+}
+
+/* savemap(file [, layer]): the maps of the layers that have one, or the one layer's, as a TGF file */
+static int l_savemap(lua_State *L)
+{
+    const char *path = luaL_checkstring(L, 1);
+    tl_game_t *G = need_game(L);
+    map_job_t j = {G, lua_isnoneornil(L, 2) ? -1 : layer_arg(L, 2, "savemap(file, layer)")};
+    int any = 0;
+    for (int i = 0; i < TG_MAX_LAYERS; i++)
+        any |= G->lay[i].has_world && (j.only < 0 || i == j.only);
+    if (!any)
+        return j.only >= 0 ? luaL_error(L, "savemap: there is no map on layer %d", j.only + 1) : luaL_error(L, "savemap: there is no map to save");
+    char why[160];
+    if (write_tgf(path, map_body, &j, why, sizeof why) < 0)
+        return luaL_error(L, "savemap: %s: %s", path, why);
+    return 0;
+}
+
 #define F(n) {#n, l_##n}
 void tl_game_open(lua_State *L)
 {
     E = tl_env_current();
     static const luaL_Reg functions[] = {
-        F(gfx), F(palette), F(tiledef), F(sprdef), F(tilerow), F(sprrow), F(tilepix), F(sprpix),
+        F(gfx), F(palette), F(tiledef), F(sprdef), F(tilerow), F(sprrow), F(tilepix), F(sprpix), F(loadgfx), F(loadmap), F(savegfx), F(savemap),
         F(newmap), F(layer), F(solidlayer), F(parallax), F(wrap), F(tile), F(gettile), F(tilefill), F(tilestr), F(settileflags), F(tileflag), F(tilebox), F(camera), F(camx), F(camy), F(follow), F(followlimit),
         F(actor), F(actorfree), F(actorpos), F(actorx), F(actory), F(actorvel), F(actortile), F(actorsize), F(actorflip), F(actorhide), F(actorprio),
         F(actorbox), F(actoruser), F(actorlayer), F(animdef), F(actoranim), F(animdone), F(animframe), F(ysort), F(actormove), F(hitx), F(hity), F(hittile), F(hitflags),

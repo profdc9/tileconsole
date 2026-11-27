@@ -127,6 +127,19 @@ A colour is named by the character whose code is its palette entry, and the same
 text colours are on `0` to `9` and `A` to `F` (`0` black, `1` blue, `4` red, `F` white), entry 0 is a black backdrop, and every other colour is black. Lua joins strings with `..`, and
 `string.rep` repeats one, so a big tile can be built: `sprdef(1, string.rep("4", 256))`.
 
+**Graphics and map files** (TGF, `../docs/tgf-format.md`: what the sprite and tile editor saves, and what a game loads)
+
+| function | what it does |
+|---|---|
+| `loadgfx(file)` | the palette, tiles, sprites, tile flags and animation tables in the file (what it has of them: a file can fill only part of a set, so files add up). With no graphics yet it calls `gfx(size)` with the file's tile size; graphics of another size are an error |
+| `loadmap(file [, layer])` | the file's maps, each into its layer, made at its size as `newmap` makes one, and wrapping if it was saved wrapping; with a layer, the file's one map goes into that layer |
+| `savegfx(file)` | the palette, the tiles and sprites up to the last one that is not empty, the flags and the animation tables |
+| `savemap(file [, layer])` | the maps of the layers that have one (or of the one layer), each with whether it wraps |
+
+A file is checked all through before anything changes, so a broken one (cut short, a length that is wrong, a tile number past 255, tiles of
+another size) is an error that leaves the game as it was. Saving writes a new file that then takes the old one's place, so a full card leaves
+the old file as it was. A file in a cartridge loads like any other: `loadgfx("gfx/level1.tgf")`.
+
 **The map** (tiles in a grid, in front of the backdrop; up to four layers of them, see below)
 
 | function | what it does |

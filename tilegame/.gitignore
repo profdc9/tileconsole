@@ -39,3 +39,4 @@ test_devkit
 devkit_files/
 test_pool
 test_usblog
+test_tgf

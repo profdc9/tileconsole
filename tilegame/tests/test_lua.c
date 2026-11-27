@@ -2463,13 +2463,13 @@ static void test_game(void)
 }
 
 /* A zip archive of stored files (as zip -0 makes them), in out: its length. */
-static size_t zip_of(uint8_t *out, int n, const char *const *names, const char *const *texts)
+static size_t zip_of(uint8_t *out, int n, const char *const *names, const char *const *texts, const size_t *lens)
 {
     size_t at = 0, local[16], cd;
 #define Z16(v) (out[at++] = (uint8_t)(v), out[at++] = (uint8_t)((v) >> 8))
 #define Z32(v) (Z16((v) & 0xFFFF), Z16((uint32_t)(v) >> 16))
     for (int i = 0; i < n; i++) {
-        const size_t nl = strlen(names[i]), dl = strlen(texts[i]);
+        const size_t nl = strlen(names[i]), dl = lens ? lens[i] : strlen(texts[i]);
         local[i] = at;
         Z32(0x04034b50u); Z16(10); Z16(0); Z16(0); Z16(0); Z16(0x21); Z32(0); Z32(dl); Z32(dl); Z16(nl); Z16(0);
         memcpy(out + at, names[i], nl);
@@ -2479,7 +2479,7 @@ static size_t zip_of(uint8_t *out, int n, const char *const *names, const char *
     }
     cd = at;
     for (int i = 0; i < n; i++) {
-        const size_t nl = strlen(names[i]), dl = strlen(texts[i]);
+        const size_t nl = strlen(names[i]), dl = lens ? lens[i] : strlen(texts[i]);
         Z32(0x02014b50u); Z16(0x031e); Z16(10); Z16(0); Z16(0); Z16(0); Z16(0x21); Z32(0); Z32(dl); Z32(dl); Z16(nl); Z16(0); Z16(0);
         Z16(0); Z16(0); Z32(0); Z32(local[i]);
         memcpy(out + at, names[i], nl);
@@ -2495,7 +2495,7 @@ static size_t zip_of(uint8_t *out, int n, const char *const *names, const char *
 static int put_zip(const char *path, int n, const char *const *names, const char *const *texts)
 {
     static uint8_t buf[4096];
-    return put_data(path, buf, zip_of(buf, n, names, texts));
+    return put_data(path, buf, zip_of(buf, n, names, texts, NULL));
 }
 
 /* Zip archives: RUN game.zip as a cartridge (its main.lua run inside it, with require and relative paths finding its files), MOUNT and UNMOUNT,
@@ -2584,6 +2584,111 @@ static void test_archives(void)
     CHECK(go() == -1 && shows("No archives mounted.") && allocs - allocs_before == releases - releases_before);
 }
 
+static long file_bytes(const char *path, uint8_t *out, size_t cap)
+{
+    const int fd = fs_open(path, FS_RDONLY);
+    if (fd < 0)
+        return fd;
+    long n = 0;
+    int r;
+    while ((r = fs_read(fd, out + n, cap - (size_t)n)) > 0)
+        n += r;
+    fs_close(fd);
+    return n;
+}
+
+static uint16_t rgb565(int r, int g, int b) { return (uint16_t)(((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3)); }
+
+/* loadgfx, loadmap, savegfx, savemap: what is saved comes back the same (saved again, the files are the same bytes), and broken or unfitting files
+ * are errors that change nothing */
+static void test_tgf_files(void)
+{
+    static uint8_t a[70000], b[70000];
+    fresh();
+    CHECK(put_file("/sd/save.lua",
+                   "gfx(8)\npalette(\"1\", 10, 200, 30)\npalette(\"A\", 255, 128, 0)\npalette(200, 1, 2, 3)\n"
+                   "tiledef(1, string.rep(\"1\", 32) .. string.rep(\"A\", 32))\ntiledef(7, string.rep(\".\", 63) .. \"A\")\nsprdef(2, string.rep(\"A1\", 32))\n"
+                   "settileflags(1, 1)\nsettileflags(9, 4)\nanimdef(3, \"pingpong\", 5, \"2 1:7\")\n"
+                   "newmap(20, 15)\ntile(0, 0, 1)\ntile(5, 3, 7, 1)\ntile(19, 14, 1, 3)\n"
+                   "layer(2)\nnewmap(4, 4)\nwrap(true)\ntile(1, 1, 7, 2)\nlayer(1)\n"
+                   "savegfx(\"level.tgf\")\nsavemap(\"level.map\")\nsavemap(\"one.map\", 2)\nprint(\"saved\")\n") > 0);
+    CHECK(put_file("/sd/load.lua",
+                   "loadgfx(\"level.tgf\")\nloadmap(\"level.map\")\nprint(\"tiles\", gettile(0, 0), gettile(5, 3), gettile(19, 14))\n"
+                   "layer(2)\nprint(\"layer 2\", gettile(1, 1), gettile(5, 5))\nlayer(1)\n"
+                   "savegfx(\"again.tgf\")\nsavemap(\"again.map\")\nloadmap(\"one.map\", 3)\nsavemap(\"three.map\", 3)\nwaitframe()\nprint(\"loaded\")\n") > 0);
+    type("LOAD save\nRUN\n");
+    CHECK(go() == -1 && printed("saved") && !shows("Error"));
+    type("CLS\nLOAD load\nRUN\n");
+    CHECK(go() == -1 && printed("loaded") && !shows("Error"));
+    CHECK(printed("tiles   1       7       1") && printed("layer 2 7       7"));   /* (tabs to every 8th column; 5, 5 is 1, 1 again: the map wraps) */
+    long na = file_bytes("/sd/level.tgf", a, sizeof a), nb = file_bytes("/sd/again.tgf", b, sizeof b);
+    CHECK(na > 0 && na == nb && !memcmp(a, b, (size_t)na));
+    CHECK(!memcmp(a, "TGACTGF1\x04\0\0\0\x08\0\0\0", 16));
+    if (na != 16 + (12 + 4 + 768) + (12 + 8 + 8 * 64) + (12 + 8 + 3 * 64) + (12 + 4 + 10) + (12 + 4 + 8) + 12)
+        printf("level.tgf is %ld bytes\n", na);
+    CHECK(na == 16 + (12 + 4 + 768) + (12 + 8 + 8 * 64) + (12 + 8 + 3 * 64) + (12 + 4 + 10) + (12 + 4 + 8) + 12);   /* (tiles to 7, sprites to 2, flags to 9) */
+    na = file_bytes("/sd/level.map", a, sizeof a);
+    nb = file_bytes("/sd/again.map", b, sizeof b);
+    CHECK(na == 16 + (12 + 12 + 2 * 20 * 15) + (12 + 12 + 2 * 4 * 4) + 12 && na == nb && !memcmp(a, b, (size_t)na));
+    na = file_bytes("/sd/one.map", a, sizeof a);
+    nb = file_bytes("/sd/three.map", b, sizeof b);
+    CHECK(na == nb && na == 16 + 12 + 12 + 32 + 12 && a[28] == 2 && b[28] == 3 && a[29] == 1);   /* (the layer, and it wraps) */
+    b[28] = 2;
+    CHECK(!memcmp(a, b, (size_t)na));
+    CHECK(shown_g.palette['1'] == rgb565(10, 200, 30) && shown_g.palette['A'] == rgb565(255, 128, 0) && shown_g.palette[200] == rgb565(1, 2, 3));
+    CHECK(image[0][0] == '1' && image[3][7] == '1' && image[4][0] == 'A' && image[7][7] == 'A');
+
+    /* without gfx first, loadgfx makes the graphics, at the file's size */
+    CHECK(put_file("/sd/fresh.lua", "loadgfx(\"level.tgf\")\nnewmap(20, 15)\ntile(0, 0, 1)\nwaitframe()\nprint(\"fresh\")\n") > 0);
+    type("CLS\nLOAD fresh\nRUN\n");
+    CHECK(go() == -1 && printed("fresh") && image[0][0] == '1' && image[7][0] == 'A' && shown_g.palette['1'] == rgb565(10, 200, 30));
+
+    /* what goes wrong, and that it changes nothing */
+    CHECK(put_file("/sd/other.lua", "gfx(8)\npalette(\"1\", 1, 1, 1)\ntiledef(1, string.rep(\"A\", 64))\nsavegfx(\"other.tgf\")\nprint(\"other\")\n") > 0);
+    type("CLS\nLOAD other\nRUN\n");
+    CHECK(go() == -1 && printed("other"));
+    na = file_bytes("/sd/other.tgf", a, sizeof a);
+    CHECK(put_data("/sd/cut.tgf", a, (size_t)na - 1) > 0 && put_file("/sd/bad.tgf", "this is not a graphics file at all, only text") > 0);
+    CHECK(put_file("/sd/errors.lua",
+                   "print(pcall(loadgfx, \"nothere.tgf\"))\nprint(pcall(loadgfx, \"bad.tgf\"))\nloadgfx(\"level.tgf\")\nprint(pcall(loadgfx, \"cut.tgf\"))\n"
+                   "newmap(20, 15)\ntile(0, 0, 1)\nwaitframe()\n"
+                   "print(pcall(loadmap, \"level.tgf\"))\nprint(pcall(loadmap, \"level.map\", 1))\nprint(pcall(savemap, \"x.map\", 4))\n"
+                   "print(pcall(loadgfx, \"save.lua\"))\n") > 0);
+    type("CLS\nLOAD errors\nRUN\n");
+    CHECK(go() == -1 && shows("Ready."));
+    CHECK(shows("loadgfx: nothere.tgf: no such file or directory") && shows("loadgfx: bad.tgf: not a TGF file") && shows("loadgfx: cut.tgf: cut short"));
+    CHECK(shows("loadmap: level.tgf has no map") && shows("loadmap: level.map has 2 maps") && shows("savemap: there is no map on layer 4"));
+    CHECK(image[0][0] == '1' && image[7][0] == 'A' && shown_g.palette['1'] == rgb565(10, 200, 30));   /* (cut.tgf changed nothing) */
+    CHECK(put_file("/sd/sizes.lua", "gfx(16)\nprint(pcall(loadgfx, \"level.tgf\"))\nprint(pcall(savemap, \"x.map\"))\n") > 0);
+    type("CLS\nLOAD sizes\nRUN\n");
+    CHECK(go() == -1 && shows("has tiles of 8 pixels, the graphics now 16 (gfx(8) fi") && shows("savemap: there is no map to save"));
+    fs_stat_t st;
+    CHECK(fs_stat("/sd/x.map", &st) == FS_ENOENT && fs_stat("/sd/x.map.TMP", &st) == FS_ENOENT);
+
+    /* from a cartridge */
+    na = file_bytes("/sd/level.tgf", a, sizeof a);
+    static const char *const names[] = {"main.lua", "gfx/level.tgf"};
+    const char *texts[] = {"loadgfx(\"gfx/level.tgf\")\nnewmap(20, 15)\ntile(0, 0, 1)\nwaitframe()\nprint(\"cartridge\")\n", (const char *)a};
+    const size_t lens[] = {strlen(texts[0]), (size_t)na};
+    static uint8_t z[80000];
+    CHECK(put_data("/sd/cart.zip", z, zip_of(z, 2, names, texts, lens)) > 0);
+    type("CLS\nRUN cart.zip\n");
+    CHECK(go() == -1 && printed("cartridge") && image[0][0] == '1' && shown_g.palette['A'] == rgb565(255, 128, 0));
+    type("UNMOUNT\n");
+    CHECK(go() == -1);
+    CHECK(freed_by_new());
+
+    /* examples/gfxfiles.lua, which saves, starts afresh and loads back, until B */
+    const char *text = read_example("gfxfiles.lua");
+    fresh();
+    press_b_after = 40;
+    CHECK(put_file("/sd/gfxfiles.lua", text) > 0);
+    type("LOAD gfxfiles\nRUN\n");
+    CHECK(go() == -1 && shows("Loaded gfxfiles.tgf and gfxfiles.map back") && !shows("Error"));
+    CHECK(pixels('1') > 10000 && pixels('2') > 0 && pixels('3') > 0 && pixels('4') > 10000 && shown_g.palette['3'] == rgb565(90, 160, 70));
+    CHECK(fs_stat("/sd/gfxfiles.tgf", &st) == 0 && fs_stat("/sd/gfxfiles.map", &st) == 0);
+}
+
 /* What Lua no longer uses goes back when something else needs the memory: after an error (a failed program leaves what it built), before HEAP and
  * the editor, and when a machine whose game memory shares a pool with Lua (the board) has it collect from its alloc hook */
 static void test_garbage(void)
@@ -2648,6 +2753,7 @@ int main(void)
     test_sound();
     test_garbage();
     test_archives();
+    test_tgf_files();
     printf("all %d checks passed\n", checks);
     return 0;
 }
