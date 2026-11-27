@@ -2464,9 +2464,73 @@ static void test_sound(void)
     test_sound_midi();
 }
 
+/* reading the graphics back: tilepix, tilerow, tiledef (and the sprite ones) without the last argument, palette(c) */
+static void test_game_readback(void)
+{
+    run_program(
+        "local function p(...)\n"                                                  /* (print would put tabs between) */
+        "  local t = {}\n"
+        "  for i = 1, select(\"#\", ...) do t[i] = tostring((select(i, ...))) end\n"
+        "  print(table.concat(t, \" \"))\n"
+        "end\n"
+        "gfx(8)\n"
+        "local s = \"12\" .. string.rep(\".\", 61) .. \"F\"\n"
+        "tiledef(3, s)\n"
+        "p(\"p \" .. table.concat({tilepix(3, 0, 0), tilepix(3, 1, 0), tilepix(3, 2, 0), tilepix(3, 7, 7)}, \" \"))\n"
+        "p(tiledef(3) == s, tilerow(3, 0), tilerow(3, 7), tilerow(3, 3))\n"
+        "tilepix(3, 4, 4, 200)\n"
+        "p(\"set \" .. tilepix(3, 4, 4), tilerow(3, 4):byte(5), #tiledef(3))\n"
+        "p(\"spr \" .. sprpix(3, 0, 0), sprdef(3) == string.rep(\".\", 64))\n"   /* the sprite sheet is separate */
+        "sprdef(5, tiledef(3))\n"
+        "sprrow(5, 1, \"ABCDEFGH\")\n"
+        "p(\"copy \" .. tostring(sprdef(5):sub(1, 8) == \"12......\"), sprrow(5, 1), sprpix(5, 2, 1), tilerow(3, 1))\n"
+        "palette(\"@\", -1, -1, -1)\n"                                              /* another see-through character: the strings use it */
+        "p(\"bg \" .. tilerow(3, 0))\n"
+        "tilepix(3, 0, 2, 64)\n"                                                    /* the entry of @ itself comes back as @ */
+        "p(\"at \" .. tilerow(3, 2), tilepix(3, 0, 2))\n"
+        "p(\"rgb \" .. table.concat({palette(\"A\")}, \" \"), table.concat({palette(\"0\")}, \" \"), table.concat({palette(0)}, \" \"))\n"
+        "palette(\"Z\", 1, 2, 300 - 297)\n"
+        "palette(200, 255, 128, 7)\n"
+        "p(\"rgb2 \" .. table.concat({palette(\"Z\")}, \" \"), table.concat({palette(90)}, \" \"), table.concat({palette(200)}, \" \"))\n"
+        "gfx(16)\n"
+        "tiledef(1, string.rep(\"A\", 255) .. \"B\")\n"
+        "p(\"big \" .. #tiledef(1), tilerow(1, 15), tilepix(1, 15, 15), tilepix(1, 14, 15), #tilerow(2, 0), tiledef(2) == string.rep(\".\", 256))\n"
+        "p(\"fresh \" .. table.concat({palette(\"Z\")}, \" \"))\n");             /* gfx starts the palette afresh */
+    CHECK(printed("p 49 50 0 70"));
+    CHECK(printed("true 12...... .......F ........"));
+    CHECK(printed("set 200 200 64"));
+    CHECK(printed("spr 0 true"));
+    CHECK(printed("copy true ABCDEFGH 67 ........"));
+    CHECK(printed("bg 12@@@@@@"));
+    CHECK(printed("at @@@@@@@@ 64"));
+    CHECK(printed("rgb 85 255 85 0 0 0 0 0 0"));
+    CHECK(printed("rgb2 1 2 3 1 2 3 255 128 7"));
+    CHECK(printed("big 256 AAAAAAAAAAAAAAAB 66 65 16 true"));
+    CHECK(printed("fresh 0 0 0") && !shows("Error"));
+
+    /* the getters' mistakes */
+    run_program("gfx(8)\nprint(tilepix(256, 0, 0))\n");
+    CHECK(shows("tilepix(n, x, y): n 0 to 255, x and y 0 to 7"));
+    run_program("gfx(16)\nprint(sprpix(1, 16, 0))\n");
+    CHECK(shows("sprpix(n, x, y): n 0 to 255, x and y 0 to 15"));
+    run_program("gfx(8)\nprint(tilepix(1, 0, 0, nil))\n");                       /* nil is not a colour: only leaving it out reads */
+    CHECK(shows("bad argument #4 to 'tilepix'"));
+    run_program("gfx(8)\nprint(tilerow(1, 8))\n");
+    CHECK(shows("tilerow(n, y): n is 0 to 255, y 0 to 7"));
+    run_program("gfx(8)\nprint(sprdef(-1))\n");
+    CHECK(shows("sprdef(n): n is 0 to 255"));
+    run_program("gfx(8)\ntiledef(300, \"1\")\n");
+    CHECK(shows("tiledef(n, graphics): n is 0 to 255"));
+    run_program("gfx(8)\nprint(palette(256))\n");
+    CHECK(shows("t.lua:2: palette(colour): the colour is one character, or a number"));   /* (the line wraps) */
+    run_program("gfx(8)\nprint(palette(\"AB\"))\n");
+    CHECK(shows("the colour is one character"));
+}
+
 static void test_game(void)
 {
     test_game_draw();
+    test_game_readback();
     test_game_tilestr();
     test_game_textmode();
     test_game_actors();

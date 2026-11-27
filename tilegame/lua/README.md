@@ -117,15 +117,19 @@ actors, call the function with the frames that went by. It ends when the functio
 | `gfx(size)` | the size of tiles and sprites, 8 or 16 pixels (8 if you do not say); starts the graphics afresh, so call it first |
 | `palette(c, r, g, b)` | colour c from red, green and blue, each 0 to 255. c is one character, such as `"A"`, or a number 0 to 255 for the entry itself (entry 0 is the backdrop) |
 | `palette(c, -1, -1, -1)` | makes the character c the see-through one in strings (it is `"."` at first) |
+| `palette(c)` | the red, green and blue of colour c now |
 | `tiledef(n, "...")` | map tile n (0 to 255) from a string with a character for every pixel, row by row (64 for 8 pixel tiles, 256 for 16) |
 | `tilerow(n, y, "...")` | one row of a tile: 8 or 16 characters. With y = 0 and a string for every pixel of the tile, the whole tile, like `tiledef` |
 | `tilepix(n, x, y, c)` | one pixel, c is 0 to 255 |
-| `sprdef(n, "...")`, `sprrow(n, y, "...")`, `sprpix(n, x, y, c)` | the same for sprite n (the sprite sheet is separate from the map's tiles) |
+| `tiledef(n)`, `tilerow(n, y)`, `tilepix(n, x, y)` | what a tile has now: its string (every pixel, row by row), one row's string, one pixel's colour (0 to 255; 0 is see-through). `tiledef(2, tiledef(1))` copies a tile |
+| `sprdef(n, "...")`, `sprrow(n, y, "...")`, `sprpix(n, x, y, c)` | the same for sprite n (the sprite sheet is separate from the map's tiles), and `sprdef(n)`, `sprrow(n, y)`, `sprpix(n, x, y)` read it back: `sprdef(1, tiledef(1))` makes a sprite of a tile |
 
 A colour is named by the character whose code is its palette entry, and the same character draws it in a string: `palette("A", 255, 0, 0)` makes `A` red, and a `tiledef` string with
 `A`s in it is red there. `.` is see-through (so are the pixels of a tile you have not defined), unless `palette("@", -1, -1, -1)` made `@` the see-through one. At the start the PC's 16
 text colours are on `0` to `9` and `A` to `F` (`0` black, `1` blue, `4` red, `F` white), entry 0 is a black backdrop, and every other colour is black. Lua joins strings with `..`, and
-`string.rep` repeats one, so a big tile can be built: `sprdef(1, string.rep("4", 256))`.
+`string.rep` repeats one, so a big tile can be built: `sprdef(1, string.rep("4", 256))`. Read back as a string, a see-through pixel is the see-through character and any other its
+colour's character; a pixel of the see-through character's own entry (46 for `.`) comes back as that character too, which a string then reads as see-through, so
+`tilepix` is the one that tells them apart.
 
 **Graphics and map files** (TGF, `../docs/tgf-format.md`: what the sprite and tile editor saves, and what a game loads)
 

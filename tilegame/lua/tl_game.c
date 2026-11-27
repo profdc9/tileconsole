@@ -342,7 +342,7 @@ static int l_gfx(lua_State *L)
 /*
  * palette(c, red, green, blue): a colour is a palette entry, and the entry of a character is its code ("A" is 65), the same character a graphics string
  * uses for it; a number is the entry itself (0 is the backdrop, which no character can name). A negative red, green or blue with a character makes
- * that character the one that means see-through in graphics strings (it is "." at first).
+ * that character the one that means see-through in graphics strings (it is "." at first). palette(c): the red, green and blue of the colour now.
  */
 static int l_palette(lua_State *L)
 {
@@ -357,6 +357,13 @@ static int l_palette(lua_State *L)
         is_char = 1;
     } else {
         i = iarg(L, 1);
+    }
+    if (lua_isnone(L, 2)) {
+        if (i < 0 || i > 255)
+            return luaL_error(L, "palette(colour): the colour is one character, or a number 0 to 255");
+        for (int k = 0; k < 3; k++)
+            lua_pushinteger(L, G->rgb[i][k]);
+        return 3;
     }
     const int r = iarg(L, 2), g = iarg(L, 3), b = iarg(L, 4);
     if (r < 0 || g < 0 || b < 0) {
@@ -377,16 +384,37 @@ static uint8_t pixel_of(const tl_game_t *G, char c)
     return c == G->bg ? 0 : (uint8_t)c;
 }
 
+/* The other way: a pixel as a graphics string has it, 0 (see-through) the see-through character, any other its own code. (So a pixel of the see-through
+ * character's own entry comes back as that character, which a string reads as see-through: such a colour needs tilepix, or another entry.) */
+static char char_of(const tl_game_t *G, uint8_t p)
+{
+    return p ? (char)p : G->bg;
+}
+
+/* n pixels (256 at most: a 16 x 16 tile) as a string, on the stack */
+static int push_pixels(lua_State *L, const tl_game_t *G, const uint8_t *src, size_t n)
+{
+    char out[256];
+    for (size_t i = 0; i < n; i++)
+        out[i] = char_of(G, src[i]);
+    lua_pushlstring(L, out, n);
+    return 1;
+}
+
+/* tiledef(n, graphics): tile n from a string of every pixel, row by row; tiledef(n): the string of the tile now (sprdef the same for sprites). */
 static int define_tile(lua_State *L, int sprites)
 {
     tl_game_t *G = need_game(L);
     const int n = iarg(L, 1);
-    size_t len;
-    const char *text = luaL_checklstring(L, 2, &len);
+    const int get = lua_isnone(L, 2);
+    size_t len = 0;
+    const char *text = get ? NULL : luaL_checklstring(L, 2, &len);
     if (n < 0 || n >= TL_TILES)
-        return luaL_error(L, "%s(n, graphics): n is 0 to %d", sprites ? "sprdef" : "tiledef", TL_TILES - 1);
+        return luaL_error(L, "%s(n%s): n is 0 to %d", sprites ? "sprdef" : "tiledef", get ? "" : ", graphics", TL_TILES - 1);
     const size_t px = (size_t)1 << (2 * G->size_log2);
     uint8_t *dst = (sprites ? G->sprites : G->tiles) + (size_t)n * px;
+    if (get)
+        return push_pixels(L, G, dst, px);
     for (size_t i = 0; i < px; i++)
         dst[i] = i < len ? pixel_of(G, text[i]) : 0;
     return 0;
@@ -395,17 +423,21 @@ static int define_tile(lua_State *L, int sprites)
 static int l_tiledef(lua_State *L) { return define_tile(L, 0); }
 static int l_sprdef(lua_State *L) { return define_tile(L, 1); }
 
-/* tilerow(n, y, graphics): one row of a tile (its size in characters). With y = 0 and a string long enough for every pixel of the tile it is the whole tile, row by row. */
+/* tilerow(n, y, graphics): one row of a tile (its size in characters). With y = 0 and a string long enough for every pixel of the tile it is the whole tile, row by row.
+ * tilerow(n, y): the string of the row now. */
 static int define_row(lua_State *L, int sprites)
 {
     tl_game_t *G = need_game(L);
     const int n = iarg(L, 1), y = iarg(L, 2);
-    size_t len;
-    const char *text = luaL_checklstring(L, 3, &len);
+    const int get = lua_isnone(L, 3);
+    size_t len = 0;
+    const char *text = get ? NULL : luaL_checklstring(L, 3, &len);
     const int size = 1 << G->size_log2;
     if (n < 0 || n >= TL_TILES || y < 0 || y >= size)
-        return luaL_error(L, "%s(n, y, graphics): n is 0 to %d, y 0 to %d", sprites ? "sprrow" : "tilerow", TL_TILES - 1, size - 1);
+        return luaL_error(L, "%s(n, y%s): n is 0 to %d, y 0 to %d", sprites ? "sprrow" : "tilerow", get ? "" : ", graphics", TL_TILES - 1, size - 1);
     uint8_t *dst = (sprites ? G->sprites : G->tiles) + ((size_t)n << (2 * G->size_log2)) + (size_t)y * (size_t)size;
+    if (get)
+        return push_pixels(L, G, dst, (size_t)size);
     const size_t count = y == 0 && len >= (size_t)size * (size_t)size ? (size_t)size * (size_t)size : (size_t)size;
     for (size_t i = 0; i < count; i++)
         dst[i] = i < len ? pixel_of(G, text[i]) : 0;
@@ -415,14 +447,26 @@ static int define_row(lua_State *L, int sprites)
 static int l_tilerow(lua_State *L) { return define_row(L, 0); }
 static int l_sprrow(lua_State *L) { return define_row(L, 1); }
 
+/* tilepix(n, x, y, colour): one pixel of tile n, the colour its palette entry (0 see-through); tilepix(n, x, y): the colour it has now. */
 static int set_pixel(lua_State *L, int sprites)
 {
     tl_game_t *G = need_game(L);
-    const int n = iarg(L, 1), x = iarg(L, 2), y = iarg(L, 3), c = iarg(L, 4);
+    const int n = iarg(L, 1), x = iarg(L, 2), y = iarg(L, 3);
+    const int get = lua_isnone(L, 4);
+    const int c = get ? 0 : iarg(L, 4);
     const int size = 1 << G->size_log2;
-    if (n < 0 || n >= TL_TILES || x < 0 || x >= size || y < 0 || y >= size || c < 0 || c > 255)
-        return luaL_error(L, "%s(n, x, y, colour): n 0 to %d, x and y 0 to %d, colour 0 to 255", sprites ? "sprpix" : "tilepix", TL_TILES - 1, size - 1);
-    (sprites ? G->sprites : G->tiles)[((size_t)n << (2 * G->size_log2)) + (size_t)y * (size_t)size + (size_t)x] = (uint8_t)c;
+    const char *who = sprites ? "sprpix" : "tilepix";
+    if (n < 0 || n >= TL_TILES || x < 0 || x >= size || y < 0 || y >= size || c < 0 || c > 255) {
+        if (get)
+            return luaL_error(L, "%s(n, x, y): n 0 to %d, x and y 0 to %d", who, TL_TILES - 1, size - 1);
+        return luaL_error(L, "%s(n, x, y, colour): n 0 to %d, x and y 0 to %d, colour 0 to 255", who, TL_TILES - 1, size - 1);
+    }
+    uint8_t *p = (sprites ? G->sprites : G->tiles) + ((size_t)n << (2 * G->size_log2)) + (size_t)y * (size_t)size + (size_t)x;
+    if (get) {
+        lua_pushinteger(L, *p);
+        return 1;
+    }
+    *p = (uint8_t)c;
     return 0;
 }
 
