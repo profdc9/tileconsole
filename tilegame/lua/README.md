@@ -239,6 +239,54 @@ A mistake (an actor that is not there, a number out of range, a map that was not
 
 `examples/layers.lua` uses all four layers.
 
+## The sprite and tile editor
+
+`draw.lua` draws the tiles, sprites, palette, tile flags and animation tables of a graphics file (what `loadgfx` reads and `savegfx` writes).
+Copy it to the card, then `LOAD draw` and `RUN`: it asks for the file (a new one is made, with tiles of 8 or 16 pixels). It is a Lua program
+like any other, so it can be changed with EDIT.
+
+    TIL SPR ANI KEY                 #023      the sheet being drawn (or the keys), and the tile or sprite
+    the drawing,   1:1 2x2   the sheet: click one to draw it
+    with a grid    3x3       (tiles of 16: 64 at a time, the wheel turns the pages)
+                   FLAG
+                   [][][][]
+    A 070 B 000    R255G255B255               colours A and B; A's red, green, blue
+    the palette    P F L R B K                pen, fill, line, rectangle, box, pick
+                   X Y T C V                  flip across, up and down, turn, copy, paste
+                   W A S D                    shift up, left, down, right (round)
+                   Z G E U                    undo, grid, edit colour A, what see-through pixels show
+    the status line: what is under the pointer, or what just happened
+
+The previews show the tile at its size, its group of four and the tile three by three, to see how it joins itself. The group is the four tiles
+with the same number divided by 4 (for tile 81: 80 and 81 above 82 and 83, the order in which an actor of two by two sprites takes them), to
+see how four make a bigger tile; a click on one of them draws it. With tiles of 16 pixels there is room for the group and the three by three
+only one above the other, so they touch. The sprites have the one preview, at its size.
+
+- **The mouse**: the left button draws with colour A, the right with colour B (see-through at first, so it rubs out), the middle one picks up
+  the colour under it. A click on a swatch makes it A (left) or B (right); the wheel over the palette changes A. A line, rectangle or box is
+  dragged.
+- **Without a mouse**: the arrow keys move the pointer, a tile at a time, or a pixel of the drawing at a time on it; space is the left button
+  and Enter the right one. A line, rectangle or box takes a space at each end.
+- **Keys**: the letters along the bottom do what they say, also typed (`P` pen ... `Z` undo, Shift+`Z` redo); `,` `.` (or Page Up, Page
+  Down) the tile before or after; `[` `]` colour A before or after; `E` edits colour A (left and right choose red, green or blue, up and down
+  change it by one, Page Up and Down by 16, Enter ends); `U` what see-through pixels show on the drawing, the sheet and the previews:
+  grey checks, dark checks, black, white, yellow, red or blue, so that a tile drawn in greys can be told from its background (Shift+`U`, or
+  the right button on it, goes back); `1` to `8` the tile's flags (1 solid, 2 one-way, 3 trigger, 4 to 8 the game's own);
+  Delete clears the tile; F1, F2, F3 (or Tab) the tiles, the sprites, the animation tables; F4 or `?` the keys tab; Ctrl+S saves; Ctrl+O
+  opens another file; Escape leaves, asking first if there is something not saved. Undo goes back 100 steps, palette, flag and animation changes included.
+- **Animation tables** (F3): the frames of table 1 to 32 along the bottom, playing in the preview. `+` adds the sprite being drawn after the
+  frame chosen, `-` takes the frame out, `[` `]` its time, `M` the mode, `<` `>` the table; clicking a frame draws its sprite.
+- **The keys tab** (F4, `?` or a click on KEY): what the keys and buttons do, on one page with tiles of 8 pixels and four with tiles of 16
+  (Page Up and Down, the arrows, the wheel or a click turn them). F4, `?`, Escape or a click on KEY goes back to the tab it came from; F1 to
+  F3 go to theirs.
+
+Its text needs letters in the file's tiles. A file without them gets them in tiles that are empty (transparent, with no flags), from 255 down
+(about 50), saved with the file: most games want them anyway (`text()`). A file with no room for them keeps its tiles as they are, and the
+letters go into working tiles, which are never saved. Its colours are the standard ones, 248 to 255, so a palette that has changed those
+changes the editor too. It takes working tiles for what it shows: 43 KB of fast memory with tiles of 8 pixels (besides the 32 KB of the tiles and
+sprites themselves), 52 KB with tiles of 16 (besides their 128 KB); on the board that is SRAM. A file with no room for the letters takes 4 or
+16 KB more.
+
 ## Sound
 
 `tl_sound.c` plays through tilesnd (`../../tilesnd`), which mixes 16 voices at 48000 samples a second on the machine's audio thread (on the board core 1, into the HDMI

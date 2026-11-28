@@ -144,7 +144,7 @@ static void type(const char *spec)
     static const struct { const char *name; int key; } names[] = {
         {"UP", PLAT_KEY_UP}, {"DOWN", PLAT_KEY_DOWN}, {"LEFT", PLAT_KEY_LEFT}, {"RIGHT", PLAT_KEY_RIGHT}, {"HOME", PLAT_KEY_HOME}, {"END", PLAT_KEY_END},
         {"ESC", 27}, {"BS", 8}, {"DEL", 127}, {"PGUP", PLAT_KEY_PAGEUP}, {"PGDN", PLAT_KEY_PAGEDOWN}, {"INS", PLAT_KEY_INSERT}, {"F1", PLAT_KEY_F(1)},
-        {"F12", PLAT_KEY_F(12)}, {"TAB", 9}, {"CR", 13}, {"NUL", 0}, {"FS", 28}, {"X128", 128}, {"X200", 0x200},
+        {"F12", PLAT_KEY_F(12)}, {"F2", PLAT_KEY_F(2)}, {"F3", PLAT_KEY_F(3)}, {"F4", PLAT_KEY_F(4)}, {"TAB", 9}, {"CR", 13}, {"NUL", 0}, {"FS", 28}, {"X128", 128}, {"X200", 0x200},
     };
     while (*spec) {
         int key = -1;
@@ -3171,11 +3171,15 @@ static void paint_mouse_at(int f)
     }
 }
 
+static void (*mouse_script)(int f);   /* the mouse of another paced test, frame by frame (NULL: none) */
+
 static uint32_t paced_wait_frame(void)
 {
     const int f = ++paint_frame;
     if (paint_mouse)
         paint_mouse_at(f);
+    if (mouse_script)
+        mouse_script(f);
     if (feed_pos < feed_n) {
         CHECK(script_len < 8192);
         script[script_len++] = feed_keys[feed_pos++];
@@ -3233,6 +3237,455 @@ static void test_example_paint(void)
     CHECK(image[0][36 * 8] == '6' && image[200][200] == '1');
 }
 #undef CELL
+
+/* ---- the sprite and tile editor (lua/draw.lua) ---- */
+
+static const char *draw_lua(void)
+{
+    static char text[65536];
+    FILE *f = fopen("lua/draw.lua", "rb");
+    CHECK(f != NULL);
+    const size_t n = fread(text, 1, sizeof text - 1, f);
+    fclose(f);
+    text[n] = 0;
+    CHECK(n > 1000 && n < sizeof text - 200);
+    return text;
+}
+
+/* The last picture as a PPM file, to look at (when SHOT_DIR is set). */
+static void shot(const char *name)
+{
+    const char *dir = getenv("SHOT_DIR");
+    if (!dir)
+        return;
+    char path[512];
+    snprintf(path, sizeof path, "%s/%s.ppm", dir, name);
+    FILE *f = fopen(path, "wb");
+    if (!f)
+        return;
+    fprintf(f, "P6\n%d %d\n255\n", TG_WIDTH, TG_HEIGHT);
+    for (int y = 0; y < TG_HEIGHT; y++)
+        for (int x = 0; x < TG_WIDTH; x++) {
+            const uint16_t c = shown_g.palette[image[y][x]];
+            const uint8_t rgb[3] = {(uint8_t)((c >> 11) << 3), (uint8_t)(((c >> 5) & 63) << 2), (uint8_t)((c & 31) << 3)};
+            fwrite(rgb, 1, 3, f);
+        }
+    fclose(f);
+}
+
+static int mouse_x, mouse_y;   /* where the scripted mouse is */
+static void mouse_to(int x, int y, unsigned buttons, unsigned pressed)
+{
+    mouse_x = x, mouse_y = y;
+    tmouse = (plat_mouse_t){.present = true, .x = (int16_t)x, .y = (int16_t)y, .buttons = (uint8_t)buttons, .pressed = (uint8_t)pressed};
+}
+
+/* Lua too long for a line at the prompt, run from a file */
+static void run_check(const char *code)
+{
+    CHECK(put_file("/sd/chk.lua", code) > 0);
+    type("dofile(\"chk.lua\")\n");
+    CHECK(go() == -1 && !shows("Error"));
+}
+
+/* draw.lua run with the files on the disk as they are (fresh() is the caller's), the lines typed at its start (the file's name, ...), then keys one a
+ * frame ("." a frame with none) and the mouse as `script` says; it must end by itself. */
+static void editor_run(const char *typed, const char *keys, void (*mouse_fn)(int f))
+{
+    CHECK(put_file("/sd/draw.lua", draw_lua()) > 0);
+    env.hooks.wait_frame = paced_wait_frame;
+    paint_frame = 0;
+    paint_mouse = 0;
+    mouse_script = mouse_fn;
+    script_len = script_pos = 0;
+    type(keys);
+    feed_n = script_len;
+    CHECK(feed_n <= 64);
+    for (int i = 0; i < feed_n; i++)
+        feed_keys[i] = script[i] == '.' ? 0x1FF : script[i];
+    feed_pos = 0;
+    script_len = 0;
+    type("CLS\nLOAD draw\nRUN\n");
+    type(typed);
+    CHECK(go() == -1 && shows("Left the editor") && !shows("Error"));
+    mouse_script = NULL;
+}
+
+/* the drawing of tiles of 8 pixels is at 0, 16, 16 screen pixels a tile pixel (8 for tiles of 16) */
+#define PIXEL_AT(size, px, py) ((px) * (128 / (size)) + 3), (16 + (py) * (128 / (size)) + 3)
+
+static void script_pen8(int f)
+{
+    if (f == 1)
+        mouse_to(160, 120, 0, 0);
+    else if (f == 3)
+        mouse_to(PIXEL_AT(8, 2, 3), PLAT_MOUSE_LEFT, PLAT_MOUSE_LEFT);   /* the pen, with colour A (70) */
+    else if (f == 4)
+        mouse_to(PIXEL_AT(8, 4, 3), PLAT_MOUSE_LEFT, 0);                 /* dragged two pixels on: the one between is drawn too */
+    else if (f == 5)
+        mouse_to(mouse_x, mouse_y, 0, 0);
+}
+
+static void test_editor_new8(void)
+{
+    fresh();
+    editor_run("NEW.TGF\n8\n", "......x.^S.{ESC}", script_pen8);
+    CHECK(shows("Left the editor.") && !shows("without saving"));
+    shot("editor8");
+    /* what is on the screen: the tile flipped across (pixels 3 to 5 of row 3), the letters, the pointer */
+    CHECK(image[16 + 3 * 16 + 8][5 * 16 + 8] == 70 && image[16 + 3 * 16 + 8][3 * 16 + 8] == 70 && image[16 + 3 * 16 + 8][2 * 16 + 8] != 70);
+    CHECK(image[19][3] == 250 && image[19][19] == 251 && image[19][0] == 249);   /* see-through pixels in grey checks, the grid dark grey */
+    int white = 0;
+    for (int y = 0; y < 8; y++)
+        for (int x = 0; x < 24; x++)
+            white += image[y][x] == 252;
+    CHECK(white > 10);                                                   /* "TIL" in white */
+    /* the file: tile 1 flipped, the letters in the top tiles, the standard colours */
+    run_check("gfx(8) loadgfx(\"NEW.TGF\")\n"
+              "print(\"px \" .. tilepix(1, 5, 3) .. \" \" .. tilepix(1, 4, 3) .. \" \" .. tilepix(1, 3, 3) .. \" \" .. tilepix(1, 2, 3))\n"
+              "print(\"font \" .. tostring(chartile(\"A\") > 200 and chartile(\" \") > 200))\n");
+    CHECK(printed("px 70 70 70 0") && printed("font true"));
+}
+
+static void script_big16(int f)
+{
+    if (f == 1)
+        mouse_to(160, 120, 0, 0);
+    else if (f == 3)
+        mouse_to(192 + 2 * 16 + 4, 20, PLAT_MOUSE_LEFT, PLAT_MOUSE_LEFT);   /* tile 2 on the sheet */
+    else if (f == 4)
+        mouse_to(mouse_x, mouse_y, 0, 0);
+    else if (f == 6)
+        mouse_to(PIXEL_AT(16, 0, 0), PLAT_MOUSE_LEFT, PLAT_MOUSE_LEFT);     /* (key l at frame 5): a line from the corner ... */
+    else if (f == 7)
+        mouse_to(PIXEL_AT(16, 8, 8), PLAT_MOUSE_LEFT, 0);
+    else if (f == 8)
+        mouse_to(PIXEL_AT(16, 15, 15), PLAT_MOUSE_LEFT, 0);                 /* ... to the other */
+    else if (f == 9)
+        mouse_to(mouse_x, mouse_y, 0, 0);
+    else if (f == 11)
+        mouse_to(PIXEL_AT(16, 15, 0), PLAT_MOUSE_LEFT, PLAT_MOUSE_LEFT);    /* (key f at 10): fill above the line with A */
+    else if (f == 12)
+        mouse_to(mouse_x, mouse_y, 0, 0);
+    else if (f == 16)
+        mouse_to((52 % 16) * 8 + 3, 160 + (52 / 16) * 4 + 1, PLAT_MOUSE_RIGHT, PLAT_MOUSE_RIGHT);   /* colour B: 52 */
+    else if (f == 17)
+        mouse_to(PIXEL_AT(16, 0, 15), PLAT_MOUSE_RIGHT, PLAT_MOUSE_RIGHT);  /* (key f at 15... still fill): fill below with B */
+    else if (f == 18)
+        mouse_to(mouse_x, mouse_y, 0, 0);
+}
+
+static void test_editor_big16(void)
+{
+    fresh();
+    /* keys: l at 5, f at 10, z (undo the fill) at 13, Z (redo) at 14, 1 (flag solid) at 19, Ctrl+S at 21, Escape at 23 */
+    editor_run("BIG.TGF\n16\n", "....l....f..zZ....1.^S.{ESC}", script_big16);
+    CHECK(shows("Left the editor.") && !shows("without saving"));
+    shot("editor16");
+    run_check("gfx(16) loadgfx(\"BIG.TGF\")\n"
+              "print(\"line \" .. tilepix(2, 0, 0) .. \" \" .. tilepix(2, 15, 15) .. \" \" .. tilepix(2, 7, 7))\n"
+              "print(\"fill \" .. tilepix(2, 15, 0) .. \" \" .. tilepix(2, 9, 2) .. \" \" .. tilepix(2, 0, 15) .. \" \" .. tilepix(2, 2, 9))\n"
+              "print(\"flags \" .. settileflags(2) .. \" \" .. settileflags(1))\n");
+    CHECK(printed("line 70 70 70") && printed("fill 70 70 52 52") && printed("flags 1 0"));
+}
+
+static void test_editor_anim(void)
+{
+    fresh();
+    /* F3: the animation tables; + adds sprite 0; Page Down the next sprite; + adds it; ] its time one more; m the mode (once); Ctrl+S; Escape */
+    editor_run("ANIM.TGF\n8\n", "..{F3}.u.+.{PGDN}.+.].m.^S.{ESC}", NULL);   /* (u: dark checks; the row of colours A and B is not there to change) */
+    CHECK(shows("Left the editor.") && !shows("without saving"));
+    shot("editor_anim");
+    int a_swatch = 0;
+    for (int y = 144; y < 152; y++)
+        for (int x = 0; x < 8; x++)
+            a_swatch += image[y][x] == 70;
+    CHECK(a_swatch == 0 && image[16 + 3][3] == 248);
+    run_check("gfx(8) loadgfx(\"ANIM.TGF\")\n"
+              "local m, t, f = animdef(1)\n"
+              "print(\"anim \" .. m .. \" \" .. #f .. \" \" .. f[1][1] .. \":\" .. f[1][2] .. \" \" .. f[2][1] .. \":\" .. f[2][2])\n");
+    CHECK(printed("anim once 2 0:8 1:9"));
+}
+
+/* Leaving with changes asks first: N leaves them unsaved, Y saves them */
+static void test_editor_leave(void)
+{
+    fresh();
+    editor_run("NOT.TGF\n\n", "..x.{ESC}.n", NULL);   /* (Enter for the size: 8) */
+    CHECK(shows("Left the editor without saving."));
+    fs_stat_t st;
+    CHECK(fs_stat("/sd/NOT.TGF", &st) != 0);
+    fresh();
+    editor_run("\n\n", "..x.{ESC}.y", NULL);         /* (Enter for the name: DRAW.TGF) */
+    CHECK(shows("Left the editor.") && !shows("without saving") && fs_stat("/sd/DRAW.TGF", &st) == 0);
+    /* a file that is not a graphics file */
+    fresh();
+    CHECK(put_file("/sd/notes.txt", "hello\n") > 0);
+    CHECK(put_file("/sd/draw.lua", draw_lua()) > 0);
+    type("LOAD draw\nRUN\nnotes.txt\n");
+    CHECK(go() == -1 && shows("notes.txt is not a graphics file (TGF).") && !shows("Error"));
+}
+
+/* A file with no empty tiles: the letters go in working tiles, and the file is not changed by them */
+static void test_editor_full_file(void)
+{
+    fresh();
+    run_program("gfx(8)\nfor i = 1, 255 do tiledef(i, string.rep(\"1\", 64)) end\nsavegfx(\"FULL.TGF\")\nprint(\"made\")\n");
+    CHECK(printed("made"));
+    static uint8_t before[64 * 1024], after[64 * 1024];
+    const long nb = file_bytes("/sd/FULL.TGF", before, sizeof before);
+    editor_run("FULL.TGF\n", "...{ESC}", NULL);
+    CHECK(shows("Left the editor.") && !shows("without saving"));   /* (nothing changed: it did not ask) */
+    shot("editor_full");
+    int white = 0;
+    for (int y = 0; y < 8; y++)
+        for (int x = 0; x < 24; x++)
+            white += image[y][x] == 252;
+    CHECK(white > 10);                                               /* the letters, from working tiles */
+    CHECK(file_bytes("/sd/FULL.TGF", after, sizeof after) == nb && memcmp(before, after, (size_t)nb) == 0);
+}
+
+/* Without a mouse: the arrows move the pointer (a tile at a time, and a pixel of the drawing at a time on it), space is the left button, a line takes a
+ * space at each end; [ and E change colour A */
+static void test_editor_keys(void)
+{
+    fresh();
+    /* from 160, 120: five times left (8 pixels) is 120, 120: pixel 7, 6 of the drawing. Space: the pen. l, space, two left (16 pixels each:
+     * pixel 5, 6), space: a line. [: colour A is 69; e: its editor; right twice: blue; up: one more; Enter: done. */
+    editor_run("KEYS.TGF\n8\n", "..{LEFT}{LEFT}{LEFT}{LEFT}{LEFT} l {LEFT}{LEFT} [e{RIGHT}{RIGHT}{UP}\n^S.{ESC}", NULL);
+    CHECK(shows("Left the editor.") && !shows("without saving"));
+    shot("editor_keys");
+    run_check("gfx(8) loadgfx(\"KEYS.TGF\")\n"
+              "print(\"keys \" .. tilepix(1, 4, 6) .. \" \" .. tilepix(1, 5, 6) .. \" \" .. tilepix(1, 6, 6) .. \" \" .. tilepix(1, 7, 6))\n"
+              "print(\"colour \" .. table.concat({palette(69)}, \" \"))\n");
+    CHECK(printed("keys 0 70 70 70") && printed("colour 255 255 86"));
+}
+
+static void script_slope(int f)
+{
+    if (f == 1)
+        mouse_to(160, 120, 0, 0);
+    else if (f == 3)
+        mouse_to(PIXEL_AT(8, 0, 0), PLAT_MOUSE_LEFT, PLAT_MOUSE_LEFT);   /* (l at frame 2) a line from 0, 0 ... */
+    else if (f == 4)
+        mouse_to(PIXEL_AT(8, 4, 1), PLAT_MOUSE_LEFT, 0);                 /* ... to 4, 1: down half way along */
+    else if (f == 5)
+        mouse_to(mouse_x, mouse_y, 0, 0);
+}
+
+/* A line that is not straight across or at 45 degrees: each pixel the nearest to the line */
+static void test_editor_slope(void)
+{
+    fresh();
+    editor_run("SLOPE.TGF\n8\n", ".l....^S.{ESC}", script_slope);
+    run_check("gfx(8) loadgfx(\"SLOPE.TGF\")\n"
+              "local t = {}\n"
+              "for y = 0, 1 do for x = 0, 4 do t[#t + 1] = tilepix(1, x, y) == 70 and \"#\" or \".\" end end\n"
+              "print(\"slope \" .. table.concat(t))\n");
+    CHECK(printed("slope ##.....###"));   /* (rows 0 and 1, five pixels each) */
+}
+
+static void script_back(int f)
+{
+    if (f == 1)
+        mouse_to(160, 120, 0, 0);
+    else if (f == 6)
+        mouse_to(128 + 6 * 8 + 3, 208 + 3, PLAT_MOUSE_RIGHT, PLAT_MOUSE_RIGHT);   /* the U button, with the right button: back */
+    else if (f == 7)
+        mouse_to(mouse_x, mouse_y, 0, 0);
+}
+
+/* U: what the see-through pixels show, on the drawing (pixel 0, 0 and its grid line), behind the sheet (tile 0) and in colour B's swatch */
+static void test_editor_back(void)
+{
+    fresh();
+    editor_run("BACK.TGF\n8\n", "..u.{ESC}.n", NULL);                  /* dark checks: black and dark grey, a grey grid */
+    shot("editor_back_dark");
+    CHECK(image[19][3] == 248 && image[19][0] == 250 && image[17][193] == 248 && image[145][65] == 248 && image[19][19] == 249);
+    fresh();
+    editor_run("BACK.TGF\n8\n", "..UU....{ESC}.n", script_back);       /* back twice from the first: blue, red; the button: yellow */
+    shot("editor_back_yellow");
+    CHECK(image[19][3] == 253 && image[19][0] == 249 && image[17][193] == 253 && image[145][65] == 253 && image[19][19] == 253);
+}
+
+static void script_two_buttons(int f)
+{
+    if (f == 1)
+        mouse_to(160, 120, 0, 0);
+    else if (f == 3)
+        mouse_to(PIXEL_AT(8, 1, 1), PLAT_MOUSE_RIGHT, PLAT_MOUSE_RIGHT);                     /* the right button (B: see-through) ... */
+    else if (f == 4)
+        mouse_to(PIXEL_AT(8, 1, 1), PLAT_MOUSE_RIGHT | PLAT_MOUSE_LEFT, PLAT_MOUSE_LEFT);    /* ... then the left one too: A, 70 */
+    else if (f == 5)
+        mouse_to(PIXEL_AT(8, 1, 1), PLAT_MOUSE_RIGHT, 0);                                    /* the left one up: its stroke ends */
+    else if (f == 6)
+        mouse_to(PIXEL_AT(8, 3, 1), PLAT_MOUSE_RIGHT, 0);                                    /* so moving draws nothing */
+    else if (f == 7)
+        mouse_to(mouse_x, mouse_y, 0, 0);
+}
+
+/* Both buttons: a stroke ends when its own button comes up, whatever the other one is doing */
+static void test_editor_two_buttons(void)
+{
+    fresh();
+    editor_run("TWO.TGF\n8\n", "........^S.{ESC}", script_two_buttons);
+    run_check("gfx(8) loadgfx(\"TWO.TGF\")\n"
+              "print(\"two \" .. tilepix(1, 1, 1) .. \" \" .. tilepix(1, 2, 1) .. \" \" .. tilepix(1, 3, 1))\n");
+    CHECK(printed("two 70 0 0"));
+}
+
+static uint8_t keys_seen[TG_HEIGHT][TG_WIDTH];   /* the screen at a frame of the run (the keys tab) */
+static int keys_seen_at;
+static void script_keys_tab(int f)
+{
+    if (f == 1)
+        mouse_to(160, 120, 0, 0);
+    if (f == keys_seen_at)
+        memcpy(keys_seen, image, sizeof image);
+}
+
+/* tiles of 16: a click on the page (the next one) at frame 9, the wheel turned away (the one before) at 12 */
+static void script_keys_tab16(int f)
+{
+    script_keys_tab(f);
+    if (f == 9)
+        mouse_to(160, 120, PLAT_MOUSE_LEFT, PLAT_MOUSE_LEFT);
+    else if (f == 10 || f == 13)
+        mouse_to(160, 120, 0, 0);
+    else if (f == 12)
+        tmouse.wheel = 1;
+}
+
+/* the sprites (F2 at frame 2): a pixel of sprite 0 drawn at 4, so that the preview shows (the keys page must hide it) */
+static void script_keys_spr(int f)
+{
+    script_keys_tab(f);
+    if (f == 4)
+        mouse_to(PIXEL_AT(8, 0, 0), PLAT_MOUSE_LEFT, PLAT_MOUSE_LEFT);
+    else if (f == 5)
+        mouse_to(mouse_x, mouse_y, 0, 0);
+}
+
+static int blue_in(const uint8_t (*im)[TG_WIDTH], int x0, int y0, int w, int h)
+{
+    int n = 0;
+    for (int y = y0; y < y0 + h; y++)
+        for (int x = x0; x < x0 + w; x++)
+            n += im[y][x] == 255;
+    return n;
+}
+
+/* The keys tab (F4 or ?): the keys a page, the headings on blue; Escape or F1 to F3 go back; every line fits and has its letters */
+static void test_editor_keys_tab(void)
+{
+    /* tiles of 8: one page, two columns (headings at rows 0, 5, 9, 13, 21 and 0, 3, 8, 13, 18, 22); Page Down stays on it; Escape goes back */
+    fresh();
+    keys_seen_at = 10;
+    editor_run("KT.TGF\n8\n", "..{F4}...{PGDN}........{ESC}...{ESC}.n", script_keys_tab);
+    CHECK(image[19][3] == 250 && blue_in(image, 96, 0, 24, 8) == 0 && blue_in(image, 0, 0, 24, 8) > 20);    /* at the end: the tiles again */
+    memcpy(image, keys_seen, sizeof image);
+    shot("editor_keys8");
+    CHECK(blue_in(keys_seen, 96, 0, 24, 8) > 20 && blue_in(keys_seen, 0, 0, 24, 8) == 0);                   /* KEY is the tab, not TIL */
+    CHECK(keys_seen[16 + 1][150] == 255 && keys_seen[16 + 5 * 8 + 1][150] == 255 && keys_seen[16 + 21 * 8 + 1][150] == 255);
+    CHECK(keys_seen[16 + 22 * 8 + 1][310] == 255 && keys_seen[16 + 1 * 8 + 1][150] == 248 && keys_seen[16 + 25 * 8 + 1][310] == 248);
+    CHECK(keys_seen[115][120] == 248);                                                    /* no drawing (past the end of "B BOX   K PICK") */
+
+    /* tiles of 16: four pages, ? to come; Page Down, a click, the wheel away, Page Down: the second, third, second, third (headings at rows 0,
+     * 3 and 8, not 5 as on the first and fourth); F2: the sprites */
+    fresh();
+    keys_seen_at = 18;
+    editor_run("KT16.TGF\n16\n", "..?..{PGDN}........{PGDN}.........{F2}...{ESC}.n", script_keys_tab16);
+    CHECK(image[19][3] == 250 && blue_in(image, 64, 0, 48, 16) > 40 && blue_in(image, 192, 0, 48, 16) == 0);  /* the sprites */
+    memcpy(image, keys_seen, sizeof image);
+    shot("editor_keys16");
+    CHECK(blue_in(keys_seen, 192, 0, 48, 16) > 40);
+    CHECK(keys_seen[16 + 1][300] == 255 && keys_seen[16 + 3 * 16 + 1][300] == 255 && keys_seen[16 + 8 * 16 + 1][300] == 255);
+    CHECK(keys_seen[16 + 5 * 16 + 1][300] == 248 && keys_seen[16 + 12 * 16 + 1][300] == 248);
+
+    /* from the sprites: the preview (sprite 0 at 144, 16) is hidden on the keys page, and back when Escape goes back to them */
+    fresh();
+    keys_seen_at = 10;
+    editor_run("KS.TGF\n8\n", ".{F2}.....{F4}.....{ESC}...{ESC}.n", script_keys_spr);
+    CHECK(image[16][128] == 70 && keys_seen[16][128] == 255);
+
+    /* the lines: 19 characters at most, and only those the editor puts in tiles */
+    run_check("local f = io.open(\"draw.lua\") local src = f:read(\"a\") f:close()\n"
+              "local chars = src:match('local CHARS = \"(.-)\"\\n')\n"
+              "local keys = load(\"return \" .. src:match(\"local KEYS = (%b{})\"))()\n"
+              "local bad = 0\n"
+              "for _, l in ipairs(keys) do\n"
+              "  local s = l:gsub(\"^=\", \"\")\n"
+              "  if #s > 19 then bad = bad + 1 end\n"
+              "  for c in s:gmatch(\".\") do if not chars:find(c, 1, true) then bad = bad + 1 end end\n"
+              "end\n"
+              "print(\"keys lines \" .. #keys .. \" bad \" .. bad)\n");
+    CHECK(printed("keys lines 50 bad 0"));
+}
+
+/* tiles of 8: tile 1 drawn at (0, 0) at frame 3; a click on the group of four (at 144, 16) at its bottom left, tile 2, at 6; tile 2 drawn at (7, 7) at 9 */
+static void script_group8(int f)
+{
+    if (f == 1)
+        mouse_to(160, 120, 0, 0);
+    else if (f == 3)
+        mouse_to(PIXEL_AT(8, 0, 0), PLAT_MOUSE_LEFT, PLAT_MOUSE_LEFT);
+    else if (f == 6)
+        mouse_to(144 + 3, 24 + 3, PLAT_MOUSE_LEFT, PLAT_MOUSE_LEFT);
+    else if (f == 9)
+        mouse_to(PIXEL_AT(8, 7, 7), PLAT_MOUSE_LEFT, PLAT_MOUSE_LEFT);
+    else if (f == 4 || f == 7 || f == 10)
+        mouse_to(mouse_x, mouse_y, 0, 0);
+}
+
+/* tiles of 16: tile 6 (Page Down five times) drawn at (0, 0) at frame 10 */
+static void script_group16(int f)
+{
+    if (f == 1)
+        mouse_to(160, 120, 0, 0);
+    else if (f == 10)
+        mouse_to(PIXEL_AT(16, 0, 0), PLAT_MOUSE_LEFT, PLAT_MOUSE_LEFT);
+    else if (f == 11)
+        mouse_to(mouse_x, mouse_y, 0, 0);
+}
+
+/* The previews of a tile: itself at 128, 16; its group of four (4n to 4n + 3) two by two beside it, 4n and 4n + 1 above 4n + 2 and 4n + 3, a
+ * click on one draws it; the tile three by three below them */
+static void test_editor_group(void)
+{
+    fresh();
+    editor_run("GROUP.TGF\n8\n", "...........^S.{ESC}", script_group8);
+    shot("editor_group8");
+    CHECK(image[16][152] == 70 && image[24 + 7][144 + 7] == 70 && image[16][144] == 250);   /* the group: tile 1 top right, 2 bottom left, 0 empty */
+    CHECK(image[16 + 7][128 + 7] == 70);                                                     /* tile 2 itself */
+    CHECK(image[40 + 7][128 + 7] == 70 && image[56 + 7][144 + 7] == 70);                     /* three by three: the first and the last */
+    run_check("gfx(8) loadgfx(\"GROUP.TGF\")\n"
+              "print(\"group \" .. tilepix(1, 0, 0) .. \" \" .. tilepix(2, 7, 7) .. \" \" .. tilepix(2, 0, 0))\n");
+    CHECK(printed("group 70 70 0"));
+
+    fresh();
+    editor_run("GROUP16.TGF\n16\n", "..{PGDN}{PGDN}{PGDN}{PGDN}{PGDN}......^S.{ESC}", script_group16);
+    shot("editor_group16");
+    CHECK(image[32][160] == 70 && image[16][160] == 250 && image[16][176] == 250);           /* tile 6 bottom left of 4 to 7 */
+    CHECK(image[16][128] == 70 && image[48][128] == 70 && image[80][160] == 70);              /* itself; three by three at 128, 48 */
+    run_check("gfx(16) loadgfx(\"GROUP16.TGF\")\n"
+              "print(\"group16 \" .. tilepix(6, 0, 0))\n");
+    CHECK(printed("group16 70"));
+}
+
+static void test_editor(void)
+{
+    test_editor_group();
+    test_editor_keys_tab();
+    test_editor_new8();
+    test_editor_back();
+    test_editor_two_buttons();
+    test_editor_big16();
+    test_editor_anim();
+    test_editor_leave();
+    test_editor_full_file();
+    test_editor_keys();
+    test_editor_slope();
+}
 
 /* What Lua no longer uses goes back when something else needs the memory: after an error (a failed program leaves what it built), before HEAP and
  * the editor, and when a machine whose game memory shares a pool with Lua (the board) has it collect from its alloc hook */
@@ -3301,6 +3754,7 @@ int main(void)
     test_tgf_files();
     test_keys_and_mouse();
     test_example_paint();
+    test_editor();
     printf("all %d checks passed\n", checks);
     return 0;
 }
